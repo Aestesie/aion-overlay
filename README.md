@@ -84,12 +84,23 @@ start Electron from `app/` (`npx electron .`).
 
 ## Credits
 
-- Monster names (`data/npcs_en.json`) come from
-  [taengu/A2Tools-DPS-Meter](https://github.com/taengu/A2Tools-DPS-Meter), licensed GPL-3.0.
+- Lokthar Overlay started as a fork of [xCROv/aion2-nyerk](https://github.com/xCROv/aion2-nyerk)
+  (GPL-3.0), which gave it its overlay UI and its first pet tracker features.
+- The DPS meter, packet capture and combat parsing use code from
+  [taengu/A2Tools-DPS-Meter](https://github.com/taengu/A2Tools-DPS-Meter) (GPL-3.0): its parser
+  crate as a dependency, and its capture code copied into `engine/`. Monster names
+  (`data/npcs_en.json`) come from it too.
+- Pet record layouts and soul counting rules follow the pet-souls plugin of
+  [taengu/A2Tools-Plugins](https://github.com/taengu/A2Tools-Plugins) (GPL-3.0).
 - Pet names, genus, portraits, spawn locations and zone maps come from
   [questlog.gg](https://questlog.gg/aion-2/en/db/pets).
 - Aion 2 and its game data and art belong to NCSoft. This project is not affiliated with or
   endorsed by NCSoft or questlog.gg.
+
+## License
+
+GPL-3.0-only: see [LICENSE](LICENSE). The projects credited above are GPL-3.0 too; their code
+keeps its authors' copyright.
 
 ## Disclaimer
 

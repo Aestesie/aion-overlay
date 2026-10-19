@@ -99,6 +99,11 @@ Revisit after phase 2, when Python is gone and the engine is a plain crate. At t
 
 ### Phases
 
+**Phase 0: license (done 2026-10-19).**
+- `LICENSE` restored: the GPL-3.0 text (removed by mistake before the history squash). Matches `pyproject.toml` and `app/package.json` (`GPL-3.0-only`) and all three upstream repos (GPL-3.0).
+- README: credits for Nyerk (fork origin), A2Tools DPS Meter (parser crate + copied capture code) and A2Tools Plugins (pet rules), and a License section.
+- Rule from here on: every file copied from upstream starts with a comment naming its source repo, path and commit, and keeps the upstream copyright line if it has one.
+
 **Phase 1: DPS spike.**
 - `engine/` binary: copy and trim upstream's `pcap_capturer.rs`, `combat_port_detector.rs`, `capture_dispatcher.rs` (≈2k lines; drop the logger, share, window detector, Tauri). It loads `wpcap.dll` at runtime, so no SDK at build time.
 - Load `src/data/i18n/{npcs,skills}/en.json` and `dot_skill_ids.json` from upstream.
@@ -280,4 +285,4 @@ Report format:
 
 ## Credit
 
-This overlay will include code from A2Tools DPS Meter (github.com/taengu/A2Tools-DPS-Meter) and A2Tools Plugins (github.com/taengu/A2Tools-Plugins), both GPL-3.0, and is itself open source. License compliance details to be finished before the first release that ships their code.
+This overlay includes code from A2Tools DPS Meter (github.com/taengu/A2Tools-DPS-Meter), A2Tools Plugins (github.com/taengu/A2Tools-Plugins) and Nyerk (github.com/xCROv/aion2-nyerk), all GPL-3.0. Ours is GPL-3.0-only and open source; see Phase 0 and the README's Credits and License sections.
