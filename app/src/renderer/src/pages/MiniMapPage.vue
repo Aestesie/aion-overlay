@@ -55,8 +55,8 @@ const pet = (id: number) => store.pets.find((p) => p.id === id) ?? blankPet(id)
 
 const drag = windowDrag({ move: 'minimap:moveTo', end: 'minimap:dragEnd' })
 const setZoom = (zoom: number): void =>
-  void api.invoke('settings:set', 'minimap', { ...cfg.value, zoom: Math.min(40, Math.max(1, zoom)) })
-const toggleCollapsed = (): void => void api.invoke('settings:set', 'minimap', { ...cfg.value, collapsed: !cfg.value.collapsed })
+  void store.set('minimap', { ...cfg.value, zoom: Math.min(40, Math.max(1, zoom)) })
+const toggleCollapsed = (): void => void store.set('minimap', { ...cfg.value, collapsed: !cfg.value.collapsed })
 /** The + and - buttons: a step of 1.5 times either way. */
 const ZOOM_STEP = 1.5
 

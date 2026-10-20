@@ -103,7 +103,7 @@ const pingClass = computed(() => {
   const ms = meter.value.ping
   return ms === null ? '' : ms < 80 ? 'text-green' : ms < 150 ? 'text-yellow' : 'text-danger'
 })
-const set = (patch: Partial<typeof cfg.value>): void => void api.invoke('settings:set', 'meter', { ...cfg.value, ...patch })
+const set = (patch: Partial<typeof cfg.value>): void => void store.set('meter', { ...cfg.value, ...patch })
 const moreModes = computed(() => !MAIN_TARGET_MODES.some((m) => m.id === cfg.value.targetMode))
 
 /** Tell main how big the window is. */
