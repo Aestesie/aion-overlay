@@ -156,7 +156,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   playerLevel: null,
   hideMaxed: true,
   timers: {
-    region: 'na-east',
+    region: 'south-america',
     enabled: Object.fromEntries(TIMERS.map((t) => [t.id, t.defaultOn])) as Record<TimerId, boolean>,
     lead: Object.fromEntries(TIMERS.map((t) => [t.id, t.lead])) as Record<TimerId, number>,
     sound: true,

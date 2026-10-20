@@ -86,24 +86,30 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="inline-block">
-    <div ref="root" class="inline-block">
+  <!-- w-max: laid out at its own width, not the window's, so it measures what it needs and the
+       window grows to it (inside a narrower window the items shrank and their numbers were cut). -->
+  <div class="inline-block w-max">
+    <div ref="root" class="inline-block w-max">
       <div
         v-if="items.length"
-        class="m-1.5 flex cursor-move items-center gap-1.5 rounded-lg border border-card bg-darker/90 px-1.5 py-1 shadow-card"
+        class="m-1.5 flex w-max cursor-move items-center gap-2 whitespace-nowrap rounded-lg border border-card bg-darker/95 p-1.5 shadow-card"
         title="Drag to move"
         @pointerdown="drag.onPointerDown"
       >
         <div
           v-for="{ def, at } in items"
           :key="def.id"
-          :class="['flex items-center gap-1.5 rounded-md px-1.5 py-0.5', alerting.has(def.id) ? 'bg-yellow/15' : 'bg-dark']"
+          :class="['flex shrink-0 items-center gap-2 rounded-md py-1 pl-1 pr-2', alerting.has(def.id) ? 'bg-yellow/20' : 'bg-dark']"
           :title="`${def.name}: ${new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`"
         >
-          <img v-if="icon(def)" :src="icon(def)!" class="size-5 rounded-sm object-cover" alt="" draggable="false" />
-          <span v-else class="text-[12px] font-semibold text-dark">{{ LABELS[def.id] ?? def.name }}</span>
-          <span v-if="alerting.has(def.id)" class="size-1.5 rounded-full bg-yellow" />
-          <span class="text-[12px] font-semibold tabular-nums text-default">{{ countdown(at) }}</span>
+          <img v-if="icon(def)" :src="icon(def)!" class="size-6 shrink-0 rounded object-cover" alt="" draggable="false" />
+          <span v-else class="pl-1 text-[13px] font-semibold text-dark">{{ LABELS[def.id] ?? def.name }}</span>
+          <span v-if="alerting.has(def.id)" class="size-1.5 shrink-0 rounded-full bg-yellow" />
+          <!-- As wide as its widest form, so the bar doesn't twitch as the seconds go by. -->
+          <span
+            :class="['text-[13px] font-semibold tabular-nums', alerting.has(def.id) ? 'text-yellow' : 'text-default']"
+            :style="{ minWidth: `${countdown(at).length}ch` }"
+          >{{ countdown(at) }}</span>
         </div>
       </div>
     </div>

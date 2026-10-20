@@ -24,6 +24,7 @@ import { kinaBalance, kinaRebase, NO_KINA, type KinaSession } from '../shared/ki
 import { fieldBosses } from './fieldBosses.ts'
 import type { FieldBosses } from '../shared/timers.ts'
 import { pvpLog } from './pvpLog.ts'
+import { serverFaction, serverRegion } from '../shared/servers.ts'
 import { GAME_ACTIVE_S, NO_NEARBY, type Nearby, type Pet, type PvpKill, type ShopItem, type ShopStock, type SoulToast, type TrackerStatus } from '../shared/tracker.ts'
 
 const RESTART_DELAYS_MS = [1000, 3000, 10000, 30000]
@@ -67,6 +68,7 @@ let status: TrackerStatus = {
   dataFile: null,
   character: null,
   server: null,
+  level: null,
 }
 
 /**
@@ -213,6 +215,7 @@ function handleLine(line: string): void {
         character: (ev['character'] as { name: string } | null)?.name ?? null,
         server: (ev['character'] as { server?: number } | null)?.server ?? null,
       })
+      learnServer(status.server)
       fieldBosses.setServer((ev['character'] as { server?: number } | null)?.server ?? null)
       break
     case 'character': {
@@ -221,6 +224,7 @@ function handleLine(line: string): void {
       log(`character: ${name}${ev['server'] ? ` (server ${ev['server']})` : ''}${ev['switched'] ? ', switched collection' : ''}`)
       replacePets(ev['pets'] as Pet[])
       setStatus({ character: name, server: (ev['server'] as number | undefined) ?? null })
+      learnServer(status.server)
       fieldBosses.setServer((ev['server'] as number | undefined) ?? null)
       break
     }
@@ -229,6 +233,13 @@ function handleLine(line: string): void {
       const detail = state === 'locked' ? `Game server ${ev['server']}` : ((ev['detail'] as string | undefined) ?? null)
       // Paused, the heartbeats stop: the last one must not keep saying the game is active.
       setStatus(state === 'idle' ? { state, detail, lastPacketAgo: null } : { state, detail })
+      break
+    }
+    case 'player': {
+      // Your level, as the game's record of you says: kept for the Nearby marks.
+      const level = ev['level'] as number
+      setStatus({ level })
+      if (settings.get('playerLevel') !== level) settings.set('playerLevel', level)
       break
     }
     case 'heartbeat':
@@ -336,6 +347,19 @@ function handleLine(line: string): void {
       stderrTail = [...stderrTail, `sidecar: ${ev['detail']}`].slice(-20)
       break
   }
+}
+
+/**
+ * Your side and your timers' region follow from your server, and are kept in the settings: the
+ * last ones seen stand for an app started mid-session, before the game names you.
+ */
+function learnServer(server: number | null): void {
+  if (server === null) return
+  const faction = serverFaction(server)
+  if (faction && settings.get('faction') !== faction) settings.set('faction', faction)
+  const region = serverRegion(server)
+  const timers = settings.get('timers')
+  if (region && timers.region !== region) settings.set('timers', { ...timers, region })
 }
 
 function replacePets(list: Pet[]): void {

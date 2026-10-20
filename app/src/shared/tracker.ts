@@ -44,6 +44,8 @@ export interface TrackerStatus {
   character: string | null
   /** That character's game server (Kaisinel 1104): the collection is that server's. Null until seen. */
   server: number | null
+  /** That character's level, from the game's record of you; null until read. */
+  level: number | null
 }
 
 /** What is loaded around you, from the tracker: monsters by code, your zone and position. */

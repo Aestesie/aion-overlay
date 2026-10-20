@@ -12,6 +12,7 @@
 //!       or for the first time
 //!   {"type": "status", "state": "listening" | "locked" | "idle" | "stopped" | "error", "server"?, "detail"?}
 //!   {"type": "heartbeat", "lastPacketAgo": 1.2}       every 2 s while capturing
+//!   {"type": "player", "level": 45}                   your level, when it is first read and when it changes
 //!   {"type": "sync", "pets": 119, "souls": 938, "corrected": [...], "collection": [...]}
 //!   {"type": "soul", "amount": 1, "pet": {...}, "levelUp": false}     one per pet a pickup gives souls to
 //!   {"type": "crystal", "amount": 1, "genus": "fera" | "cogni" | null, "pet": {...} | null,
@@ -296,12 +297,13 @@ impl Sidecar {
         });
     }
 
-    /// Every 2 s while capturing: how long since the game's last frame, and
-    /// what is around you when it changed.
+    /// Every 2 s while capturing: how long since the game's last frame, what
+    /// is around you when it changed, and your level when it changed.
     fn heartbeat(self: &Arc<Self>) {
         let me = self.clone();
         self.runtime.spawn(async move {
             let mut tick = tokio::time::interval(HEARTBEAT);
+            let mut level = None;
             loop {
                 tick.tick().await;
                 if !me.capturing.load(Ordering::SeqCst) {
@@ -309,6 +311,12 @@ impl Sidecar {
                 }
                 let ago = me.last_frame.lock().map(|at| (at.elapsed().as_secs_f64() * 10.0).round() / 10.0);
                 emit(&event("heartbeat", json!({ "lastPacketAgo": ago })));
+                // The parser reads it from the game's record of you (every zone entry).
+                let now = me.meter.storage.local_profile().level;
+                if now.is_some() && now != level {
+                    level = now;
+                    emit(&event("player", json!({ "level": now })));
+                }
                 let mut tracker = me.tracker.lock();
                 if tracker.nearby_dirty {
                     emit(&event("nearby", tracker.nearby()));

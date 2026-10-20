@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // HUD, DPS meter, panel, privacy, Lokthar sync and tracker settings. Every change applies at once.
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import Button from '@/components/Button.vue'
 import SettingRow from '@/components/SettingRow.vue'
 import Slider from '@/components/Slider.vue'
@@ -8,6 +8,7 @@ import Toggle from '@/components/Toggle.vue'
 import { bridge } from '@/lib/bridge.ts'
 import { useApp } from '@/stores/app.ts'
 import type { SyncResult } from '@shared/lokthar.ts'
+import { serverLabel } from '@shared/servers.ts'
 
 const store = useApp()
 const info = ref<{ version: string; settingsFile: string; logFile: string } | null>(null)
@@ -30,6 +31,27 @@ async function testSync(): Promise<void> {
   syncResult.value = await bridge().invoke('lokthar:test')
   testing.value = false
 }
+/**
+ * Who you are, as the game says: your side (its zones first where a soul drops), your region (the
+ * timers') and your level (the Nearby marks) all come from it. Before the game names you, the last
+ * ones seen.
+ */
+const who = computed(() => {
+  const s = store.status
+  const level = s?.level ?? store.settings.playerLevel
+  const parts = [
+    s?.character,
+    s?.server ? serverLabel(s.server) : store.settings.faction === 'asmodians' ? 'Asmodian' : 'Elyos',
+    level ? `Lv ${level}` : null,
+  ].filter(Boolean)
+  return {
+    value: parts.join(' · '),
+    hint: s?.server
+      ? 'Read from the game: your side, region and level follow your character.'
+      : 'Read from the game when you enter the world; until then, the last ones seen.',
+  }
+})
+
 const ago = (at: number): string => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
 const setMeter = (patch: Partial<typeof store.settings.meter>): Promise<void> => store.set('meter', { ...store.settings.meter, ...patch })
@@ -40,27 +62,11 @@ const setMeter = (patch: Partial<typeof store.settings.meter>): Promise<void> =>
     <section>
       <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-darkest">You</h3>
       <div class="divide-y divide-[color:var(--gray-4)] rounded-lg border border-card bg-card px-3">
-        <SettingRow label="Your side" hint="Its zones are listed first where a soul drops.">
-          <select
-            :value="store.settings.faction"
-            class="h-7 rounded-md border border-light bg-default px-2 text-sm"
-            @change="store.set('faction', ($event.target as HTMLSelectElement).value as 'elyos' | 'asmodians')"
-          >
-            <option value="elyos">Elyos</option>
-            <option value="asmodians">Asmodian</option>
-          </select>
+        <SettingRow label="Character" :hint="who.hint">
+          <span class="text-sm text-dark">{{ who.value }}</span>
         </SettingRow>
         <SettingRow label="Hide maxed (Lv3) pets" hint="They earn no more souls: left out of the collection, Nearby and the HUD.">
           <Toggle :model-value="store.settings.hideMaxed" @update:model-value="store.set('hideMaxed', $event)" />
-        </SettingRow>
-        <SettingRow label="Your level" hint="Marks the monsters close enough to it for souls to drop well.">
-          <input
-            :value="store.settings.playerLevel ?? ''"
-            inputmode="numeric"
-            placeholder="?"
-            class="h-7 w-14 rounded-md border border-light bg-default px-2 text-center text-sm tabular-nums"
-            @change="store.set('playerLevel', ($event.target as HTMLInputElement).value.trim() ? Number(($event.target as HTMLInputElement).value) : null)"
-          />
         </SettingRow>
       </div>
     </section>
@@ -140,6 +146,15 @@ const setMeter = (patch: Partial<typeof store.settings.meter>): Promise<void> =>
         </SettingRow>
         <SettingRow label="Opacity">
           <Slider :model-value="store.settings.meter.opacity" :min="0.3" :max="1" :step="0.05" :format="pct" @update:model-value="setMeter({ opacity: $event })" />
+        </SettingRow>
+      </div>
+    </section>
+
+    <section>
+      <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-darkest">Timer bar</h3>
+      <div class="divide-y divide-[color:var(--gray-4)] rounded-lg border border-card bg-card px-3">
+        <SettingRow label="Show the countdown bar" hint="The timers with an alert on (Timers tab), starting within 13 hours, as icons and countdowns over the game. Drag it to move it.">
+          <Toggle :model-value="store.settings.timerBar.enabled" @update:model-value="store.set('timerBar', { ...store.settings.timerBar, enabled: $event })" />
         </SettingRow>
       </div>
     </section>

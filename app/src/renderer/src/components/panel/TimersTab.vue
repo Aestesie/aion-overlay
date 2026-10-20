@@ -158,6 +158,11 @@ const shownCount = computed(() => TIMERS.filter((d) => shown(d.id)).length)
 
 <template>
   <div class="space-y-4 p-3">
+    <div class="rounded-lg border border-card bg-card px-3">
+      <SettingRow label="Countdown bar" hint="The timers with an alert on, starting within 13 hours, over the game. Drag it to move it.">
+        <Toggle :model-value="store.settings.timerBar.enabled" @update:model-value="store.set('timerBar', { ...store.settings.timerBar, enabled: $event })" />
+      </SettingRow>
+    </div>
     <div ref="list" class="space-y-3">
       <p v-if="!groups.length" class="rounded-lg border border-card bg-card px-3 py-4 text-center text-sm text-darker">
         No timers shown. Choose some below.
@@ -267,7 +272,7 @@ const shownCount = computed(() => TIMERS.filter((d) => shown(d.id)).length)
     <section>
       <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-darkest">Alerts</h3>
       <div class="divide-y divide-[color:var(--gray-4)] rounded-lg border border-card bg-card px-3">
-        <SettingRow label="Server region" hint="Weekly events (the siege) are at your region's own time.">
+        <SettingRow label="Server region" hint="Weekly events (the siege) are at your region's own time. It follows your server as you enter the world; change it here if that is wrong.">
           <select
             :value="cfg.region"
             class="h-7 rounded-md border border-light bg-default px-2 text-sm"
@@ -275,9 +280,6 @@ const shownCount = computed(() => TIMERS.filter((d) => shown(d.id)).length)
           >
             <option v-for="r in REGIONS" :key="r.id" :value="r.id">{{ r.label }}{{ r.confirmed ? '' : ' (unconfirmed)' }}</option>
           </select>
-        </SettingRow>
-        <SettingRow label="Countdown bar" hint="The timers with an alert on, starting within 13 hours, as a bar of countdowns over the game. Drag it to move it.">
-          <Toggle :model-value="store.settings.timerBar.enabled" @update:model-value="store.set('timerBar', { ...store.settings.timerBar, enabled: $event })" />
         </SettingRow>
         <SettingRow label="Sound" hint="A soft chime when an alert starts.">
           <Toggle :model-value="cfg.sound" @update:model-value="set({ sound: $event })" />

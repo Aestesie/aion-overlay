@@ -266,7 +266,7 @@ function zoneOffset(zone: string, t: number): number {
 }
 
 /** The first start at or after `from` (ms since epoch). Zoned ones in `region`'s time zone. */
-export function nextStart(s: Schedule, from: number, region: Region = 'na-east', bosses: FieldBosses = {}): number {
+export function nextStart(s: Schedule, from: number, region: Region = 'south-america', bosses: FieldBosses = {}): number {
   if (s.kind === 'boss') {
     // Its respawn, if the map said it is dead; up, or never seen, there is no next start to give.
     const b = bosses[s.boss]
@@ -324,7 +324,7 @@ export const ALERT_AFTER_MS = 2 * MINUTE
 export function alertingStart(
   def: TimerDef,
   now: number,
-  region: Region = 'na-east',
+  region: Region = 'south-america',
   lead = def.lead,
   bosses: FieldBosses = {},
 ): number | null {
