@@ -186,6 +186,11 @@ impl Meter {
             if i.server_end_ms.is_some_and(|e| e < now - 1_000) {
                 continue;
             }
+            // Timed, but no record said when it ends: nothing will run it out, and the ones seen
+            // so (potions) stayed listed long after they were gone. Passives have no timer at all.
+            if !i.endless && i.server_end_ms.is_none() {
+                continue;
+            }
             let entry = by_id.entry((i.abnormal, i.caster)).or_insert_with(|| {
                 serde_json::json!({
                     "id": i.abnormal, "stacks": 0, "endsAt": i.server_end_ms, "startedAt": i.start_ms,
