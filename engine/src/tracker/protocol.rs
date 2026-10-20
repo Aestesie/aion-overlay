@@ -15,6 +15,7 @@ pub const OP_COLLECTION: [u8; 2] = [0x00, 0x90];
 pub const OP_MAP_LOAD: [u8; 2] = [0x21, 0x36];
 pub const OP_TELEPORT: [u8; 2] = [0x23, 0x36];
 pub const OP_CASTS: [[u8; 2]; 2] = [[0x02, 0x38], [0x03, 0x38]];
+pub const OP_EFFECTS: [[u8; 2]; 2] = [[0x2A, 0x38], [0x2B, 0x38]];
 pub const OP_SELF: [u8; 2] = [0x33, 0x36];
 pub const OP_ITEM: [u8; 2] = [0x1B, 0x56];
 pub const OP_FIELD_BOSSES: [u8; 2] = [0x01, 0x91];
@@ -273,17 +274,51 @@ pub fn self_teleport(frame: &[u8]) -> Option<(f32, f32)> {
     Some((f32_at(b, 6)?, f32_at(b, 10)?))
 }
 
-/// `02 38` / `03 38 <caster varint> 00 <target varint> <skill u32> ... <f32 x>
-/// <f32 y>`: where the caster stands. The first plausible pair after the skill:
-/// game coordinates stay within ±500,000, and values under 1,000 are other
-/// fields read as floats.
+/// Heights seen run 11,000 to 30,000; a coordinate read as a height is far above this.
+const MAX_HEIGHT: f32 = 100_000.0;
+
+/// An x, y, z at `off` that reads as a place: x and y within ±500,000 and past
+/// ±1,000 (smaller values are other fields read as floats), z under MAX_HEIGHT.
+fn place_at(b: &[u8], off: usize) -> Option<(f32, f32)> {
+    let (x, y, z) = (f32_at(b, off)?, f32_at(b, off + 4)?, f32_at(b, off + 8)?);
+    let coord = |v: f32| (1000.0..500_000.0).contains(&v.abs());
+    (coord(x) && coord(y) && z.abs() < MAX_HEIGHT).then_some((x, y))
+}
+
+/// `02 38` / `03 38 <caster varint> 00 <target varint> <skill u32> ... <x y z f32>`:
+/// the caster, and where its **target** stands, not the caster (Nyerk
+/// 2026-10-17: 938 of 986 casts matched the target's movement); close to the
+/// caster only for melee and gathering. The first plausible place after the
+/// skill: the height check keeps a field reading 1,413.8 from passing as an x
+/// (1 cast in 11 was misread that way).
 pub fn cast(frame: &[u8]) -> Option<(u32, f32, f32)> {
     let b = OP_CASTS.iter().find_map(|&op| body(frame, op))?;
     let (actor, n) = varint(b, 0)?;
-    let plausible = |v: f32| (1000.0..500_000.0).contains(&v.abs());
-    (n + 6..(b.len().saturating_sub(8)).min(n + 24)).find_map(|off| {
-        let (x, y) = (f32_at(b, off)?, f32_at(b, off + 4)?);
-        (plausible(x) && plausible(y)).then_some((actor, x, y))
+    (n + 6..(b.len().saturating_sub(12)).min(n + 24)).find_map(|off| place_at(b, off).map(|(x, y)| (actor, x, y)))
+}
+
+/// Epoch ms, 2020 to 2128: how the time in an effect record is found. Effects
+/// that never run out carry the end of 2099.
+const EFFECT_MS: std::ops::Range<u64> = 1_580_000_000_000..5_000_000_000_000;
+
+/// `2A 38` / `2B 38 <source varint> ... <u64 ms> <target varint> <0-8 bytes>
+/// <x y z f32>`: an effect put on the target (a buff, a heal, a hit's debuff,
+/// whoever put it there), and where the target stands (Nyerk 0.2.17: all
+/// 112,742 effect records of a capture read this way, median error 0 against
+/// the entities' own movement). A field before the time can read as one, so
+/// each window that does is tried in turn.
+pub fn effect_position(frame: &[u8]) -> Option<(u32, f32, f32)> {
+    let b = OP_EFFECTS.iter().find_map(|&op| body(frame, op))?;
+    (1..b.len().saturating_sub(8).min(40)).find_map(|i| {
+        if !u64_at(b, i).is_some_and(|t| EFFECT_MS.contains(&t)) {
+            return None;
+        }
+        let (target, n) = varint(b, i + 8)?;
+        if target == 0 {
+            return None;
+        }
+        let start = i + 8 + n;
+        (start..(start + 9).min(b.len().saturating_sub(11))).find_map(|off| place_at(b, off).map(|(x, y)| (target, x, y)))
     })
 }
 

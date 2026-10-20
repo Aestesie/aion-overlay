@@ -43,6 +43,7 @@ let merchant: BrowserWindow | null = null
 let merchantSize = { width: 0, height: 0 }
 let meter: BrowserWindow | null = null
 let killFeed: BrowserWindow | null = null
+let killFeedSize = { width: 0, height: 0 }
 let timerBar: BrowserWindow | null = null
 let timerBarSize = { width: 0, height: 0 }
 let meterSize = { width: 0, height: 0 }
@@ -115,6 +116,19 @@ function load(win: BrowserWindow, route: string): void {
   const dev = process.env['ELECTRON_RENDERER_URL']
   if (!app.isPackaged && dev) void win.loadURL(`${dev}#/${route}`)
   else void win.loadFile(join(__dirname, '../renderer/index.html'), { hash: `/${route}` })
+}
+
+/**
+ * The size a window's page measured itself at, for moving it: never the window's own size. On a
+ * scaled display (125%, 150%) Windows can hand a window back a pixel larger than it was set to, so
+ * a move that kept the window's size grew it a little each time; the window is transparent, so it
+ * did not show, but the room left to drag it on the screen shrank with every drag. Before the page
+ * has measured itself, the window's size.
+ */
+function measured(win: BrowserWindow, size: { width: number; height: number }): { width: number; height: number } {
+  if (size.width > 0 && size.height > 0) return size
+  const { width, height } = win.getBounds()
+  return { width, height }
 }
 
 /** Keep a rectangle on a display: on the one it mostly overlaps, inside its work area. */
@@ -392,8 +406,7 @@ export function resizeMerchant(size: { width: number; height: number }): void {
 
 export function moveMerchant(to: Point): void {
   if (!alive(merchant)) return
-  const { width, height } = merchant.getBounds()
-  merchant.setBounds(clampToDisplay({ x: to.x, y: to.y, width, height }))
+  merchant.setBounds(clampToDisplay({ x: to.x, y: to.y, ...measured(merchant, merchantSize) }))
 }
 
 export function merchantDragEnded(): void {
@@ -446,8 +459,7 @@ export function resizeMeter(size: { width: number; height: number }): void {
 
 export function moveMeter(to: Point): void {
   if (!alive(meter)) return
-  const { width, height } = meter.getBounds()
-  meter.setBounds(clampToDisplay({ x: to.x, y: to.y, width, height }))
+  meter.setBounds(clampToDisplay({ x: to.x, y: to.y, ...measured(meter, meterSize) }))
 }
 
 export function meterDragEnded(): void {
@@ -500,8 +512,7 @@ export function resizeTimerBar(size: { width: number; height: number }): void {
 
 export function moveTimerBar(to: Point): void {
   if (!alive(timerBar)) return
-  const { width, height } = timerBar.getBounds()
-  timerBar.setBounds(clampToDisplay({ x: to.x, y: to.y, width, height }))
+  timerBar.setBounds(clampToDisplay({ x: to.x, y: to.y, ...measured(timerBar, timerBarSize) }))
 }
 
 export function timerBarDragEnded(): void {
@@ -527,6 +538,7 @@ export function createKillFeed(): void {
   const p = killFeedPosition()
   const win = overlayWindow({ x: p.x, y: p.y, width: KILL_FEED_WIDTH, height: 40 })
   killFeed = win
+  killFeedSize = { width: 0, height: 0 }
   win.on('closed', () => (killFeed = null))
   load(win, 'killfeed')
   win.webContents.once('did-finish-load', () => alive(win) && reveal(win))
@@ -544,14 +556,14 @@ export function setKillFeedOpen(open: boolean): void {
 
 export function resizeKillFeed(size: { width: number; height: number }): void {
   if (!alive(killFeed) || size.width <= 0 || size.height <= 0) return
+  killFeedSize = { width: Math.ceil(size.width), height: Math.ceil(size.height) }
   const { x, y } = killFeed.getBounds()
-  killFeed.setBounds(clampToDisplay({ x, y, width: Math.ceil(size.width), height: Math.ceil(size.height) }))
+  killFeed.setBounds(clampToDisplay({ x, y, ...killFeedSize }))
 }
 
 export function moveKillFeed(to: Point): void {
   if (!alive(killFeed)) return
-  const { width, height } = killFeed.getBounds()
-  killFeed.setBounds(clampToDisplay({ x: to.x, y: to.y, width, height }))
+  killFeed.setBounds(clampToDisplay({ x: to.x, y: to.y, ...measured(killFeed, killFeedSize) }))
 }
 
 export function killFeedDragEnded(): void {

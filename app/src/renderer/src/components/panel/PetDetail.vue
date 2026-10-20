@@ -73,11 +73,6 @@ const focus = computed(() => current.value?.worlds.find((w) => w.world === world
 const FIT_TEXT = { good: 'good drop rate', low: `over ${LEVEL_GAP} levels below you: rare drops`, high: 'above your level' }
 const FIT_CLASS = { good: 'text-green', low: 'text-red', high: 'text-yellow' }
 
-const level = ref(store.settings.playerLevel === null ? '' : String(store.settings.playerLevel))
-function saveLevel(): void {
-  const n = Number(level.value)
-  void store.set('playerLevel', level.value.trim() && Number.isInteger(n) && n > 0 ? Math.min(99, n) : null)
-}
 </script>
 
 <template>
@@ -106,17 +101,10 @@ function saveLevel(): void {
           <span v-if="monsterName(pet)" class="truncate">· farmed from {{ monsterName(pet) }}</span>
         </div>
       </div>
-      <label class="flex shrink-0 items-center gap-1.5 text-xs text-darker">
-        Your level
-        <input
-          v-model="level"
-          inputmode="numeric"
-          class="h-7 w-11 rounded-md border border-light bg-default px-1.5 text-center text-sm tabular-nums text-default"
-          placeholder="?"
-          @change="saveLevel"
-          @keydown.enter="saveLevel"
-        />
-      </label>
+      <!-- Your level, as the game says: what the drop-rate marks below go by. -->
+      <span v-if="store.settings.playerLevel" class="shrink-0 text-xs text-darker" title="Read from the game">
+        You: <span class="font-semibold tabular-nums text-default">Lv {{ store.settings.playerLevel }}</span>
+      </span>
     </div>
 
     <p v-if="error" class="text-sm text-red">Could not load the drop locations: {{ error }}</p>

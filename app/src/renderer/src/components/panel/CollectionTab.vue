@@ -274,11 +274,12 @@ const syncedAgo = computed(() => {
       </div>
     </div>
     <p v-if="sort === 'range' && !here" class="-mt-1 text-[11px] text-darkest">
-      Range needs your position: the tracker learns it when you enter a zone, teleport or fight.
+      Range needs your position: the tracker learns it as you enter a zone, and follows you from then
+      on.
     </p>
     <p v-else-if="sort === 'range' && here" class="-mt-1 text-[11px] text-darkest">
-      Range from your position in {{ spawns?.worlds[here.world]?.name ?? 'this zone' }}, {{ positionAge }}. It updates
-      when you enter a zone, teleport or fight.
+      Range from your position in {{ spawns?.worlds[here.world]?.name ?? 'this zone' }}, {{ positionAge }}. It follows
+      you as you move: zone loads, teleports and the effects on you (buffs, heals, hits) all say where you are.
     </p>
 
     <ul class="divide-y divide-[color:var(--gray-4)] overflow-hidden rounded-lg border border-card bg-card">

@@ -182,7 +182,9 @@ Status (2026-10-19), built but not yet run against the game:
 - `engine/src/sidecar.rs`: the Python sidecar's events and commands, plus the meter's (`meter` on/off, `dpsReset`, `targetMode`, `details`); `--replay <file> --speed <x>` plays a recording in real time for UI work.
 - App: `main/tracker.ts` spawns the engine; `main/meter.ts` handles the meter's events; PvP Log tab, kill feed window and `pvp.json` log copied from Nyerk 0.2.17; the meter shows the engine's status.
 - `cargo test`: 28 pass (decoders, tracker rules, migration, capture, an end-to-end replay). A synthetic login + two-pet pickup replayed through the sidecar gave the right sync, souls and level-ups.
-- Not yet: in-game check of every parity row on Windows; server tags beyond KAI/LUM (upstream's `src/data/servers.json` has them all); Nyerk's position-from-effects (`2A 38`/`2B 38`) and addons; an error status when no capture device opens.
+- Checked in game (2026-10-19): the ported features work; capture held through ExitLag with no game restart.
+- Done since: server names and tags from upstream's `servers.json` (`app/src/shared/serverNames.json`); your position from effect records (`2A 38`/`2B 38`) and Nyerk's corrected cast reading, with misread jumps dropped; dragged windows no longer grow on scaled displays (moved by their measured size).
+- Not yet: Nyerk's addons; an error status when no capture device opens.
 
 **Phase 3: extras.** Skill breakdown, fight history, buffs (`abnormal.rs`), ping (`PingTracker`), maybe Linux (their capture supports it).
 

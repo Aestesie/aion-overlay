@@ -32,6 +32,12 @@ const COMBAT_EVERY_MS: i64 = 5000;
 const SYNC_WAIT_MS: i64 = 5000;
 /// A player kill is passed on once per killer and victim in this long.
 const PVP_REPEAT_MS: i64 = 30_000;
+/// A cast's target this close to where you are is no news of where you are.
+const CAST_RANGE: f32 = 2500.0;
+/// Faster than this between two places under MAX_JUMP_MS apart is a misread,
+/// not you (5,400/s mounted or dashing, in Nyerk's captures).
+const MAX_SPEED: f32 = 10_000.0;
+const MAX_JUMP_MS: i64 = 2000;
 
 pub type Emit = Box<dyn Fn(Value) + Send + Sync>;
 
@@ -64,6 +70,10 @@ pub struct Tracker {
     visible: HashMap<u32, u32>,
     world: Option<u32>,
     position: Option<(f32, f32)>,
+    /// When the position was last set, and whether from where you stand (a
+    /// zone load, a teleport, an effect on you) rather than a cast's target.
+    position_ms: i64,
+    position_exact: bool,
     pub nearby_dirty: bool,
 
     /// Players in view and their legions, for the kill feed; cleared on each zone load.
@@ -106,6 +116,8 @@ impl Tracker {
             visible: HashMap::new(),
             world: None,
             position: None,
+            position_ms: 0,
+            position_exact: false,
             nearby_dirty: false,
             players: HashMap::new(),
             legions: HashMap::new(),
@@ -170,7 +182,23 @@ impl Tracker {
         self.self_entity = None;
         self.world = None;
         self.position = None;
+        self.position_exact = false;
         self.nearby_dirty = true;
+    }
+
+    /// You are at game (x, y): kept as the map data's (x, -y).
+    fn move_to(&mut self, ts: i64, x: f32, y: f32, exact: bool) {
+        self.position = Some((x, -y));
+        self.position_ms = ts;
+        self.position_exact = exact;
+        self.nearby_dirty = true;
+    }
+
+    /// Game (x, y) is too far from your last place for the time since: a misread.
+    fn jump(&self, ts: i64, x: f32, y: f32) -> bool {
+        let dt = ts - self.position_ms;
+        let Some((px, py)) = self.position else { return false };
+        dt < MAX_JUMP_MS && ((px - x).hypot(py + y)) > MAX_SPEED * (dt.max(50) as f32 / 1000.0)
     }
 
     pub fn nearby(&mut self) -> Value {
@@ -249,7 +277,7 @@ impl Tracker {
                 if let Some((world, x, y)) = p::map_load(f) {
                     // A new zone: nothing from the last one is around you any more.
                     self.world = Some(world);
-                    self.position = Some((x, -y));
+                    self.move_to(ts, x, y, true);
                     self.visible.clear();
                     self.players.clear();
                     self.legions.clear();
@@ -258,15 +286,24 @@ impl Tracker {
             }
             p::OP_TELEPORT => {
                 if let Some((x, y)) = p::self_teleport(f) {
-                    self.position = Some((x, -y));
-                    self.nearby_dirty = true;
+                    self.move_to(ts, x, y, true);
+                }
+            }
+            op if p::OP_EFFECTS.contains(&op) => {
+                // Effects on you, whoever put them there: where you are, between zone loads.
+                if let Some((target, x, y)) = p::effect_position(f) {
+                    if Some(target) == self.me() && !self.jump(ts, x, y) {
+                        self.move_to(ts, x, y, true);
+                    }
                 }
             }
             op if p::OP_CASTS.contains(&op) => {
+                // Your casts give where their target is: only a guess at where you
+                // are, taken when nothing better is known or it is far from it.
                 if let Some((actor, x, y)) = p::cast(f) {
-                    if Some(actor) == self.me() {
-                        self.position = Some((x, -y));
-                        self.nearby_dirty = true;
+                    let near = self.position.is_some_and(|(px, py)| (px - x).hypot(py + y) <= CAST_RANGE);
+                    if Some(actor) == self.me() && !(self.position_exact && near) && !self.jump(ts, x, y) {
+                        self.move_to(ts, x, y, false);
                     }
                 }
             }
@@ -716,6 +753,34 @@ mod tests {
         let characters: Vec<_> = evs.iter().filter(|e| e["type"] == "character").map(|e| e["name"].clone()).collect();
         assert_eq!(syncs, 3);
         assert_eq!(characters, vec![json!("Ksix"), json!("Alt"), json!("Other")]);
+    }
+
+    fn effect(target: u8, x: f32, y: f32) -> Vec<u8> {
+        let mut body = vec![7, 0x11];
+        body.extend(1_792_350_000_000u64.to_le_bytes());
+        body.extend([target, 0x01, 0x00]);
+        for v in [x, y, 15_000.0f32] {
+            body.extend(v.to_le_bytes());
+        }
+        frame(p::OP_EFFECTS[0], &body)
+    }
+
+    #[test]
+    fn effects_on_you_say_where_you_are_and_a_misread_jump_does_not() {
+        let (mut t, _) = tracker();
+        t.frame(1000, &character(5, "Ksix", 1104));
+        // Someone else's effect: not you.
+        t.frame(1100, &effect(9, 5000.0, 6000.0));
+        assert_eq!(t.position, None);
+        t.frame(1200, &effect(5, 5000.0, 6000.0));
+        assert_eq!(t.position, Some((5000.0, -6000.0)));
+        // 50,000 away 0.1 s later: no one moves that fast.
+        t.frame(1300, &effect(5, 55_000.0, 6000.0));
+        assert_eq!(t.position, Some((5000.0, -6000.0)));
+        // 300 away a second later: walking.
+        t.frame(2200, &effect(5, 5300.0, 6000.0));
+        assert_eq!(t.position, Some((5300.0, -6000.0)));
+        assert!(t.nearby_dirty);
     }
 
     #[test]

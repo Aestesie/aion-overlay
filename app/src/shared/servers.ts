@@ -1,6 +1,7 @@
 // Copied from Nyerk (GPL-3.0), https://github.com/xCROv/aion2-nyerk
 // app/src/shared/servers.ts at ddcdc48 (0.2.17); the server rules below are Lokthar's.
 
+import serverNames from './serverNames.json'
 import { REGIONS, type Region } from './timers.ts'
 
 /**
@@ -14,7 +15,17 @@ export const SERVER_TAGS: Record<number, string> = {
   2104: 'LUM',
 }
 
-export const serverTag = (id: number): string => SERVER_TAGS[id] ?? String(id)
+/** Every server's English name, by id (A2Tools DPS Meter's table). */
+const NAMES = (serverNames as { servers: Record<string, string> }).servers
+
+export const serverName = (id: number): string | null => NAMES[String(id)] ?? null
+
+/**
+ * The tag the game shows beside a player from another server: the first three letters of its
+ * name, as the two seen so far are (Kaisinel KAI, Lumiel LUM). An id with no name shows as its
+ * number.
+ */
+export const serverTag = (id: number): string => SERVER_TAGS[id] ?? serverName(id)?.slice(0, 3).toUpperCase() ?? String(id)
 
 /**
  * What a server's id says (A2Tools DPS Meter's rule, `presence.rs`): 1xxx are Elyos servers and
@@ -34,11 +45,11 @@ export function serverRegion(id: number): Region | null {
   return REGION_DIGIT[Math.floor(id / 100) % 10] ?? null
 }
 
-/** "Elyos · NA East", for showing what was worked out from the server. */
+/** "Kaisinel · Elyos · NA East", for showing what was worked out from the server. */
 export function serverLabel(id: number): string {
   const faction = serverFaction(id)
   const region = serverRegion(id)
-  return [faction === 'elyos' ? 'Elyos' : faction === 'asmodians' ? 'Asmodian' : null, REGIONS.find((r) => r.id === region)?.label]
+  return [serverName(id), faction === 'elyos' ? 'Elyos' : faction === 'asmodians' ? 'Asmodian' : null, REGIONS.find((r) => r.id === region)?.label]
     .filter(Boolean)
     .join(' · ')
 }
