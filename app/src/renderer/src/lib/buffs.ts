@@ -23,6 +23,25 @@ export function buffIcon(id: number, skill?: number | null): string | null {
   return null
 }
 
+/**
+ * One the game does not show you: not in its buff table, or in it with no name or no icon, or an
+ * untimed one with the generic regen icons (ICON_Abnormal_DotHp/DotMp: "Divine Heal", rest regen).
+ * What is left untimed is your real passives and toggles.
+ */
+export function hiddenBuff(id: number, skill: number | null, timed: boolean): boolean {
+  const entry = ABNORMALS[String(id)]
+  if (!entry) return true
+  const [name, icon] = entry
+  if (buffIcon(id, skill) === null) return true
+  if (!timed && (!name || /^ICON_Abnormal_Dot(Hp|Mp)$/i.test(icon ?? ''))) return true
+  return false
+}
+
+/** A buff from an item you used: a scroll, food or a drink (their icons are the items'). */
+export function consumable(id: number): boolean {
+  return /^Icon_Item_Usable_(Scroll|Food|Drink)/i.test(ABNORMALS[String(id)]?.[1] ?? '')
+}
+
 /** Losing control of your character: what the CC / Debuffs panel announces. */
 export type CcKind =
   | 'stun' | 'knockdown' | 'airborne' | 'root' | 'fear' | 'sleep' | 'silence' | 'frozen'

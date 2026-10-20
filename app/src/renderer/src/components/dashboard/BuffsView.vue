@@ -9,7 +9,7 @@ import Slider from '@/components/Slider.vue'
 import Toggle from '@/components/Toggle.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import Section from '@/components/ui/Section.vue'
-import { buffName, remaining } from '@/lib/buffs.ts'
+import { buffName, hiddenBuff, remaining } from '@/lib/buffs.ts'
 import { useApp } from '@/stores/app.ts'
 import type { Buff } from '@shared/buffs.ts'
 
@@ -19,7 +19,11 @@ const now = ref(Date.now())
 const ticker = setInterval(() => (now.value = Date.now()), 250)
 onBeforeUnmount(() => clearInterval(ticker))
 
-const live = computed(() => store.buffs.filter((b) => b.endsAt === null || b.endsAt > now.value - 500))
+const current = computed(() => store.buffs.filter((b) => b.endsAt === null || b.endsAt > now.value - 500))
+/** What the game shows you; the rest (internal effects) only counted, unless asked for. */
+const showHidden = ref(false)
+const hiddenCount = computed(() => current.value.filter((b) => hiddenBuff(b.id, b.skill, b.endsAt !== null)).length)
+const live = computed(() => current.value.filter((b) => showHidden.value || !hiddenBuff(b.id, b.skill, b.endsAt !== null)))
 const order = (a: Buff, b: Buff): number => (a.endsAt ?? Infinity) - (b.endsAt ?? Infinity) || buffName(a.id).localeCompare(buffName(b.id))
 const groups = computed(() => [
   { title: 'Debuffs', rows: live.value.filter((b) => b.debuff).sort(order) },
@@ -78,6 +82,9 @@ const pct = (v: number): string => `${Math.round(v * 100)}%`
             </tbody>
           </template>
         </table>
+        <button v-if="hiddenCount" type="button" class="w-full border-t border-card px-4 py-2 text-left text-xs text-darker hover:bg-card" @click="showHidden = !showHidden">
+          {{ showHidden ? 'Hide' : 'Show' }} {{ hiddenCount }} internal effect{{ hiddenCount === 1 ? '' : 's' }} the game does not show (no name or icon, system regen)
+        </button>
       </div>
     </Section>
 
@@ -98,8 +105,11 @@ const pct = (v: number): string => `${Math.round(v * 100)}%`
         <SettingRow label="Debuffs on their own row" hint="What monsters put on you, on a row above your buffs, edged in red.">
           <Toggle :model-value="cfg.debuffs" @update:model-value="set({ debuffs: $event })" />
         </SettingRow>
-        <SettingRow label="Passives and toggles" hint="The ones without a timer: always on, so hidden unless you want them.">
+        <SettingRow label="Passives and toggles" hint="Your class passives and toggles, without a timer: always on, so hidden unless you want them.">
           <Toggle :model-value="cfg.passives" @update:model-value="set({ passives: $event })" />
+        </SettingRow>
+        <SettingRow label="Scrolls, food and drinks" hint="The long buffs from items you used. Off, they stay out of the overlay (they are still listed above).">
+          <Toggle :model-value="cfg.consumables" @update:model-value="set({ consumables: $event })" />
         </SettingRow>
         <SettingRow label="Icon size">
           <Slider :model-value="cfg.size" :min="22" :max="56" :step="2" :format="(v: number) => `${v}px`" @update:model-value="set({ size: $event })" />

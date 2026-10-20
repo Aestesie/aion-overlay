@@ -82,6 +82,8 @@ export interface Settings {
     perRow: number
     debuffs: boolean
     passives: boolean
+    /** Scrolls, food and drinks: long buffs from items, hidden unless wanted. */
+    consumables: boolean
     cc: boolean
     ccPosition: Point | null
     ccDebuffs: boolean
@@ -199,7 +201,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   killFeed: { open: false, position: null },
   skills: { enabled: true, position: null, rows: 6, opacity: 0.92 },
   dummy: { overlay: true, position: null, autoStart: true, goal: 'time', limitMs: 60_000, damageGoal: 10e6 },
-  buffs: { enabled: true, position: null, opacity: 0.92, size: 34, perRow: 10, debuffs: true, passives: false, cc: true, ccPosition: null, ccDebuffs: false },
+  buffs: { enabled: true, position: null, opacity: 0.92, size: 34, perRow: 10, debuffs: true, passives: false, consumables: false, cc: true, ccPosition: null, ccDebuffs: false },
   meter: { enabled: true, position: null, targetMode: 'bossTargets', players: 'party', stat: 'damage', rows: 8, opacity: 0.92 },
   hideFromCapture: false,
   faction: 'elyos',
@@ -333,6 +335,7 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         perRow: Math.round(num(v.perRow, 4, 20, d.buffs.perRow)),
         debuffs: bool(v.debuffs, d.buffs.debuffs),
         passives: bool(v.passives, d.buffs.passives),
+        consumables: bool(v.consumables, d.buffs.consumables),
         cc: bool(v.cc, d.buffs.cc),
         ccPosition: point(v.ccPosition),
         ccDebuffs: bool(v.ccDebuffs, d.buffs.ccDebuffs),

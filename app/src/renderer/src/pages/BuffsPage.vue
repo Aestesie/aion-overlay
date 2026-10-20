@@ -5,7 +5,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import BuffIcon from '@/components/BuffIcon.vue'
 import { bridge } from '@/lib/bridge.ts'
-import { buffIcon, buffName, remaining } from '@/lib/buffs.ts'
+import { buffName, consumable, hiddenBuff, remaining } from '@/lib/buffs.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { useApp } from '@/stores/app.ts'
 import type { Buff } from '@shared/buffs.ts'
@@ -18,10 +18,14 @@ const now = ref(Date.now())
 
 /** Timed ones first, the soonest to run out first; then the ones without a timer. */
 const order = (a: Buff, b: Buff): number => (a.endsAt ?? Infinity) - (b.endsAt ?? Infinity) || a.id - b.id
-// One with no icon at all (its own, or its skill's) is one the game does not show either: hidden.
+// The ones the game does not show either (no icon, no name, system regen) stay hidden.
 const live = computed(() =>
   store.buffs.filter(
-    (b) => (cfg.value.passives || !b.passive) && (b.endsAt === null || b.endsAt > now.value - 500) && buffIcon(b.id, b.skill) !== null,
+    (b) =>
+      (cfg.value.passives || !b.passive) &&
+      (cfg.value.consumables || !consumable(b.id)) &&
+      (b.endsAt === null || b.endsAt > now.value - 500) &&
+      !hiddenBuff(b.id, b.skill, b.endsAt !== null),
   ),
 )
 const buffs = computed(() => live.value.filter((b) => !b.debuff || !cfg.value.debuffs).sort(order))
