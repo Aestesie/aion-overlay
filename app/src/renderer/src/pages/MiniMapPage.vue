@@ -3,7 +3,9 @@
 // ones pinned in the collection, and those whose soul monsters are around you), and the Hidden
 // Cubes in view as golden cubes. Moved by its header; the wheel or the +/- buttons zoom (remembered); dragging the map
 // looks around, and it follows you again a few seconds later. Hidden while the zone is not known.
+// The minimize button shrinks it to its header (the zone and the cubes in view).
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import CollapseButton from '@/components/CollapseButton.vue'
 import PetIcon from '@/components/PetIcon.vue'
 import WorldMap, { type MapLayer } from '@/components/WorldMap.vue'
 import { bridge } from '@/lib/bridge.ts'
@@ -54,6 +56,7 @@ const pet = (id: number) => store.pets.find((p) => p.id === id) ?? blankPet(id)
 const drag = windowDrag({ move: 'minimap:moveTo', end: 'minimap:dragEnd' })
 const setZoom = (zoom: number): void =>
   void api.invoke('settings:set', 'minimap', { ...cfg.value, zoom: Math.min(40, Math.max(1, zoom)) })
+const toggleCollapsed = (): void => void api.invoke('settings:set', 'minimap', { ...cfg.value, collapsed: !cfg.value.collapsed })
 /** The + and - buttons: a step of 1.5 times either way. */
 const ZOOM_STEP = 1.5
 
@@ -67,7 +70,7 @@ function report(): void {
   sent = key
   void api.invoke('minimap:resize', { width: r.width, height: r.height })
 }
-watch([world, () => cfg.value.size, () => legend.value.length], () => void nextTick(report))
+watch([world, () => cfg.value.size, () => cfg.value.collapsed, () => legend.value.length], () => void nextTick(report))
 
 let observer: ResizeObserver | null = null
 onMounted(() => {
@@ -88,11 +91,14 @@ onBeforeUnmount(() => observer?.disconnect())
       >
         <header class="flex cursor-move items-center gap-1.5 px-2 py-1 text-[11px]" title="Drag to move" @pointerdown="drag.onPointerDown">
           <span class="truncate font-semibold text-dark">{{ world.name }}</span>
-          <span v-if="store.cubes.length" class="ml-auto shrink-0 rounded-full bg-yellow/15 px-1.5 font-semibold text-yellow">
+          <span class="flex-1" />
+          <span v-if="store.cubes.length" class="shrink-0 rounded-full bg-yellow/15 px-1.5 font-semibold text-yellow">
             {{ store.cubes.length }} cube{{ store.cubes.length > 1 ? 's' : '' }}
           </span>
-          <span v-if="!store.nearby.position" :class="['shrink-0 text-darkest', !store.cubes.length && 'ml-auto']">where you are: unknown</span>
+          <span v-if="!store.nearby.position && !cfg.collapsed" class="shrink-0 text-darkest">where you are: unknown</span>
+          <CollapseButton :collapsed="cfg.collapsed" class="-my-0.5 -mr-1" @toggle="toggleCollapsed" />
         </header>
+        <template v-if="!cfg.collapsed">
         <div class="relative" :style="{ height: `${cfg.size}px` }">
           <div class="absolute right-1.5 top-1.5 z-10 flex flex-col overflow-hidden rounded-md border border-black/40 bg-black/60 text-white shadow">
             <button
@@ -141,6 +147,7 @@ onBeforeUnmount(() => observer?.disconnect())
             <span class="max-w-[88px] truncate">{{ displayName(pet(t.id)) }}</span>
           </span>
         </div>
+        </template>
       </div>
     </div>
   </div>

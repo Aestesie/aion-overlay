@@ -55,7 +55,7 @@ export interface Settings {
   }
 
   /** The map overlay: your zone around you, your tracked pets' spawns and the Hidden Cubes. */
-  minimap: { enabled: boolean; position: Point | null; size: number; opacity: number; zoom: number }
+  minimap: { enabled: boolean; position: Point | null; size: number; opacity: number; zoom: number; collapsed: boolean }
 
   /** Where the Black Cloud Merchant window sits (top-left, screen DIPs); null = top centre. */
   merchantWindow: Point | null
@@ -111,6 +111,8 @@ export interface Settings {
     /** How many players it lists. */
     rows: number
     opacity: number
+    /** Shrunk to its title line (the minimize button). */
+    collapsed: boolean
   }
 
   /** Hide every overlay window from screenshots, OBS and Discord (WDA_EXCLUDEFROMCAPTURE). */
@@ -194,7 +196,7 @@ export const SETTINGS_DEFAULTS: Settings = {
     cubes: true,
     cubeSound: true,
   },
-  minimap: { enabled: true, position: null, size: 260, opacity: 0.92, zoom: 6 },
+  minimap: { enabled: true, position: null, size: 260, opacity: 0.92, zoom: 6, collapsed: false },
   merchantWindow: null,
   detailsWindow: null,
   timerBar: { enabled: true, position: null, opacity: 0.92 },
@@ -202,7 +204,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   skills: { enabled: true, position: null, rows: 6, opacity: 0.92 },
   dummy: { overlay: true, position: null, autoStart: true, goal: 'time', limitMs: 60_000, damageGoal: 10e6 },
   buffs: { enabled: true, position: null, opacity: 0.92, size: 34, perRow: 10, debuffs: true, passives: false, consumables: false, cc: true, ccPosition: null, ccDebuffs: false },
-  meter: { enabled: true, position: null, targetMode: 'bossTargets', players: 'party', stat: 'damage', rows: 8, opacity: 0.92 },
+  meter: { enabled: true, position: null, targetMode: 'bossTargets', players: 'party', stat: 'damage', rows: 8, opacity: 0.92, collapsed: false },
   hideFromCapture: false,
   faction: 'elyos',
   playerLevel: null,
@@ -302,6 +304,7 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         size: Math.round(num(v.size, 160, 520, d.minimap.size)),
         opacity: num(v.opacity, 0.3, 1, d.minimap.opacity),
         zoom: num(v.zoom, 1, 40, d.minimap.zoom),
+        collapsed: bool(v.collapsed, false),
       } as Settings[K]
     }
     case 'timerBar': {
@@ -362,6 +365,7 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         stat: v.stat === 'healing' || v.stat === 'taken' ? v.stat : 'damage',
         rows: Math.round(num(v.rows, 1, 24, d.meter.rows)),
         opacity: num(v.opacity, 0.3, 1, d.meter.opacity),
+        collapsed: bool(v.collapsed, false),
       } as Settings[K]
     }
     case 'faction':

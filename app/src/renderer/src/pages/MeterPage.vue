@@ -3,8 +3,10 @@
 // header, sized to its rows. questlog.gg's layout: the fight's time and total, the target's HP with
 // how long until it dies, then a row per player in their class colour (DPS, share, damage, crit).
 // Hovering shows the switches: which targets, which players, and damage, healing or damage taken.
+// The minimize button shrinks it to its title line, with the total per second.
 // The numbers are the engine's (A2Tools DPS Meter's parser); the class icons and colours are its too.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import CollapseButton from '@/components/CollapseButton.vue'
 import { bridge } from '@/lib/bridge.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { useApp } from '@/stores/app.ts'
@@ -113,7 +115,7 @@ function report(): void {
   sent = key
   void api.invoke('meter:resize', { width: r.width, height: r.height })
 }
-watch([rows, () => meter.value.target, status, () => store.ready], () => void nextTick(report), { deep: true })
+watch([rows, () => meter.value.target, status, () => store.ready, () => cfg.value.collapsed], () => void nextTick(report), { deep: true })
 
 let observer: ResizeObserver | null = null
 const offs: (() => void)[] = []
@@ -134,13 +136,16 @@ onBeforeUnmount(() => {
   <div class="inline-block">
     <div ref="root" class="inline-block">
       <div class="group m-1.5 w-[340px] rounded-xl border border-card bg-darker/95 shadow-card" :style="{ opacity: cfg.opacity }">
-        <header class="cursor-move px-3 pb-1.5 pt-2.5" title="Drag to move" @pointerdown="drag.onPointerDown">
+        <header :class="['cursor-move px-3', cfg.collapsed ? 'py-1.5' : 'pb-1.5 pt-2.5']" title="Drag to move" @pointerdown="drag.onPointerDown">
           <div class="flex items-center gap-2">
             <span :class="['size-1.5 shrink-0 rounded-full', statusDot]" :title="status.detail ?? STATUS_TEXT[status.state]" />
             <span class="min-w-0 flex-1 truncate text-[13px] font-semibold text-default">
               {{ STAT_TITLE[cfg.stat][0] }}<span v-if="meter.battleTime" class="font-normal text-darker"> ({{ clock(meter.battleTime) }})</span>
             </span>
-            <span class="max-w-[120px] truncate text-[11px] text-darker" :title="meter.target?.name">{{ meter.target?.name }}</span>
+            <span v-if="cfg.collapsed && all.length" class="shrink-0 text-[13px] font-bold tabular-nums text-accent">
+              {{ short(totalPerSecond) }}<span class="ml-0.5 text-[10px] font-medium text-darker">{{ STAT_TITLE[cfg.stat][2] }}</span>
+            </span>
+            <span v-else-if="!cfg.collapsed" class="max-w-[120px] truncate text-[11px] text-darker" :title="meter.target?.name">{{ meter.target?.name }}</span>
             <button
               type="button"
               class="flex size-5 shrink-0 items-center justify-center rounded text-darker hover:bg-dark hover:text-default"
@@ -152,13 +157,15 @@ onBeforeUnmount(() => {
                 <path d="M13 8a5 5 0 1 1-1.6-3.7M13 3v3h-3" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </button>
+            <CollapseButton :collapsed="cfg.collapsed" @toggle="set({ collapsed: !cfg.collapsed })" />
           </div>
-          <div v-if="all.length" class="mt-0.5 flex items-baseline justify-between">
+          <div v-if="all.length && !cfg.collapsed" class="mt-0.5 flex items-baseline justify-between">
             <span class="text-[12px] text-darker">{{ STAT_TITLE[cfg.stat][1] }} <span class="font-medium text-dark">{{ short(total) }}</span></span>
             <span class="text-xl font-bold tabular-nums text-accent">{{ short(totalPerSecond) }}<span class="ml-0.5 text-[11px] font-medium text-darker">{{ STAT_TITLE[cfg.stat][2] }}</span></span>
           </div>
         </header>
 
+        <template v-if="!cfg.collapsed">
         <!-- The switches, while the pointer is over the meter. -->
         <div class="hidden flex-wrap gap-1 px-3 pb-1.5 text-[10px] group-hover:flex" @pointerdown.stop>
           <div class="flex rounded-md bg-dark p-0.5">
@@ -246,6 +253,7 @@ onBeforeUnmount(() => {
             <span :class="pingClass">{{ meter.ping }}</span> ms
           </span>
         </footer>
+        </template>
       </div>
     </div>
   </div>
