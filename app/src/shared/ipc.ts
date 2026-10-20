@@ -42,6 +42,10 @@ export interface InvokeChannels {
   'merchant:dragEnd': { args: []; result: void }
   'merchant:resize': { args: [size: { width: number; height: number }]; result: void }
   'merchant:close': { args: []; result: void }
+  /** The timers' countdown bar over the game. */
+  'timerbar:moveTo': { args: [to: Point]; result: void }
+  'timerbar:dragEnd': { args: []; result: void }
+  'timerbar:resize': { args: [size: { width: number; height: number }]; result: void }
   /** The kill feed over the game: opened from the PvP Log tab, closed there or with its X. */
   'killfeed:open': { args: []; result: void }
   'killfeed:close': { args: []; result: void }
@@ -119,6 +123,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'settings:all', 'settings:set',
   'tracker:get', 'tracker:setSouls', 'tracker:setName', 'tracker:restart', 'tracker:resetSession', 'tracker:clearPvp',
   'killfeed:open', 'killfeed:close', 'killfeed:moveTo', 'killfeed:dragEnd', 'killfeed:resize',
+  'timerbar:moveTo', 'timerbar:dragEnd', 'timerbar:resize',
   'bubble:moveTo', 'bubble:dragEnd', 'panel:toggle', 'panel:hide', 'panel:setExpanded',
   'hud:setEditing', 'hud:moveTo', 'hud:dragEnd', 'hud:resize',
   'merchant:moveTo', 'merchant:dragEnd', 'merchant:resize', 'merchant:close', 'panel:showPet', 'timers:get', 'timers:dismiss', 'timers:open',

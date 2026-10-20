@@ -276,6 +276,9 @@ const shownCount = computed(() => TIMERS.filter((d) => shown(d.id)).length)
             <option v-for="r in REGIONS" :key="r.id" :value="r.id">{{ r.label }}{{ r.confirmed ? '' : ' (unconfirmed)' }}</option>
           </select>
         </SettingRow>
+        <SettingRow label="Countdown bar" hint="The timers with an alert on, starting within 13 hours, as a bar of countdowns over the game. Drag it to move it.">
+          <Toggle :model-value="store.settings.timerBar.enabled" @update:model-value="store.set('timerBar', { ...store.settings.timerBar, enabled: $event })" />
+        </SettingRow>
         <SettingRow label="Sound" hint="A soft chime when an alert starts.">
           <Toggle :model-value="cfg.sound" @update:model-value="set({ sound: $event })" />
         </SettingRow>

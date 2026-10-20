@@ -19,15 +19,18 @@ import {
   moveKillFeed,
   moveMerchant,
   moveMeter,
+  moveTimerBar,
   resizeHud,
   resizeKillFeed,
   resizeMerchant,
   resizeMeter,
+  resizeTimerBar,
   setHudEditing,
   setKillFeedOpen,
   setPanelExpanded,
   showPetInPanel,
   showTimersInPanel,
+  timerBarDragEnded,
   togglePanel,
 } from './windows.ts'
 import type { InvokeArgs, InvokeChannel, InvokeResult } from '../shared/ipc.ts'
@@ -64,6 +67,13 @@ export function registerIpc(): void {
 
   handle('tracker:get', () => ({ status: tracker.status(), pets: tracker.pets(), nearby: tracker.nearby(), shop: tracker.shop(), kina: tracker.kina(), fieldBosses: tracker.fieldBosses(), pvp: tracker.pvp() }))
   handle('tracker:clearPvp', () => tracker.clearPvp())
+  handle('timerbar:moveTo', (to) => {
+    if (isPoint(to)) moveTimerBar(to)
+  })
+  handle('timerbar:dragEnd', () => timerBarDragEnded())
+  handle('timerbar:resize', (size) => {
+    if (isPoint({ x: size?.width, y: size?.height })) resizeTimerBar(size)
+  })
   handle('killfeed:open', () => setKillFeedOpen(true))
   handle('killfeed:close', () => setKillFeedOpen(false))
   handle('killfeed:moveTo', (to) => {

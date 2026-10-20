@@ -17,6 +17,8 @@ to keep opening the Pets menu.
 - **Timers:** the game's events (Shugo Festival, the Black Cloud Merchant, rifts, the siege…) and
   Verteron's field bosses, read from the map's field boss list, with optional alerts. Field boss
   times come only from your own map.
+- **Countdown bar:** the timers whose alert you turned on, starting within 13 hours, as a small
+  bar of icons and countdowns over the game.
 - **PvP log and kill feed:** every player kill around you, as the game credits it, in the panel's
   PvP tab and in a small kill feed over the game; yours and your legion's marked.
 - **Black Cloud Merchant:** when you open one of its tabs, a window lists the pets it sells that
@@ -99,6 +101,8 @@ plays a recording (`.pcap`, `.pcapng` or an A2Tools packet log) instead of the g
   buff tables are in `engine/data/`, and the meter's class icons are its too.
 - Pet record layouts and soul counting rules follow the pet-souls plugin of
   [taengu/A2Tools-Plugins](https://github.com/taengu/A2Tools-Plugins) (GPL-3.0).
+- The Shugo Festival and Spacetime Rift icons of the timer bar come from
+  [guildmanager.app](https://guildmanager.app), kept in `app/src/renderer/public/events/`.
 - Pet names, genus, portraits, spawn locations and zone maps come from
   [questlog.gg](https://questlog.gg/aion-2/en/db/pets).
 - Aion 2 and its game data and art belong to NCSoft. This project is not affiliated with or

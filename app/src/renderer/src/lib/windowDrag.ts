@@ -12,8 +12,8 @@ import { bridge } from './bridge.ts'
 const CLICK_SLOP = 4
 
 export interface WindowDragOptions {
-  move: 'bubble:moveTo' | 'hud:moveTo' | 'merchant:moveTo' | 'meter:moveTo' | 'killfeed:moveTo'
-  end: 'bubble:dragEnd' | 'hud:dragEnd' | 'merchant:dragEnd' | 'meter:dragEnd' | 'killfeed:dragEnd'
+  move: 'bubble:moveTo' | 'hud:moveTo' | 'merchant:moveTo' | 'meter:moveTo' | 'killfeed:moveTo' | 'timerbar:moveTo'
+  end: 'bubble:dragEnd' | 'hud:dragEnd' | 'merchant:dragEnd' | 'meter:dragEnd' | 'killfeed:dragEnd' | 'timerbar:dragEnd'
   onClick?: () => void
 }
 

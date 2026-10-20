@@ -6,6 +6,8 @@
  *   hud       #/hud       the in-game overlay: click-through, sized to its content
  *   merchant  #/merchant  the Black Cloud Merchant's pets worth buying: opened when a tab of the
  *                         shop is, always movable, closed with its X
+ *   timerbar  #/timerbar  the timers with an alert on, as a bar of countdowns: open while the game
+ *                         is, sized to what it shows (hidden with nothing within 13 hours)
  *   killfeed  #/killfeed  player kills around you, as they happen: opened from the PvP Log tab
  *   meter     #/meter     the DPS meter: open while the game is (and the meter is on), movable by
  *                         its header, sized to its rows
@@ -41,6 +43,8 @@ let merchant: BrowserWindow | null = null
 let merchantSize = { width: 0, height: 0 }
 let meter: BrowserWindow | null = null
 let killFeed: BrowserWindow | null = null
+let timerBar: BrowserWindow | null = null
+let timerBarSize = { width: 0, height: 0 }
 let meterSize = { width: 0, height: 0 }
 let panelExpanded = false
 let hudEditing = false
@@ -452,6 +456,60 @@ export function meterDragEnded(): void {
   settings.set('meter', { ...settings.get('meter'), position: { x, y } })
 }
 
+// ---- timer bar ------------------------------------------------------------------------------
+
+function timerBarPosition(): Point {
+  const saved = settings.get('timerBar').position
+  if (saved) return saved
+  const area = screen.getPrimaryDisplay().workArea
+  return { x: Math.round(area.x + area.width / 2 - 150), y: area.y + EDGE }
+}
+
+/** Open the timer bar, unless it is turned off. It shows once its page has measured itself. */
+export function createTimerBar(): void {
+  if (!settings.get('timerBar').enabled || alive(timerBar)) return
+  const p = timerBarPosition()
+  const win = overlayWindow({ x: p.x, y: p.y, width: 300, height: 40 })
+  timerBar = win
+  timerBarSize = { width: 0, height: 0 }
+  win.on('closed', () => (timerBar = null))
+  load(win, 'timerbar')
+}
+
+function closeTimerBar(): void {
+  if (alive(timerBar)) timerBar.destroy()
+  timerBar = null
+}
+
+function refreshTimerBar(): void {
+  if (!alive(timerBar)) return
+  const { width, height } = timerBarSize
+  if (width > 0 && height > 0) {
+    const p = timerBarPosition()
+    timerBar.setBounds(clampToDisplay({ x: p.x, y: p.y, width, height }))
+    if (!timerBar.isVisible()) reveal(timerBar)
+  } else if (timerBar.isVisible()) {
+    timerBar.hide()
+  }
+}
+
+export function resizeTimerBar(size: { width: number; height: number }): void {
+  timerBarSize = { width: Math.ceil(size.width), height: Math.ceil(size.height) }
+  refreshTimerBar()
+}
+
+export function moveTimerBar(to: Point): void {
+  if (!alive(timerBar)) return
+  const { width, height } = timerBar.getBounds()
+  timerBar.setBounds(clampToDisplay({ x: to.x, y: to.y, width, height }))
+}
+
+export function timerBarDragEnded(): void {
+  if (!alive(timerBar)) return
+  const { x, y } = timerBar.getBounds()
+  settings.set('timerBar', { ...settings.get('timerBar'), position: { x, y } })
+}
+
 // ---- kill feed (from Nyerk 0.2.17) ----------------------------------------------------------
 
 const KILL_FEED_WIDTH = 312
@@ -531,7 +589,7 @@ export function setForeground(game: boolean, app: boolean): void {
   if (away) {
     awayTimer = setTimeout(() => {
       gameAway = true
-      for (const win of [bubble, panel, hud, merchant, meter, killFeed]) {
+      for (const win of [bubble, panel, hud, merchant, meter, killFeed, timerBar]) {
         if (!alive(win) || !win.isVisible()) continue
         awayHidden.add(win)
         win.hide()
@@ -540,12 +598,13 @@ export function setForeground(game: boolean, app: boolean): void {
     return
   }
   gameAway = false
-  for (const win of awayHidden) if (alive(win) && win !== hud && win !== merchant && win !== meter) win.showInactive()
+  for (const win of awayHidden) if (alive(win) && win !== hud && win !== merchant && win !== meter && win !== timerBar) win.showInactive()
   awayHidden.clear()
-  // These three decide for themselves whether they have anything to show.
+  // These decide for themselves whether they have anything to show.
   refreshHud()
   refreshMerchant()
   refreshMeter()
+  refreshTimerBar()
 }
 
 // ---- all ------------------------------------------------------------------------------------
@@ -561,7 +620,7 @@ const ON_TOP_EVERY_MS = 5_000
  */
 export function startOnTopWatch(): void {
   setInterval(() => {
-    for (const win of [bubble, hud, merchant, meter, killFeed]) {
+    for (const win of [bubble, hud, merchant, meter, killFeed, timerBar]) {
       if (!alive(win) || !win.isVisible()) continue
       win.setAlwaysOnTop(true, 'screen-saver')
       win.moveTop()
@@ -572,7 +631,10 @@ export function startOnTopWatch(): void {
 /** Settings that change how the windows behave, applied live. */
 export function applyWindowSettings(): void {
   const hidden = settings.get('hideFromCapture')
-  for (const w of [bubble, panel, hud, merchant, meter, killFeed]) if (alive(w)) w.setContentProtection(hidden)
+  for (const w of [bubble, panel, hud, merchant, meter, killFeed, timerBar]) if (alive(w)) w.setContentProtection(hidden)
+  // Turned on: with the other overlays, while they are up (the bubble is, awake).
+  if (!settings.get('timerBar').enabled) closeTimerBar()
+  else if (alive(bubble)) createTimerBar()
   if (!settings.get('hud').merchant) closeMerchant()
   if (!settings.get('meter').enabled) closeMeter()
   if (gameAway && !settings.get('hideWhenGameAway')) setForeground(true, false)
@@ -589,12 +651,13 @@ export function applyWindowSettings(): void {
  * window that is only hidden keeps its renderer process. An open panel stays open.
  */
 export function closeOverlays(): void {
-  for (const win of [bubble, hud, merchant, meter, killFeed]) if (alive(win)) win.destroy()
+  for (const win of [bubble, hud, merchant, meter, killFeed, timerBar]) if (alive(win)) win.destroy()
   bubble = null
   hud = null
   merchant = null
   meter = null
   killFeed = null
+  timerBar = null
   awayHidden.clear()
   hudEditing = false
   hudSize = { width: 0, height: 0 }
@@ -630,6 +693,12 @@ export function rebuildWindow(win: BrowserWindow): string | null {
     merchant = null
     showMerchant()
     return 'merchant'
+  }
+  if (win === timerBar) {
+    win.destroy()
+    timerBar = null
+    createTimerBar()
+    return 'timerbar'
   }
   if (win === killFeed) {
     win.destroy()
