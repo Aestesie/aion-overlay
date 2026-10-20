@@ -1,6 +1,6 @@
 # Lokthar overlay
 
-> **Lokthar's based on** [xCROv/aion2-nyerk](https://github.com/xCROv/aion2-nyerk)
+> **Lokthar's overlay based on** [xCROv/aion2-nyerk](https://github.com/xCROv/aion2-nyerk)
 
 A Windows overlay that counts your Aion 2 Pet Collection souls as they drop, so you don't have
 to keep opening the Pets menu.
@@ -45,7 +45,6 @@ to keep opening the Pets menu.
 - **Recordings:** the game's traffic during a fight, kept to replay it in the engine after a patch.
 - **Stays out of the way:** it sits in the tray and sleeps while Aion 2 is closed, waking when the
   game starts.
-- And whatever else I randomly find useful while I play Aion2. :D
 
 
 ![The collection panel and the in-game HUD](assets/screenshot.webp)
@@ -57,8 +56,7 @@ The tracker **only listens** and functions the exact same as popular DPS Meters 
 or its servers, never reads or changes the game's memory, and sends no input.
 
 No update checks, no shared timers, no machine id. Everything it reads stays on your PC
-(`%APPDATA%\Lokthar`; an older `%APPDATA%\Nyerk` is moved there on first start). Links you click
-(questlog.gg) open in your browser.
+(`%APPDATA%\Lokthar`). Links you click (questlog.gg) open in your browser.
 
 ### Lokthar sync (optional)
 
@@ -68,11 +66,8 @@ game's own respawn times. It is the only request the app makes: to that one addr
 whenever the list changes while your map is open, carrying the bosses' ids, whether each is up and
 its time, and your game server id. Nothing else: no character name, no collection, no packets.
 
-It needs a token, issued on the site's server for an account that may report kills:
-
-```bash
-bin/rails 'overlay:token[<user id, Discord username or email>]'   # bin/rails 'overlay:revoke[...]' to revoke
-```
+It needs a token, issued on the site's server for an account that may report kills, so its not
+an open feature at the moment.
 
 ## Install
 
