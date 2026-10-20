@@ -2,7 +2,9 @@
 // The map overlay: your zone around you, following you, with the spawns of your tracked pets (the
 // ones pinned in the collection, and those whose soul monsters are around you), and the Hidden
 // Cubes in view as golden cubes. Moved by its header; the wheel or the +/- buttons zoom (remembered); dragging the map
-// looks around, and it follows you again a few seconds later. Hidden while the zone is not known.
+// looks around, and it follows you again a few seconds later (or at once, with the circle between them).
+// Always shown while it is on: it keeps the last zone it knew (the zone a tracker started mid-session
+// guesses from the monsters around you, gone when you fly up), and says so while it knows none.
 // The minimize button shrinks it to its header (the zone and the cubes in view).
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import CollapseButton from '@/components/CollapseButton.vue'
@@ -22,10 +24,14 @@ const PALETTE = ['#f76b15', '#30a46c', '#0090ff', '#e54666', '#12a594', '#ab4aba
 const store = useApp()
 const api = bridge()
 const root = ref<HTMLElement | null>(null)
+const map = ref<InstanceType<typeof WorldMap> | null>(null)
 const cfg = computed(() => store.settings.minimap)
 const spawns = useSpawns()
 
-const worldId = computed(() => (spawns.value ? currentWorld(store.nearby, spawns.value) : null))
+/** The zone you are in, else the last one known: a guess from the monsters around you comes and goes. */
+const lastWorld = ref<number | null>(null)
+const worldId = computed(() => (spawns.value ? (currentWorld(store.nearby, spawns.value) ?? lastWorld.value) : null))
+watch(worldId, (id) => id !== null && (lastWorld.value = id))
 const world = computed(() => (spawns.value && worldId.value !== null ? (spawns.value.worlds[worldId.value] ?? null) : null))
 
 /** Tracked pets: pinned ones, then those whose soul monsters are around you; each its colour. */
@@ -60,11 +66,11 @@ const toggleCollapsed = (): void => void store.set('minimap', { ...cfg.value, co
 /** The + and - buttons: a step of 1.5 times either way. */
 const ZOOM_STEP = 1.5
 
-/** Tell main how big the window is; no zone known measures 0, and main keeps it hidden. */
+/** Tell main how big the window is. */
 let sent = ''
 function report(): void {
   const el = root.value
-  const r = el && world.value ? el.getBoundingClientRect() : { width: 0, height: 0 }
+  const r = el?.getBoundingClientRect() ?? { width: 0, height: 0 }
   const key = `${Math.ceil(r.width)}x${Math.ceil(r.height)}`
   if (key === sent) return
   sent = key
@@ -85,12 +91,11 @@ onBeforeUnmount(() => observer?.disconnect())
   <div class="inline-block">
     <div ref="root" class="inline-block">
       <div
-        v-if="world"
         class="m-1.5 overflow-hidden rounded-lg border border-card bg-darker shadow-card"
         :style="{ width: `${cfg.size}px`, opacity: cfg.opacity }"
       >
         <header class="flex cursor-move items-center gap-1.5 px-2 py-1 text-[11px]" title="Drag to move" @pointerdown="drag.onPointerDown">
-          <span class="truncate font-semibold text-dark">{{ world.name }}</span>
+          <span class="truncate font-semibold text-dark">{{ world?.name ?? 'Map' }}</span>
           <span class="flex-1" />
           <span v-if="store.cubes.length" class="shrink-0 rounded-full bg-yellow/15 px-1.5 font-semibold text-yellow">
             {{ store.cubes.length }} cube{{ store.cubes.length > 1 ? 's' : '' }}
@@ -98,7 +103,10 @@ onBeforeUnmount(() => observer?.disconnect())
           <span v-if="!store.nearby.position && !cfg.collapsed" class="shrink-0 text-darkest">where you are: unknown</span>
           <CollapseButton :collapsed="cfg.collapsed" class="-my-0.5 -mr-1" @toggle="toggleCollapsed" />
         </header>
-        <template v-if="!cfg.collapsed">
+        <p v-if="!world && !cfg.collapsed" class="px-2 pb-2 text-[11px] text-darker">
+          Your zone isn't known yet: change zone (or teleport) and the map shows it.
+        </p>
+        <template v-else-if="!cfg.collapsed && world">
         <div class="relative" :style="{ height: `${cfg.size}px` }">
           <div class="absolute right-1.5 top-1.5 z-10 flex flex-col overflow-hidden rounded-md border border-black/40 bg-black/60 text-white shadow">
             <button
@@ -117,6 +125,20 @@ onBeforeUnmount(() => observer?.disconnect())
             <button
               type="button"
               class="flex size-6 items-center justify-center border-t border-white/15 hover:bg-white/15 disabled:opacity-40"
+              title="Centre on me"
+              :disabled="!store.nearby.position"
+              @pointerdown.stop
+              @dblclick.stop
+              @click="map?.recentre()"
+            >
+              <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.6">
+                <circle cx="8" cy="8" r="4.5" />
+                <circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="flex size-6 items-center justify-center border-t border-white/15 hover:bg-white/15 disabled:opacity-40"
               title="Zoom out"
               :disabled="cfg.zoom <= 1"
               @pointerdown.stop
@@ -129,6 +151,7 @@ onBeforeUnmount(() => observer?.disconnect())
             </button>
           </div>
           <WorldMap
+            ref="map"
             :world="world"
             :layers="layers"
             :focus="NO_FOCUS"

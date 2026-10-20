@@ -174,7 +174,13 @@ onBeforeUnmount(() => {
   if (saveTimer) clearTimeout(saveTimer)
 })
 
-defineExpose({ fit })
+/** Back on you now, following again (after a drag that looked around). */
+function recentre(): void {
+  draggedAt = 0
+  centre(true)
+}
+
+defineExpose({ fit, recentre })
 </script>
 
 <template>
