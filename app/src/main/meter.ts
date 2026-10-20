@@ -1,15 +1,52 @@
 /**
- * The DPS meter's state in main: the engine's `dps` events turned into what the meter window
- * shows, and the meter's commands to the engine (through the tracker's process, main/tracker.ts).
+ * The DPS meter's state in main: the engine's `dps` and `ping` events turned into what the meter
+ * window shows, a fight's breakdown for the Details window (live, or a saved fight), the saved
+ * fights for the History tab, and the meter's commands to the engine (through the tracker's
+ * process, main/tracker.ts).
  */
 import { broadcast } from './broadcast.ts'
 import { settings } from './settings.ts'
 import { command, tracker } from './tracker.ts'
-import { meterData, NO_METER, type DpsEvent, type MeterData } from '../shared/meter.ts'
+import {
+  CLASS_NAMES,
+  detailsView,
+  meterData,
+  NO_METER,
+  type DetailsSource,
+  type DetailsView,
+  type DpsEvent,
+  type FightRecord,
+  type FightSummary,
+  type MeterData,
+  type TargetDetails,
+} from '../shared/meter.ts'
+
+const ASK_TIMEOUT_MS = 5000
 
 let meter: MeterData = NO_METER
-/** Requests for a target's details, answered in order. */
-const detailWaiters: { target: number; resolve: (details: unknown) => void }[] = []
+let ping: number | null = null
+
+/** Requests waiting for the engine's answer, by the answer's type; answered in order. */
+const waiting: { type: string; match: (ev: Record<string, unknown>) => boolean; done: (ev: Record<string, unknown> | null) => void }[] = []
+
+/** Send `cmd` and wait for the engine's `type` event that `match`es (null if it never comes). */
+function ask(cmd: Record<string, unknown>, type: string, match: (ev: Record<string, unknown>) => boolean = () => true): Promise<Record<string, unknown> | null> {
+  if (!tracker.running()) return Promise.resolve(null)
+  return new Promise((resolve) => {
+    const w = { type, match, done: resolve }
+    waiting.push(w)
+    command(cmd)
+    setTimeout(() => {
+      const i = waiting.indexOf(w)
+      if (i >= 0) waiting.splice(i, 1)[0]!.done(null)
+    }, ASK_TIMEOUT_MS)
+  })
+}
+
+function answer(ev: Record<string, unknown>): void {
+  const i = waiting.findIndex((w) => w.type === ev['type'] && w.match(ev))
+  if (i >= 0) waiting.splice(i, 1)[0]!.done(ev)
+}
 
 /** Tell the engine what the settings say: whether to send the meter, and which target it follows. */
 function applySettings(): void {
@@ -21,16 +58,20 @@ function applySettings(): void {
 export function startMeter(): void {
   tracker.onEvent('ready', () => {
     meter = NO_METER
+    ping = null
     applySettings()
   })
   tracker.onEvent('dps', (ev) => {
-    meter = meterData(ev as unknown as DpsEvent, Date.now())
+    meter = meterData(ev as unknown as DpsEvent, Date.now(), ping)
     broadcast('meter:dps', meter)
   })
-  tracker.onEvent('details', (ev) => {
-    const i = detailWaiters.findIndex((w) => w.target === ev['target'])
-    if (i >= 0) detailWaiters.splice(i, 1)[0]!.resolve(ev)
+  tracker.onEvent('ping', (ev) => {
+    ping = (ev['ms'] as number | null) ?? null
+    meter = { ...meter, ping }
+    broadcast('meter:dps', meter)
   })
+  tracker.onEvent('historyChanged', () => broadcast('history:changed', Date.now()))
+  for (const type of ['details', 'history', 'fight']) tracker.onEvent(type, answer)
   let last = JSON.stringify([settings.get('meter').enabled, settings.get('meter').targetMode])
   settings.onChanged((all) => {
     const now = JSON.stringify([all.meter.enabled, all.meter.targetMode])
@@ -40,22 +81,37 @@ export function startMeter(): void {
   })
 }
 
+/** Names and classes for a live fight: the meter's rows. */
+function liveNames(): Map<number, { name: string; className: string | null }> {
+  return new Map(meter.rows.map((r) => [r.id, { name: r.name, className: r.className }]))
+}
+
 export const meterState = {
   meter: (): MeterData => meter,
-  /** Start the fight over: no target, no damage. */
+  /** Start the fight over: no target, no damage (the engine saves the fights on it first). */
   reset(): void {
     command({ cmd: 'dpsReset' })
   },
-  /** One target's breakdown by skill (A2Tools' TargetDetailsResponse); null if the engine is gone. */
-  details(target: number, actors?: number[]): Promise<unknown> {
-    if (!tracker.running()) return Promise.resolve(null)
-    return new Promise((resolve) => {
-      detailWaiters.push({ target, resolve })
-      command({ cmd: 'details', target, ...(actors ? { actors } : {}) })
-      setTimeout(() => {
-        const i = detailWaiters.findIndex((w) => w.resolve === resolve)
-        if (i >= 0) detailWaiters.splice(i, 1)[0]!.resolve(null)
-      }, 5000)
-    })
+  /** A fight's breakdown by player and skill: the live target's, or a saved fight's. */
+  async details(source: DetailsSource): Promise<DetailsView | null> {
+    if (source.kind === 'live') {
+      const ev = await ask({ cmd: 'details', target: source.target }, 'details', (e) => e['target'] === source.target)
+      if (!ev) return null
+      const title = meter.target?.id === source.target ? meter.target.name : 'Target'
+      return detailsView(source, title || 'Target', ev as unknown as TargetDetails, liveNames())
+    }
+    const ev = await ask({ cmd: 'fight', id: source.id }, 'fight', (e) => e['id'] === source.id)
+    const fight = ev?.['fight'] as FightRecord | undefined
+    if (!fight) return null
+    const names = new Map(fight.actors.map((a) => [a.actorId, { name: a.nickname || `#${a.actorId}`, className: CLASS_NAMES[a.job] ?? null }]))
+    return { ...detailsView(source, fight.bossName, fight.details, names), startedAt: fight.startTimeMs }
+  },
+  /** The saved fights, newest first. */
+  async history(): Promise<FightSummary[]> {
+    const ev = await ask({ cmd: 'history' }, 'history')
+    return (ev?.['fights'] as FightSummary[] | undefined) ?? []
+  },
+  deleteFight(id: string): void {
+    command({ cmd: 'deleteFight', id })
   },
 }

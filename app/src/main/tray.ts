@@ -1,17 +1,18 @@
-/** The tray icon: left-click opens the panel, the menu holds everything else. Quit is the only exit. */
+/** The tray icon: left-click opens the dashboard, the menu holds everything else. Quit is the only exit. */
 import { app, Menu, nativeImage, Tray } from 'electron'
 import { join } from 'node:path'
 import { DISPLAY_NAME } from '../shared/app.ts'
 import { settings } from './settings.ts'
 import { tracker } from './tracker.ts'
-import { hudIsEditing, markQuitting, setHudEditing, showPanel, togglePanel } from './windows.ts'
+import { hudIsEditing, markQuitting, overlaysHidden, setHudEditing, showPanel, toggleOverlays, togglePanel } from './windows.ts'
 
 let tray: Tray | null = null
 
 function menu(): Menu {
   const hud = settings.get('hud')
   return Menu.buildFromTemplate([
-    { label: 'Open panel', click: () => showPanel() },
+    { label: 'Open dashboard', accelerator: 'Alt+E', click: () => showPanel() },
+    { label: 'Hide overlays', type: 'checkbox', checked: overlaysHidden(), accelerator: 'Alt+Shift+E', click: () => toggleOverlays() },
     {
       label: 'Show HUD',
       type: 'checkbox',

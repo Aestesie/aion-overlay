@@ -42,6 +42,8 @@ export interface MeterData {
   rows: MeterRow[]
   /** When main received it (ms since epoch). */
   at: number
+  /** Your ping to the game server (ms); null until measured. */
+  ping: number | null
 }
 
 export const TARGET_MODES = ['bossTargets', 'mostDamage', 'mostRecent', 'lastHitByMe', 'allTargets', 'trainTargets'] as const
@@ -56,7 +58,7 @@ export const TARGET_MODE_LABELS: Record<TargetMode, string> = {
   trainTargets: 'Training dummy',
 }
 
-export const NO_METER: MeterData = { target: null, mode: 'bossTargets', battleTime: 0, rows: [], at: 0 }
+export const NO_METER: MeterData = { target: null, mode: 'bossTargets', battleTime: 0, rows: [], at: 0, ping: null }
 
 /** The parser names classes in Korean (`JobClass::class_name`); the game's English names. */
 export const CLASS_NAMES: Record<string, string> = {
@@ -112,7 +114,7 @@ export interface DpsEvent {
 }
 
 /** The engine's event, as the meter window shows it: rows sorted by damage, names in English. */
-export function meterData(ev: DpsEvent, at: number): MeterData {
+export function meterData(ev: DpsEvent, at: number, ping: number | null = null): MeterData {
   const rows: MeterRow[] = Object.entries(ev.map ?? {}).map(([id, p]) => ({
     id: Number(id),
     name: p.nickname || `#${id}`,
@@ -138,5 +140,141 @@ export function meterData(ev: DpsEvent, at: number): MeterData {
       }
     : null
   const mode = (TARGET_MODES as readonly string[]).includes(ev.targetMode) ? (ev.targetMode as TargetMode) : 'bossTargets'
-  return { target, mode, battleTime: ev.battleTime, rows, at }
+  return { target, mode, battleTime: ev.battleTime, rows, at, ping }
+}
+
+// ---- a fight's breakdown -----------------------------------------------------------------------
+
+/** What the Details window shows: the live target's, or a saved fight's. */
+export type DetailsSource = { kind: 'live'; target: number; actor?: number } | { kind: 'saved'; id: string; actor?: number }
+
+/** One skill of one player (or one heal). */
+export interface DetailsSkill {
+  actor: number
+  code: number
+  name: string
+  damage: number
+  hits: number
+  crits: number
+  maxHit: number
+  dot: boolean
+}
+
+export interface DetailsActor {
+  id: number
+  name: string
+  className: string | null
+  damage: number
+  dps: number
+  /** 0..100 of everyone's damage. */
+  share: number
+  heal: number
+}
+
+export interface DetailsView {
+  source: DetailsSource
+  title: string
+  /** When the fight began (ms since epoch); 0 when unknown. */
+  startedAt: number
+  battleTime: number
+  totalDamage: number
+  maxHp: number
+  actors: DetailsActor[]
+  skills: DetailsSkill[]
+  heals: DetailsSkill[]
+}
+
+/** A2Tools DPS Meter's `TargetDetailsResponse`, the fields shown. */
+export interface TargetDetails {
+  targetId: number
+  maxHp?: number
+  totalTargetDamage: number
+  battleTime: number
+  startTime?: number
+  skills: SkillEntry[]
+  healSkills?: SkillEntry[]
+}
+interface SkillEntry {
+  actorId: number
+  code: number
+  name: string
+  time: number
+  dmg: number
+  crit: number
+  maxDmg?: number
+  isDot?: boolean
+  job?: string
+}
+
+/** A saved fight: A2Tools DPS Meter's `FightRecord`, the fields shown. */
+export interface FightRecord {
+  id: string
+  bossName: string
+  startTimeMs: number
+  durationMs: number
+  details: TargetDetails
+  actors: { actorId: number; nickname: string; job: string }[]
+}
+
+/** One saved fight in the list: A2Tools DPS Meter's `FightSummary`. */
+export interface FightSummary {
+  id: string
+  bossName: string
+  startTimeMs: number
+  durationMs: number
+  totalDamage: number
+  isTrain: boolean
+  dungeonId: number
+  memberJobs: string[]
+}
+
+/** Every player's skills and totals, from the engine's breakdown; names from `names`. */
+export function detailsView(
+  source: DetailsSource,
+  title: string,
+  d: TargetDetails,
+  names: Map<number, { name: string; className: string | null }>,
+): DetailsView {
+  const entry = (s: SkillEntry): DetailsSkill => ({
+    actor: s.actorId,
+    code: s.code,
+    name: s.name || `#${s.code}`,
+    damage: s.dmg,
+    hits: s.time,
+    crits: s.crit,
+    maxHit: s.maxDmg ?? 0,
+    dot: s.isDot === true,
+  })
+  const skills = d.skills.map(entry).sort((a, b) => b.damage - a.damage)
+  const heals = (d.healSkills ?? []).map(entry).sort((a, b) => b.damage - a.damage)
+  const seconds = Math.max(1, d.battleTime / 1000)
+  const total = skills.reduce((n, s) => n + s.damage, 0) || 1
+  const ids = [...new Set([...skills, ...heals].map((s) => s.actor))]
+  const jobOf = new Map(d.skills.map((s) => [s.actorId, s.job ?? '']))
+  const actors = ids
+    .map((id) => {
+      const damage = skills.filter((s) => s.actor === id).reduce((n, s) => n + s.damage, 0)
+      const known = names.get(id)
+      return {
+        id,
+        name: known?.name ?? `#${id}`,
+        className: known?.className ?? CLASS_NAMES[jobOf.get(id) ?? ''] ?? null,
+        damage,
+        dps: damage / seconds,
+        share: (damage / total) * 100,
+        heal: heals.filter((s) => s.actor === id).reduce((n, s) => n + s.damage, 0),
+      }
+    })
+    .sort((a, b) => b.damage - a.damage || b.heal - a.heal)
+  return {
+    source,
+    title,
+    startedAt: d.startTime ?? 0,
+    battleTime: d.battleTime,
+    totalDamage: d.totalTargetDamage,
+    maxHp: d.maxHp ?? 0,
+    actors,
+    skills,
+    heals,
+  }
 }

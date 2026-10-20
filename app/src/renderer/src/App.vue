@@ -1,8 +1,9 @@
 <script setup lang="ts">
-// One renderer, seven windows: the hash says which one this is. Read once, from location rather
+// One renderer, eight windows: the hash says which one this is. Read once, from location rather
 // than a router, so a window never flashes another window's page (a marnis-app lesson).
 import { onMounted } from 'vue'
 import BubblePage from './pages/BubblePage.vue'
+import DetailsPage from './pages/DetailsPage.vue'
 import HudPage from './pages/HudPage.vue'
 import KillFeedPage from './pages/KillFeedPage.vue'
 import MerchantPage from './pages/MerchantPage.vue'
@@ -23,5 +24,6 @@ onMounted(() => void store.init())
   <MeterPage v-else-if="page === 'meter'" />
   <KillFeedPage v-else-if="page === 'killfeed'" />
   <TimerBarPage v-else-if="page === 'timerbar'" />
+  <DetailsPage v-else-if="page === 'details'" />
   <PanelPage v-else />
 </template>

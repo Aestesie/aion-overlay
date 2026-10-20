@@ -26,6 +26,10 @@
 //!   {"type": "snapshot", "pets": [...]}               answer to "snapshot" (then a nearby)
 //!   {"type": "nearby", "world": 1010, "position": [x, y] | null, "monsters": [{"npc", "count"}]}
 //!   {"type": "dps", ...DpsData}                       the meter, when it changes (else every 5 s)
+//!   {"type": "ping", "ms": 42 | null}                 your ping to the game server, when it changes
+//!   {"type": "historyChanged", "count": 1}            boss fights were saved (every 30 s, and before a reset)
+//!   {"type": "history", "fights": [FightSummary]}     answer to "history"
+//!   {"type": "fight", "id", "fight": FightRecord}     answer to "fight"
 //!   {"type": "focus", "game": true, "app": false}     what is in front, when it changes (Windows):
 //!                                                     the game, the app's own window (--app-pid), or neither
 //!   {"type": "details", "target": 123, ...TargetDetailsResponse}
@@ -38,6 +42,8 @@
 //!   {"cmd": "capture", "on": false}    stop capturing (the game closed) or start again
 //!   {"cmd": "meter", "on": false}      stop sending the meter (it is turned off) or start again
 //!   {"cmd": "dpsReset"} · {"cmd": "targetMode", "mode": "bossTargets"} · {"cmd": "details", "target": 123, "actors"?: [..]}
+//!   {"cmd": "history"} · {"cmd": "fight", "id": "..."} · {"cmd": "deleteFight", "id": "..."}
+//!                                      the saved boss fights (in <data folder>/history)
 //!   {"cmd": "quit"}                    (closing stdin quits too)
 //!
 //! A pet is {"id", "name" (null if unknown), "souls", "level", "levelEstimated", "crystals", "session"}.
@@ -64,6 +70,8 @@ use crate::{emit, event};
 const DPS_EVERY: Duration = Duration::from_millis(200);
 const DPS_RESEND: Duration = Duration::from_secs(5);
 const HEARTBEAT: Duration = Duration::from_secs(2);
+/// Boss fights are saved this often while they go on, as upstream does.
+const SAVE_FIGHTS_EVERY: u32 = 150; // ticks of DPS_EVERY: 30 s
 
 pub struct Options {
     pub data: PathBuf,
@@ -90,6 +98,13 @@ impl Options {
             }
         }
         Ok(opts)
+    }
+}
+
+/// Tell the app its fight history changed (`n` fights saved or deleted).
+fn announce_saved(n: usize) {
+    if n > 0 {
+        emit(&event("historyChanged", json!({ "count": n })));
     }
 }
 
@@ -124,6 +139,19 @@ pub fn run(opts: Options) -> Result<(), String> {
         }
     };
     let tracker = Arc::new(Mutex::new(Tracker::new(store, path, meter.npcs.clone(), meter.storage.clone(), Box::new(|ev| emit(&ev)))));
+
+    // Boss fights go to <data folder>/history: every 30 s while they go on, and
+    // before the combat data is cleared (a zone change, the end of a party, a reset).
+    if opts.replay.is_none() {
+        let dir = opts.data.parent().map_or_else(|| PathBuf::from("history"), |p| p.join("history"));
+        let _ = meter.history.set(crate::history::FightHistoryManager::new(dir));
+        let saver = Arc::downgrade(&meter);
+        meter.storage.set_before_reset(move || {
+            if let Some(meter) = saver.upgrade() {
+                announce_saved(meter.save_fights(true));
+            }
+        });
+    }
 
     let sidecar = Arc::new(Sidecar {
         runtime,
@@ -270,11 +298,26 @@ impl Sidecar {
             tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             let mut last: Option<(Value, Instant)> = None;
             let mut port = None;
+            let mut ping = None;
+            let mut ticks: u32 = 0;
             loop {
                 tick.tick().await;
                 if !me.capturing.load(Ordering::SeqCst) {
                     port = None;
                     continue;
+                }
+                ticks = ticks.wrapping_add(1);
+                if ticks % SAVE_FIGHTS_EVERY == 0 {
+                    let meter = me.meter.clone();
+                    if let Ok(saved) = tokio::task::spawn_blocking(move || meter.save_fights(false)).await {
+                        announce_saved(saved);
+                    }
+                }
+                // Your ping to the game server, as upstream measures it.
+                let now_ping = me.meter.ping.current_ping_ms();
+                if now_ping != ping {
+                    ping = now_ping;
+                    emit(&event("ping", json!({ "ms": ping })));
                 }
                 let now_port = me.meter.port_detector.current_port();
                 if now_port != port {
@@ -354,6 +397,20 @@ impl Sidecar {
                 "capture" => self.set_capture(msg["on"].as_bool().ok_or("no on")?),
                 "meter" => self.meter_on.store(msg["on"].as_bool().ok_or("no on")?, Ordering::SeqCst),
                 "dpsReset" => self.meter.reset(),
+                "history" => {
+                    let fights = self.meter.history.get().map(|h| h.list_fights()).unwrap_or_default();
+                    emit(&event("history", json!({ "fights": fights })));
+                }
+                "fight" => {
+                    let id = msg["id"].as_str().ok_or("no id")?;
+                    let fight = self.meter.history.get().ok_or("no history")?.load_fight(id).map_err(|_| "no such fight")?;
+                    emit(&event("fight", json!({ "id": id, "fight": fight })));
+                }
+                "deleteFight" => {
+                    let id = msg["id"].as_str().ok_or("no id")?;
+                    self.meter.history.get().ok_or("no history")?.delete_fight(id).map_err(|_| "no such fight")?;
+                    announce_saved(1);
+                }
                 "targetMode" => {
                     if !self.meter.set_target_mode(msg["mode"].as_str().unwrap_or_default()) {
                         return Err("unknown target mode");

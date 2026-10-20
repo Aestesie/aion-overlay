@@ -13,6 +13,7 @@ import { startIdleWatch } from './idle.ts'
 import { startLokthar } from './lokthar.ts'
 import { join } from 'node:path'
 import { moveDataFolder, OLD_NAMES } from './migrate.ts'
+import { startHotkeys, stopHotkeys } from './hotkeys.ts'
 import { startMeter } from './meter.ts'
 import { startTimers } from './timers.ts'
 import { killTrackerNow, log, stopTracker, tracker } from './tracker.ts'
@@ -42,6 +43,7 @@ if (!app.requestSingleInstanceLock()) {
     startOnTopWatch()
     registerIpc()
     createTray()
+    startHotkeys()
 
     settings.onChanged((all) => {
       broadcast('settings:changed', all)
@@ -93,6 +95,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('before-quit', () => {
     markQuitting()
+    stopHotkeys()
     stopTracker()
   })
   // Windows children outlive their parent: make sure the engine goes with us.

@@ -188,6 +188,12 @@ Status (2026-10-19), built but not yet run against the game:
 
 **Phase 3: extras.** Skill breakdown, fight history, buffs (`abnormal.rs`), ping (`PingTracker`), maybe Linux (their capture supports it).
 
+Status (2026-10-19), built, not yet run against the game:
+- Ping: the engine sends `ping` when it changes; the meter's footer shows it (green < 80 ms, yellow < 150).
+- Skill breakdown: a click on a meter row opens the Details window (`#/details`): every player's damage and healing, and the chosen one's skills (damage, share, hits, crit rate, biggest hit, DoTs marked). Live, it follows the fight once a second.
+- Fight history: upstream's `FightHistoryManager` copied to `engine/src/history.rs`; boss fights saved to `<userData>/history` every 30 s while they go on and before the combat data is cleared (`DataStorage::set_before_reset`, and the meter's reset); the last 500 kept. The panel's Fights tab lists them; a click opens the saved breakdown.
+- Not yet: buffs (upstream's `fight_buffs`, in `FightRecord.buffs`), Linux.
+
 ### Risks
 
 - **Their crate is not a library API.** Pin the rev, keep a thin adapter module, update deliberately (see below).

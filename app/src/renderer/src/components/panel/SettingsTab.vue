@@ -127,7 +127,7 @@ const setMeter = (patch: Partial<typeof store.settings.meter>): Promise<void> =>
         <SettingRow label="Size">
           <Slider :model-value="store.settings.hud.scale" :min="0.75" :max="1.75" :step="0.05" :format="pct" @update:model-value="store.setHud({ scale: $event })" />
         </SettingRow>
-        <SettingRow label="Position" hint="While this panel is open the HUD can be dragged anywhere; it goes back to click-through when you close the panel.">
+        <SettingRow label="Position" hint="While the dashboard is open the HUD can be dragged anywhere; it goes back to click-through when you close the dashboard.">
           <Button size="sm" @click="bridge().invoke('hud:setEditing', !store.hudEditing)">
             {{ store.hudEditing ? 'Done' : 'Move HUD' }}
           </Button>
@@ -167,17 +167,17 @@ const setMeter = (patch: Partial<typeof store.settings.meter>): Promise<void> =>
       <div class="divide-y divide-[color:var(--gray-4)] rounded-lg border border-card bg-card px-3">
         <SettingRow
           label="Sleep while Aion 2 is closed"
-          hint="No bubble, HUD or capture until the game starts: only the tray icon, which still opens this panel."
+          hint="No bubble, HUD or capture until the game starts: only the tray icon, which still opens the dashboard."
         >
           <Toggle :model-value="store.settings.sleepWithoutGame" @update:model-value="store.set('sleepWithoutGame', $event)" />
         </SettingRow>
         <SettingRow label="Hide when the game is not in front" hint="Alt-tab to another program and the overlay hides; it comes back with the game.">
           <Toggle :model-value="store.settings.hideWhenGameAway" @update:model-value="store.set('hideWhenGameAway', $event)" />
         </SettingRow>
-        <SettingRow label="Keep this panel on top" hint="Stays above the game while open.">
+        <SettingRow label="Keep the dashboard on top" hint="Stays above the game while open.">
           <Toggle :model-value="store.settings.panelOnTop" @update:model-value="store.set('panelOnTop', $event)" />
         </SettingRow>
-        <SettingRow label="Hide from screen recordings" hint="Keeps the bubble, panel and HUD out of OBS, Discord and screenshots.">
+        <SettingRow label="Hide from screen recordings" hint="Keeps the overlays and the dashboard out of OBS, Discord and screenshots.">
           <Toggle :model-value="store.settings.hideFromCapture" @update:model-value="store.set('hideFromCapture', $event)" />
         </SettingRow>
       </div>

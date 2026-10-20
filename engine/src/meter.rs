@@ -1,7 +1,7 @@
 //! The parser's shared state and the DPS meter on top of it.
 
 use std::collections::HashSet;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use a2tools_dps_meter_lib::capture::abnormal;
 use a2tools_dps_meter_lib::combat::data_storage::DataStorage;
@@ -12,6 +12,7 @@ use parking_lot::Mutex;
 
 use crate::capture::combat_port_detector::CombatPortDetector;
 use crate::capture::dispatcher::CaptureDispatcher;
+use crate::history::FightHistoryManager;
 
 // A2Tools DPS Meter's tables (src/data at the pinned rev), English only.
 const NPCS: &str = include_str!("../data/npcs_en.json");
@@ -28,8 +29,10 @@ pub struct Meter {
     pub calculator: Mutex<DpsCalculator>,
     skills: Arc<SkillLookup>,
     pub npcs: Arc<NpcLookup>,
-    ping: Arc<PingTracker>,
+    pub ping: Arc<PingTracker>,
     dot_skill_ids: HashSet<i32>,
+    /// Where boss fights are saved; none in a replay.
+    pub history: OnceLock<FightHistoryManager>,
 }
 
 impl Meter {
@@ -52,7 +55,23 @@ impl Meter {
             npcs,
             ping,
             dot_skill_ids,
+            history: OnceLock::new(),
         }
+    }
+
+    /// Save the boss fights (and training dummy sessions) on the meter to the
+    /// history: those changed since their last save, or every one with
+    /// `force` (before the combat data is cleared). How many were saved.
+    pub fn save_fights(&self, force: bool) -> usize {
+        let Some(history) = self.history.get() else { return 0 };
+        if self.storage.damage_generation() <= 0 {
+            return 0;
+        }
+        let records = {
+            let mut calculator = self.calculator.lock();
+            if force { calculator.snapshot_boss_fights_force() } else { calculator.snapshot_boss_fights() }
+        };
+        records.iter().filter(|r| history.save_fight(r).map_err(|e| tracing::warn!("fight not saved: {e}")).is_ok()).count()
     }
 
     /// A dispatcher feeding this meter's parser.
@@ -86,8 +105,9 @@ impl Meter {
         true
     }
 
-    /// Start over: no target, no damage.
+    /// Start over: no target, no damage. The fights on the meter are saved first.
     pub fn reset(&self) {
+        self.save_fights(true);
         self.calculator.lock().restart_target_selection(true);
     }
 }

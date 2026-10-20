@@ -14,6 +14,8 @@
 
 mod capture;
 mod focus;
+#[allow(dead_code)] // copied whole from upstream; export_fight_json unused
+mod history;
 mod meter;
 mod replay;
 mod sidecar;

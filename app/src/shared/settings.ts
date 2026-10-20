@@ -14,8 +14,9 @@ export interface Point {
 export interface Settings {
   /** Where the floating icon sits, in screen DIPs; null = bottom right of the primary display. */
   bubble: Point | null
-  /** Panel size; its position follows the bubble. */
+  /** The dashboard's size, and where it was left (null = the middle of the primary display). */
   panel: { width: number; height: number }
+  panelPosition: Point | null
   /** Keep the panel above the game while it is open. */
   panelOnTop: boolean
 
@@ -50,6 +51,8 @@ export interface Settings {
 
   /** Where the Black Cloud Merchant window sits (top-left, screen DIPs); null = top centre. */
   merchantWindow: Point | null
+  /** Where the Details window (a fight's breakdown) sits; null = the middle of the screen. */
+  detailsWindow: Point | null
 
   /** The timers' countdown bar over the game: on, where (null = top centre), how opaque. */
   timerBar: { enabled: boolean; position: Point | null; opacity: number }
@@ -129,7 +132,8 @@ export type SettingKey = keyof Settings
 
 export const SETTINGS_DEFAULTS: Settings = {
   bubble: null,
-  panel: { width: 420, height: 560 },
+  panel: { width: 1100, height: 720 },
+  panelPosition: null,
   panelOnTop: true,
   hud: {
     enabled: true,
@@ -148,6 +152,7 @@ export const SETTINGS_DEFAULTS: Settings = {
     kina: true,
   },
   merchantWindow: null,
+  detailsWindow: null,
   timerBar: { enabled: true, position: null, opacity: 0.92 },
   killFeed: { open: false, position: null },
   meter: { enabled: true, position: null, targetMode: 'bossTargets', rows: 8, opacity: 0.92 },
@@ -188,10 +193,12 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
   switch (key) {
     case 'bubble':
     case 'merchantWindow':
+    case 'detailsWindow':
+    case 'panelPosition':
       return point(value) as Settings[K]
     case 'panel': {
       const v = (value ?? {}) as Partial<Settings['panel']>
-      return { width: num(v.width, 340, 1200, d.panel.width), height: num(v.height, 360, 1400, d.panel.height) } as Settings[K]
+      return { width: num(v.width, 900, 3840, d.panel.width), height: num(v.height, 600, 2160, d.panel.height) } as Settings[K]
     }
     case 'panelOnTop':
     case 'hideFromCapture':

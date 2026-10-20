@@ -164,10 +164,7 @@ export const useApp = defineStore('app', () => {
 
   /** Show a pet's drop locations; the panel grows to fit the map while it is open. */
   function openPet(id: number | null): void {
-    if (openPetId.value === id) return
-    const wasOpen = openPetId.value !== null
     openPetId.value = id
-    if (wasOpen !== (id !== null)) void bridge().invoke('panel:setExpanded', id !== null)
   }
 
   return {

@@ -4,7 +4,7 @@
  * pattern is marnis-app's (shared/ipc-contract.ts), with this app's channels.
  */
 import type { KinaSession } from './kina.ts'
-import type { MeterData } from './meter.ts'
+import type { DetailsSource, DetailsView, FightSummary, MeterData } from './meter.ts'
 import type { SyncResult } from './lokthar.ts'
 import type { Point, SettingKey, Settings } from './settings.ts'
 import type { FieldBosses, TimerAlert, TimerId } from './timers.ts'
@@ -32,7 +32,9 @@ export interface InvokeChannels {
   'bubble:dragEnd': { args: []; result: void }
   'panel:toggle': { args: []; result: void }
   'panel:hide': { args: []; result: void }
-  'panel:setExpanded': { args: [expanded: boolean]; result: void }
+  'panel:minimize': { args: []; result: void }
+  /** Maximise the dashboard, or back from maximised. */
+  'panel:maximize': { args: []; result: void }
 
   'hud:setEditing': { args: [editing: boolean]; result: void }
   'hud:moveTo': { args: [to: Point]; result: void }
@@ -64,7 +66,15 @@ export interface InvokeChannels {
   /** Start the fight over: no target, no damage. */
   'meter:reset': { args: []; result: void }
   /** One target's breakdown by skill (A2Tools DPS Meter's TargetDetailsResponse). */
-  'meter:details': { args: [target: number, actors?: number[]]; result: unknown }
+  /** Open the Details window on a fight (a meter row, a saved fight), or what it shows now. */
+  'details:open': { args: [source: DetailsSource]; result: void }
+  'details:get': { args: []; result: DetailsView | null }
+  'details:close': { args: []; result: void }
+  'details:moveTo': { args: [to: Point]; result: void }
+  'details:dragEnd': { args: []; result: void }
+  /** The saved boss fights, newest first; and deleting one. */
+  'history:list': { args: []; result: FightSummary[] }
+  'history:delete': { args: [id: string]; result: void }
   'meter:moveTo': { args: [to: Point]; result: void }
   'meter:dragEnd': { args: []; result: void }
   'meter:resize': { args: [size: { width: number; height: number }]; result: void }
@@ -102,8 +112,14 @@ export interface EventChannels {
   'panel:showTimers': TimerId[]
   'hud:editing': boolean
   'panel:visible': boolean
+  /** The dashboard was maximised (true) or restored. */
+  'panel:maximized': boolean
   /** The fight, as the engine last reported it (checked 5 times a second, sent on change). */
   'meter:dps': MeterData
+  /** The Details window was pointed at another fight. */
+  'details:source': DetailsSource
+  /** Boss fights were saved or deleted. */
+  'history:changed': number
 }
 
 export type InvokeChannel = keyof InvokeChannels
@@ -124,13 +140,14 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'tracker:get', 'tracker:setSouls', 'tracker:setName', 'tracker:restart', 'tracker:resetSession', 'tracker:clearPvp',
   'killfeed:open', 'killfeed:close', 'killfeed:moveTo', 'killfeed:dragEnd', 'killfeed:resize',
   'timerbar:moveTo', 'timerbar:dragEnd', 'timerbar:resize',
-  'bubble:moveTo', 'bubble:dragEnd', 'panel:toggle', 'panel:hide', 'panel:setExpanded',
+  'bubble:moveTo', 'bubble:dragEnd', 'panel:toggle', 'panel:hide', 'panel:minimize', 'panel:maximize',
   'hud:setEditing', 'hud:moveTo', 'hud:dragEnd', 'hud:resize',
   'merchant:moveTo', 'merchant:dragEnd', 'merchant:resize', 'merchant:close', 'panel:showPet', 'timers:get', 'timers:dismiss', 'timers:open',
   'lokthar:test', 'lokthar:last',
-  'meter:get', 'meter:reset', 'meter:details', 'meter:moveTo', 'meter:dragEnd', 'meter:resize',
+  'meter:get', 'meter:reset', 'meter:moveTo', 'meter:dragEnd', 'meter:resize',
+  'details:open', 'details:get', 'details:close', 'details:moveTo', 'details:dragEnd', 'history:list', 'history:delete',
 ]
 
 export const EVENT_CHANNELS: readonly EventChannel[] = [
-  'settings:changed', 'tracker:status', 'tracker:pets', 'tracker:pet', 'tracker:soul', 'tracker:nearby', 'tracker:combat', 'tracker:shop', 'tracker:kina', 'tracker:fieldBosses', 'tracker:pvp', 'tracker:pvpKill', 'panel:showPet', 'panel:showTimers', 'timers:alert', 'timers:alerting', 'hud:editing', 'panel:visible', 'meter:dps',
+  'settings:changed', 'tracker:status', 'tracker:pets', 'tracker:pet', 'tracker:soul', 'tracker:nearby', 'tracker:combat', 'tracker:shop', 'tracker:kina', 'tracker:fieldBosses', 'tracker:pvp', 'tracker:pvpKill', 'panel:showPet', 'panel:showTimers', 'timers:alert', 'timers:alerting', 'hud:editing', 'panel:visible', 'panel:maximized', 'meter:dps', 'details:source', 'history:changed',
 ]

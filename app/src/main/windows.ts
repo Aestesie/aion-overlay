@@ -2,10 +2,12 @@
  * The app's three windows, all loading the same renderer on different routes:
  *
  *   bubble  #/bubble  a small floating icon: drag it anywhere, click it to open the panel
- *   panel   #/panel   the app itself: collection, session, settings; opens beside the bubble
+ *   panel   #/panel   the dashboard: the app itself, a window of its own the bubble opens
  *   hud       #/hud       the in-game overlay: click-through, sized to its content
  *   merchant  #/merchant  the Black Cloud Merchant's pets worth buying: opened when a tab of the
  *                         shop is, always movable, closed with its X
+ *   details   #/details   a fight's breakdown by player and skill: opened from a meter row or a
+ *                         saved fight in the History tab, moved by its header, closed with its X
  *   timerbar  #/timerbar  the timers with an alert on, as a bar of countdowns: open while the game
  *                         is, sized to what it shows (hidden with nothing within 13 hours)
  *   killfeed  #/killfeed  player kills around you, as they happen: opened from the PvP Log tab
@@ -23,17 +25,16 @@
  */
 import { app, BrowserWindow, screen, shell, type Rectangle } from 'electron'
 import { join } from 'node:path'
-import { broadcast } from './broadcast.ts'
+import { broadcast, send } from './broadcast.ts'
+import { DISPLAY_NAME } from '../shared/app.ts'
 import { settings } from './settings.ts'
 import { tracker } from './tracker.ts'
 import type { EventChannels } from '../shared/ipc.ts'
+import type { DetailsSource } from '../shared/meter.ts'
 import type { Point } from '../shared/settings.ts'
 import type { TimerId } from '../shared/timers.ts'
 
 const BUBBLE_SIZE = 64
-const PANEL_GAP = 8
-/** The panel's size while a map is open in it. */
-const PANEL_EXPANDED = { width: 900, height: 680 }
 const EDGE = 24
 
 let bubble: BrowserWindow | null = null
@@ -45,9 +46,10 @@ let meter: BrowserWindow | null = null
 let killFeed: BrowserWindow | null = null
 let killFeedSize = { width: 0, height: 0 }
 let timerBar: BrowserWindow | null = null
+let details: BrowserWindow | null = null
+let detailsShowing: DetailsSource | null = null
 let timerBarSize = { width: 0, height: 0 }
 let meterSize = { width: 0, height: 0 }
-let panelExpanded = false
 let hudEditing = false
 let hudSize = { width: 0, height: 0 }
 let quitting = false
@@ -166,7 +168,6 @@ export function createBubble(): BrowserWindow {
 export function moveBubble(to: Point): void {
   if (!alive(bubble)) return
   bubble.setBounds(clampToDisplay({ x: to.x, y: to.y, width: BUBBLE_SIZE, height: BUBBLE_SIZE }))
-  if (alive(panel) && panel.isVisible()) placePanel()
 }
 
 export function bubbleDragEnded(): void {
@@ -175,47 +176,74 @@ export function bubbleDragEnded(): void {
   settings.set('bubble', { x, y })
 }
 
-// ---- panel ----------------------------------------------------------------------------------
+// ---- dashboard (the panel) ------------------------------------------------------------------
 
-/**
- * Beside the bubble, on whichever side has room, aligned to the bubble's nearer edge. Where the
- * bubble would be while it is gone (the game is closed).
- */
-function placePanel(): void {
-  if (!alive(panel)) return
-  const b = alive(bubble) ? bubble.getBounds() : bubbleBounds(settings.get('bubble'))
-  const saved = settings.get('panel')
-  const width = panelExpanded ? Math.max(saved.width, PANEL_EXPANDED.width) : saved.width
-  const height = panelExpanded ? Math.max(saved.height, PANEL_EXPANDED.height) : saved.height
-  const area = screen.getDisplayMatching(b).workArea
-  const right = b.x + b.width / 2 > area.x + area.width / 2
-  const lower = b.y + b.height / 2 > area.y + area.height / 2
-  const x = right ? b.x - width - PANEL_GAP : b.x + b.width + PANEL_GAP
-  const y = lower ? b.y + b.height - height : b.y
-  panel.setBounds(clampToDisplay({ x, y, width, height }))
+/** The dashboard's smallest size: the sidebar and a page beside it. */
+const DASHBOARD_MIN = { width: 900, height: 600 }
+
+/** Where it was left, at the size it was left; the middle of the primary display the first time. */
+function dashboardBounds(): Rectangle {
+  const { width, height } = settings.get('panel')
+  const at = settings.get('panelPosition')
+  const area = screen.getPrimaryDisplay().workArea
+  const w = Math.min(width, area.width)
+  const h = Math.min(height, area.height)
+  const p = at ?? { x: Math.round(area.x + (area.width - w) / 2), y: Math.round(area.y + (area.height - h) / 2) }
+  return clampToDisplay({ x: p.x, y: p.y, width: w, height: h })
 }
 
+/**
+ * The dashboard: the app itself, a window of its own (not an overlay): resizable, in the taskbar,
+ * with its own title bar (DashboardPage). Not transparent, as Windows will not resize a transparent
+ * window. Its X hides it; only quitting closes it.
+ */
 export function createPanel(): BrowserWindow {
   if (alive(panel)) return panel
-  const { width, height } = settings.get('panel')
-  const win = overlayWindow({ width, height, alwaysOnTop: settings.get('panelOnTop') })
+  const win = overlayWindow({
+    ...dashboardBounds(),
+    transparent: false,
+    backgroundColor: '#0e101d',
+    resizable: true,
+    minimizable: true,
+    maximizable: true,
+    skipTaskbar: false,
+    hasShadow: true,
+    minWidth: DASHBOARD_MIN.width,
+    minHeight: DASHBOARD_MIN.height,
+    title: DISPLAY_NAME,
+    alwaysOnTop: settings.get('panelOnTop'),
+  })
   if (!settings.get('panelOnTop')) win.setAlwaysOnTop(false)
   panel = win
   win.on('close', (event) => {
-    // The X hides it; only quitting closes it.
     if (quitting) return
     event.preventDefault()
     hidePanel()
   })
   win.on('closed', () => (panel = null))
+  // Its size and place are remembered as they change (not maximised or minimised ones).
+  let saveTimer: NodeJS.Timeout | null = null
+  const remember = (): void => {
+    if (saveTimer) clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => {
+      if (win.isDestroyed() || win.isMaximized() || win.isMinimized()) return
+      const { x, y, width, height } = win.getBounds()
+      settings.set('panel', { width, height })
+      settings.set('panelPosition', { x, y })
+    }, 500)
+  }
+  win.on('resize', remember)
+  win.on('move', remember)
+  win.on('maximize', () => send(win, 'panel:maximized', true))
+  win.on('unmaximize', () => send(win, 'panel:maximized', false))
   load(win, 'panel')
   return win
 }
 
 export function showPanel(): void {
   const win = createPanel()
-  placePanel()
   const reveal = (): void => {
+    if (win.isMinimized()) win.restore()
     win.show()
     win.focus()
     broadcast('panel:visible', true)
@@ -225,6 +253,16 @@ export function showPanel(): void {
   }
   if (win.webContents.isLoading()) win.once('ready-to-show', reveal)
   else reveal()
+}
+
+export function minimizePanel(): void {
+  if (alive(panel)) panel.minimize()
+}
+
+export function toggleMaximizePanel(): void {
+  if (!alive(panel)) return
+  if (panel.isMaximized()) panel.unmaximize()
+  else panel.maximize()
 }
 
 /**
@@ -250,13 +288,6 @@ function sendToPanel<C extends 'panel:showPet' | 'panel:showTimers'>(channel: C,
   }
   if (win.webContents.isLoading()) win.webContents.once('did-finish-load', send)
   else send()
-}
-
-/** Larger while a map is open; back to the saved size after. Not persisted. */
-export function setPanelExpanded(expanded: boolean): void {
-  if (panelExpanded === expanded) return
-  panelExpanded = expanded
-  placePanel()
 }
 
 export function hidePanel(): void {
@@ -468,6 +499,58 @@ export function meterDragEnded(): void {
   settings.set('meter', { ...settings.get('meter'), position: { x, y } })
 }
 
+// ---- details ----------------------------------------------------------------------------------
+
+const DETAILS_SIZE = { width: 520, height: 600 }
+
+function detailsPosition(): Point {
+  const saved = settings.get('detailsWindow')
+  if (saved) return saved
+  const area = screen.getPrimaryDisplay().workArea
+  return { x: Math.round(area.x + (area.width - DETAILS_SIZE.width) / 2), y: Math.round(area.y + (area.height - DETAILS_SIZE.height) / 2) }
+}
+
+/** What the Details window shows, if it is open. */
+export function detailsSource(): DetailsSource | null {
+  return alive(details) ? detailsShowing : null
+}
+
+/** Open the Details window on `source`, or point the open one at it. */
+export function openDetails(source: DetailsSource): void {
+  detailsShowing = source
+  if (alive(details)) {
+    broadcast('details:source', source)
+    reveal(details)
+    return
+  }
+  const p = detailsPosition()
+  const win = overlayWindow({ ...clampToDisplay({ x: p.x, y: p.y, ...DETAILS_SIZE }) })
+  details = win
+  win.on('closed', () => {
+    details = null
+    detailsShowing = null
+  })
+  win.once('ready-to-show', () => reveal(win))
+  load(win, 'details')
+}
+
+export function closeDetails(): void {
+  if (alive(details)) details.destroy()
+  details = null
+  detailsShowing = null
+}
+
+export function moveDetails(to: Point): void {
+  if (!alive(details)) return
+  details.setBounds(clampToDisplay({ x: to.x, y: to.y, ...DETAILS_SIZE }))
+}
+
+export function detailsDragEnded(): void {
+  if (!alive(details)) return
+  const { x, y } = details.getBounds()
+  settings.set('detailsWindow', { x, y })
+}
+
 // ---- timer bar ------------------------------------------------------------------------------
 
 function timerBarPosition(): Point {
@@ -586,11 +669,48 @@ let gameAway = false
 const awayHidden = new Set<BrowserWindow>()
 let awayTimer: NodeJS.Timeout | null = null
 
-/** Show an overlay without taking the focus; while the game is away, once it is back. */
+/** Every overlay hidden by hand (Alt+Shift+E) until shown again; the dashboard stays. */
+let overlaysOff = false
+
+/** Hidden now, by the game being away or by hand: shows once neither holds it. */
+const held = (win: BrowserWindow): boolean => gameAway || (overlaysOff && win !== panel)
+
+/** Show an overlay without taking the focus; while it is held hidden, once it is not. */
 function reveal(win: BrowserWindow): void {
-  if (gameAway) awayHidden.add(win)
+  if (held(win)) awayHidden.add(win)
   else win.showInactive()
 }
+
+/** Show again the windows hidden for a reason that is gone. */
+function restoreHidden(): void {
+  for (const win of [...awayHidden]) {
+    if (alive(win) && held(win)) continue
+    awayHidden.delete(win)
+    // These decide below whether they have anything to show.
+    if (alive(win) && win !== hud && win !== merchant && win !== meter && win !== timerBar) win.showInactive()
+  }
+  refreshHud()
+  refreshMerchant()
+  refreshMeter()
+  refreshTimerBar()
+}
+
+/** Alt+Shift+E: every overlay off, or back on. The dashboard is left as it is. True when off. */
+export function toggleOverlays(): boolean {
+  overlaysOff = !overlaysOff
+  if (overlaysOff) {
+    for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, details]) {
+      if (!alive(win) || !win.isVisible()) continue
+      awayHidden.add(win)
+      win.hide()
+    }
+  } else {
+    restoreHidden()
+  }
+  return overlaysOff
+}
+
+export const overlaysHidden = (): boolean => overlaysOff
 
 /** What is in front, as the engine sees it (Windows): the game, one of our windows, or neither. */
 export function setForeground(game: boolean, app: boolean): void {
@@ -601,7 +721,7 @@ export function setForeground(game: boolean, app: boolean): void {
   if (away) {
     awayTimer = setTimeout(() => {
       gameAway = true
-      for (const win of [bubble, panel, hud, merchant, meter, killFeed, timerBar]) {
+      for (const win of [bubble, panel, hud, merchant, meter, killFeed, timerBar, details]) {
         if (!alive(win) || !win.isVisible()) continue
         awayHidden.add(win)
         win.hide()
@@ -610,13 +730,7 @@ export function setForeground(game: boolean, app: boolean): void {
     return
   }
   gameAway = false
-  for (const win of awayHidden) if (alive(win) && win !== hud && win !== merchant && win !== meter && win !== timerBar) win.showInactive()
-  awayHidden.clear()
-  // These decide for themselves whether they have anything to show.
-  refreshHud()
-  refreshMerchant()
-  refreshMeter()
-  refreshTimerBar()
+  restoreHidden()
 }
 
 // ---- all ------------------------------------------------------------------------------------
@@ -632,7 +746,7 @@ const ON_TOP_EVERY_MS = 5_000
  */
 export function startOnTopWatch(): void {
   setInterval(() => {
-    for (const win of [bubble, hud, merchant, meter, killFeed, timerBar]) {
+    for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, details]) {
       if (!alive(win) || !win.isVisible()) continue
       win.setAlwaysOnTop(true, 'screen-saver')
       win.moveTop()
@@ -643,7 +757,7 @@ export function startOnTopWatch(): void {
 /** Settings that change how the windows behave, applied live. */
 export function applyWindowSettings(): void {
   const hidden = settings.get('hideFromCapture')
-  for (const w of [bubble, panel, hud, merchant, meter, killFeed, timerBar]) if (alive(w)) w.setContentProtection(hidden)
+  for (const w of [bubble, panel, hud, merchant, meter, killFeed, timerBar, details]) if (alive(w)) w.setContentProtection(hidden)
   // Turned on: with the other overlays, while they are up (the bubble is, awake).
   if (!settings.get('timerBar').enabled) closeTimerBar()
   else if (alive(bubble)) createTimerBar()
@@ -653,7 +767,6 @@ export function applyWindowSettings(): void {
   if (alive(panel)) {
     const onTop = settings.get('panelOnTop')
     panel.setAlwaysOnTop(onTop, 'screen-saver')
-    if (panel.isVisible()) placePanel()
   }
   refreshHud()
 }
@@ -705,6 +818,13 @@ export function rebuildWindow(win: BrowserWindow): string | null {
     merchant = null
     showMerchant()
     return 'merchant'
+  }
+  if (win === details) {
+    const source = detailsShowing
+    win.destroy()
+    details = null
+    if (source) openDetails(source)
+    return 'details'
   }
   if (win === timerBar) {
     win.destroy()

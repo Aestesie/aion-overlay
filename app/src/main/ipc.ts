@@ -7,14 +7,21 @@ import { timers } from './timers.ts'
 import { logPath, tracker } from './tracker.ts'
 import {
   bubbleDragEnded,
+  closeDetails,
+  detailsDragEnded,
+  detailsSource,
   closeMerchant,
   hidePanel,
   hudDragEnded,
   killFeedDragEnded,
   markQuitting,
   merchantDragEnded,
+  minimizePanel,
+  toggleMaximizePanel,
+  openDetails,
   meterDragEnded,
   moveBubble,
+  moveDetails,
   moveHud,
   moveKillFeed,
   moveMerchant,
@@ -27,7 +34,6 @@ import {
   resizeTimerBar,
   setHudEditing,
   setKillFeedOpen,
-  setPanelExpanded,
   showPetInPanel,
   showTimersInPanel,
   timerBarDragEnded,
@@ -43,6 +49,9 @@ function handle<C extends InvokeChannel>(
 ): void {
   ipcMain.handle(channel, (_event, ...args) => fn(...(args as InvokeArgs<C>)))
 }
+
+/** A saved fight's id: one file name, nothing that leaves the history folder. */
+const isPlainId = (id: unknown): id is string => typeof id === 'string' && /^[\w.-]{1,128}$/.test(id) && !id.includes('..')
 
 const isPoint = (p: unknown): p is { x: number; y: number } =>
   typeof p === 'object' && p !== null && Number.isFinite((p as { x: unknown }).x) && Number.isFinite((p as { y: unknown }).y)
@@ -100,7 +109,8 @@ export function registerIpc(): void {
   handle('bubble:dragEnd', () => bubbleDragEnded())
   handle('panel:toggle', () => togglePanel())
   handle('panel:hide', () => hidePanel())
-  handle('panel:setExpanded', (expanded) => setPanelExpanded(Boolean(expanded)))
+  handle('panel:minimize', () => minimizePanel())
+  handle('panel:maximize', () => toggleMaximizePanel())
 
   handle('hud:setEditing', (editing) => setHudEditing(Boolean(editing)))
   handle('hud:moveTo', (to) => {
@@ -132,10 +142,22 @@ export function registerIpc(): void {
 
   handle('meter:get', () => meterState.meter())
   handle('meter:reset', () => meterState.reset())
-  handle('meter:details', (target, actors) => {
-    if (!Number.isInteger(target)) return null
-    const ids = Array.isArray(actors) ? actors.filter((a) => Number.isInteger(a)).slice(0, 64) : undefined
-    return meterState.details(target, ids)
+  handle('details:open', (source) => {
+    const ok = source?.kind === 'live' ? Number.isInteger(source.target) : source?.kind === 'saved' && isPlainId(source.id)
+    if (ok) openDetails(source)
+  })
+  handle('details:get', () => {
+    const source = detailsSource()
+    return source ? meterState.details(source) : null
+  })
+  handle('details:close', () => closeDetails())
+  handle('details:moveTo', (to) => {
+    if (isPoint(to)) moveDetails(to)
+  })
+  handle('details:dragEnd', () => detailsDragEnded())
+  handle('history:list', () => meterState.history())
+  handle('history:delete', (id) => {
+    if (isPlainId(id)) meterState.deleteFight(id)
   })
   handle('meter:moveTo', (to) => {
     if (isPoint(to)) moveMeter(to)

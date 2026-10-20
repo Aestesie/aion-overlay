@@ -62,6 +62,16 @@ const statusDot = computed(
 
 const drag = windowDrag({ move: 'meter:moveTo', end: 'meter:dragEnd' })
 const reset = (): void => void api.invoke('meter:reset')
+/** A row's skills, in the Details window: the live target's, following the fight. */
+function showDetails(actor: number): void {
+  const target = meter.value.target?.id
+  if (target) void api.invoke('details:open', { kind: 'live', target, actor })
+}
+/** Your ping, coloured by how it plays: under 80 ms good, under 150 ms fair. */
+const pingClass = computed(() => {
+  const ms = meter.value.ping
+  return ms === null ? '' : ms < 80 ? 'text-green' : ms < 150 ? 'text-yellow' : 'text-danger'
+})
 function setMode(e: Event): void {
   const targetMode = (e.target as HTMLSelectElement).value as TargetMode
   void api.invoke('settings:set', 'meter', { ...cfg.value, targetMode })
@@ -135,7 +145,13 @@ onBeforeUnmount(() => {
         </div>
 
         <ul v-if="rows.length" class="space-y-0.5 px-1.5 py-1.5">
-          <li v-for="(r, i) in rows" :key="r.id" class="relative overflow-hidden rounded" :title="`${r.className ?? 'Unknown class'} · ${short(r.damage)} damage`">
+          <li
+            v-for="(r, i) in rows"
+            :key="r.id"
+            class="relative cursor-pointer overflow-hidden rounded hover:ring-1 hover:ring-light"
+            :title="`${r.className ?? 'Unknown class'} · ${short(r.damage)} damage · click for skills`"
+            @click="showDetails(r.id)"
+          >
             <div
               class="absolute inset-y-0 left-0 opacity-30"
               :style="{ width: `${(r.damage / top) * 100}%`, background: CLASS_COLORS[r.className ?? ''] ?? '#787b8a' }"
@@ -154,9 +170,12 @@ onBeforeUnmount(() => {
           {{ status.state === 'error' || status.state === 'exited' ? status.detail : STATUS_TEXT[status.state] }}
         </p>
 
-        <footer v-if="rows.length > 1" class="flex justify-between border-t border-card px-2.5 py-1 text-[10px] tabular-nums text-darkest">
+        <footer v-if="rows.length > 1 || meter.ping !== null" class="flex gap-2 border-t border-card px-2.5 py-1 text-[10px] tabular-nums text-darkest">
           <span>{{ TARGET_MODE_LABELS[meter.mode] }}</span>
-          <span>party {{ short(totalDps) }}/s</span>
+          <span v-if="meter.ping !== null" class="ml-auto" title="Your ping to the game server">
+            <span :class="pingClass">{{ meter.ping }}</span> ms
+          </span>
+          <span v-if="rows.length > 1" :class="meter.ping === null && 'ml-auto'">party {{ short(totalDps) }}/s</span>
         </footer>
       </div>
     </div>

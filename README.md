@@ -26,7 +26,9 @@ to keep opening the Pets menu.
 - **One collection per server:** as in the game, your characters on a server share one; one on
   another server has its own.
 - **DPS meter:** its own window while you play, from A2Tools DPS Meter's parser: everyone hitting
-  your target, the target's HP and the fight's time.
+  your target, the target's HP, the fight's time and your ping. Click a player for their skills
+  (damage, hits, crit rate, biggest hit); boss fights are saved, and the panel's Fights tab
+  opens them again.
 - **Stays out of the way:** it sits in the tray and sleeps while Aion 2 is closed, waking when the
   game starts.
 - And whatever else I randomly find useful while I play Aion2. :D
