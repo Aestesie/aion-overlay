@@ -15,9 +15,12 @@ import MiniMapPage from './pages/MiniMapPage.vue'
 import SkillsPage from './pages/SkillsPage.vue'
 import TimerBarPage from './pages/TimerBarPage.vue'
 import PanelPage from './pages/PanelPage.vue'
+import { clickEatenPresses } from './lib/eatenPress.ts'
 import { useApp } from './stores/app.ts'
 
 const page = location.hash.replace(/^#\/?/, '') || 'panel'
+// Overlays over the game can lose a click's press to Windows; the dashboard is a normal window.
+if (page !== 'panel' && page !== 'bubble') clickEatenPresses()
 const store = useApp()
 onMounted(() => void store.init())
 </script>

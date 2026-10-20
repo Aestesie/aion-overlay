@@ -201,7 +201,8 @@ function dashboardBounds(): Rectangle {
 /**
  * The dashboard: the app itself, a window of its own (not an overlay): resizable, always in the
  * taskbar, with its own title bar (DashboardPage). Opened when the app starts; its X (and Alt+F4)
- * minimises it to the taskbar, and only quitting (the tray) closes it. Not transparent, as Windows
+ * minimises it to the taskbar, as does clicking from it into the game (panelLeftForGame), and
+ * only quitting (the tray) closes it. Not transparent, as Windows
  * will not resize a transparent window.
  */
 export function createPanel(): BrowserWindow {
@@ -231,6 +232,7 @@ export function createPanel(): BrowserWindow {
   win.on('minimize', () => panelShown(false))
   win.on('restore', () => panelShown(true))
   win.on('closed', () => (panel = null))
+  win.on('blur', () => (panelBlurredAt = Date.now()))
   // Its size and place are remembered as they change (not maximised or minimised ones).
   let saveTimer: NodeJS.Timeout | null = null
   const remember = (): void => {
@@ -300,6 +302,21 @@ function sendToPanel<C extends 'panel:showPet' | 'panel:showTimers'>(channel: C,
 /** The dashboard's X: down to the taskbar, where it stays. */
 export function hidePanel(): void {
   if (alive(panel) && !panel.isMinimized()) panel.minimize()
+}
+
+/** When the dashboard last lost the keyboard: a click on the game right after hides it. */
+let panelBlurredAt = 0
+const CLICKED_AWAY_MS = 1_500
+
+/**
+ * The game came to the front: if that was you leaving the dashboard for it (a click on the game, an
+ * alt-tab), down it goes, like a modal clicked outside. Not when the dashboard never had the focus
+ * (Alt+E over the game can open it without), so it is never hidden as it opens.
+ */
+function panelLeftForGame(): void {
+  if (!settings.get('panelHideOnGame') || !panelVisible()) return
+  if (panel?.isFocused() || Date.now() - panelBlurredAt > CLICKED_AWAY_MS) return
+  hidePanel()
 }
 
 /** The dashboard came up on screen, or went down to the taskbar. */
@@ -550,6 +567,7 @@ function measuredOverlay(o: {
       const p = position()
       const w = overlayWindow({ x: p.x, y: p.y, width: 300, height: 120, ...(o.clickThrough ? { focusable: false } : {}) })
       if (o.clickThrough && !panelVisible()) w.setIgnoreMouseEvents(true)
+      else if (o.clickThrough) w.setFocusable(true)
       win = w
       size = { width: 0, height: 0 }
       w.on('closed', () => {
@@ -564,7 +582,11 @@ function measuredOverlay(o: {
     refresh,
     /** The dashboard came up (it can be moved) or went down (clicks pass through). */
     panelUp(up: boolean): void {
-      if (o.clickThrough && alive(win)) win.setIgnoreMouseEvents(!up)
+      if (!o.clickThrough || !alive(win)) return
+      win.setIgnoreMouseEvents(!up)
+      // As the HUD in move mode: a window that can never be activated loses its presses to
+      // Windows over the game, and with no press there is no drag.
+      win.setFocusable(up)
     },
     resize(to: { width: number; height: number }): void {
       size = { width: Math.ceil(to.width), height: Math.ceil(to.height) }
@@ -882,6 +904,7 @@ export const overlaysHidden = (): boolean => overlaysOff
 
 /** What is in front, as the engine sees it (Windows): the game, one of our windows, or neither. */
 export function setForeground(game: boolean, app: boolean): void {
+  if (game) panelLeftForGame()
   const away = settings.get('hideWhenGameAway') && !game && !app
   if (awayTimer) clearTimeout(awayTimer)
   awayTimer = null

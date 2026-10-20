@@ -20,6 +20,8 @@ export interface Settings {
   panelPosition: Point | null
   /** Keep the panel above the game while it is open. */
   panelOnTop: boolean
+  /** Minimise the panel when you click from it into the game, as a click outside closes a modal. */
+  panelHideOnGame: boolean
 
   hud: {
     enabled: boolean
@@ -178,6 +180,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   panel: { width: 1100, height: 720 },
   panelPosition: null,
   panelOnTop: true,
+  panelHideOnGame: true,
   hud: {
     enabled: true,
     position: null,
@@ -250,6 +253,7 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
       return { width: num(v.width, 900, 3840, d.panel.width), height: num(v.height, 600, 2160, d.panel.height) } as Settings[K]
     }
     case 'panelOnTop':
+    case 'panelHideOnGame':
     case 'hideFromCapture':
     case 'hideMaxed':
     case 'sleepWithoutGame':

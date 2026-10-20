@@ -128,6 +128,9 @@ const lastPacket = computed(() => {
       <SettingRow label="Keep this window on top" hint="It stays above the game while open.">
         <Toggle :model-value="store.settings.panelOnTop" @update:model-value="store.set('panelOnTop', $event)" />
       </SettingRow>
+      <SettingRow label="Hide when you click the game" hint="Click from this window into the game and it goes down to the taskbar; Alt+E brings it back.">
+        <Toggle :model-value="store.settings.panelHideOnGame" @update:model-value="store.set('panelHideOnGame', $event)" />
+      </SettingRow>
       <SettingRow label="Hide from screen recordings" hint="Keeps the overlays and this window out of OBS, Discord and screenshots.">
         <Toggle :model-value="store.settings.hideFromCapture" @update:model-value="store.set('hideFromCapture', $event)" />
       </SettingRow>
