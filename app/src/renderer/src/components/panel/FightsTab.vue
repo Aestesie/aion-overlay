@@ -52,7 +52,7 @@ onBeforeUnmount(() => off?.())
     <div class="flex items-center gap-2 text-xs">
       <span class="text-darker">Boss fights, saved as you play: click one for each player's skills.</span>
       <label class="ml-auto flex shrink-0 items-center gap-1.5 text-darker">
-        <input v-model="showTraining" type="checkbox" class="accent-[color:var(--violet-9)]" />
+        <input v-model="showTraining" type="checkbox" class="accent-[color:var(--accent)]" />
         Training dummies
       </label>
     </div>
@@ -61,7 +61,7 @@ onBeforeUnmount(() => off?.())
     <p v-else-if="!shown.length" class="rounded-lg border border-card bg-card px-3 py-6 text-center text-sm text-darker">
       No boss fights saved yet. Each one is kept as it ends, and before the meter is cleared.
     </p>
-    <ul v-else class="divide-y divide-[color:var(--gray-4)] overflow-hidden rounded-lg border border-card bg-card">
+    <ul v-else class="divide-y divide-[color:var(--line)] overflow-hidden rounded-lg border border-card bg-card">
       <li
         v-for="f in shown"
         :key="f.id"

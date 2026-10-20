@@ -158,7 +158,7 @@ const shownCount = computed(() => TIMERS.filter((d) => shown(d.id)).length)
 
 <template>
   <div class="space-y-4 p-3">
-    <div class="divide-y divide-[color:var(--gray-4)] rounded-lg border border-card bg-card px-3">
+    <div class="divide-y divide-[color:var(--line)] rounded-lg border border-card bg-card px-3">
       <SettingRow label="Countdown bar" hint="The timers with an alert on, starting within 13 hours, over the game. Drag it to move it.">
         <Toggle :model-value="store.settings.timerBar.enabled" @update:model-value="store.set('timerBar', { ...store.settings.timerBar, enabled: $event })" />
       </SettingRow>
@@ -172,7 +172,7 @@ const shownCount = computed(() => TIMERS.filter((d) => shown(d.id)).length)
       </p>
       <section v-for="g in groups" :key="g.title">
         <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-darkest">{{ g.title }}</h3>
-        <TransitionGroup tag="ul" name="reorder" class="divide-y divide-[color:var(--gray-4)] overflow-hidden rounded-lg border border-card bg-card">
+        <TransitionGroup tag="ul" name="reorder" class="divide-y divide-[color:var(--line)] overflow-hidden rounded-lg border border-card bg-card">
           <li
             v-for="r in g.rows"
             :key="r.def.id"
@@ -274,7 +274,7 @@ const shownCount = computed(() => TIMERS.filter((d) => shown(d.id)).length)
 
     <section>
       <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-darkest">Alerts</h3>
-      <div class="divide-y divide-[color:var(--gray-4)] rounded-lg border border-card bg-card px-3">
+      <div class="divide-y divide-[color:var(--line)] rounded-lg border border-card bg-card px-3">
         <SettingRow label="Server region" hint="Weekly events (the siege) are at your region's own time. It follows your server as you enter the world; change it here if that is wrong.">
           <select
             :value="cfg.region"

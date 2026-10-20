@@ -4,7 +4,7 @@ defineProps<{ label: string; hint?: string; warning?: string }>()
 </script>
 
 <template>
-  <div class="flex items-center justify-between gap-4 py-2">
+  <div class="flex items-center justify-between gap-6 py-3">
     <div class="min-w-0">
       <div class="text-sm">{{ label }}</div>
       <div v-if="hint" class="text-xs leading-snug text-darker">{{ hint }}</div>

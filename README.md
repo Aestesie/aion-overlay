@@ -103,6 +103,9 @@ plays a recording (`.pcap`, `.pcapng` or an A2Tools packet log) instead of the g
   buff tables are in `engine/data/`, and the meter's class icons are its too.
 - Pet record layouts and soul counting rules follow the pet-souls plugin of
   [taengu/A2Tools-Plugins](https://github.com/taengu/A2Tools-Plugins) (GPL-3.0).
+- Skill icons are the game's own (its asset CDN), matched to skills by A2Tools DPS Meter's
+  `skill_icons.json`; bundled in `app/src/renderer/public/skills/` by
+  `app/scripts/fetch-skill-icons.mjs`.
 - The Shugo Festival and Spacetime Rift icons of the timer bar come from
   [guildmanager.app](https://guildmanager.app), kept in `app/src/renderer/public/events/`.
 - Pet names, genus, portraits, spawn locations and zone maps come from

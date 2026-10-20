@@ -123,15 +123,15 @@ defineExpose({ fit })
             :r="(layer.active ? 5.5 : 3.5) / view.k"
             :fill="layer.color"
             :fill-opacity="layer.active ? 0.95 : 0.55"
-            stroke="#0e101d"
+            stroke="#09090b"
             :stroke-width="(layer.active ? 1.5 : 1) / view.k"
           />
         </template>
         <!-- You: a ring with a dot, drawn last so nothing covers it. -->
         <g v-if="youXY">
           <circle :cx="youXY[0]" :cy="youXY[1]" :r="11 / view.k" fill="none" stroke="#ffffff" :stroke-width="3 / view.k" />
-          <circle :cx="youXY[0]" :cy="youXY[1]" :r="11 / view.k" fill="none" stroke="#4f3cdd" :stroke-width="1.5 / view.k" />
-          <circle :cx="youXY[0]" :cy="youXY[1]" :r="4 / view.k" fill="#ffffff" stroke="#4f3cdd" :stroke-width="1.5 / view.k" />
+          <circle :cx="youXY[0]" :cy="youXY[1]" :r="11 / view.k" fill="none" stroke="#3b82f6" :stroke-width="1.5 / view.k" />
+          <circle :cx="youXY[0]" :cy="youXY[1]" :r="4 / view.k" fill="#ffffff" stroke="#3b82f6" :stroke-width="1.5 / view.k" />
         </g>
       </svg>
     </div>

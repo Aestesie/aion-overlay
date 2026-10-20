@@ -1,7 +1,6 @@
 <script setup lang="ts">
-// Three intents, two sizes, a loading state that also disables. The shapes
-// come from the Radix reference: a solid accent for the one primary action,
-// a soft surface for the rest, and danger as a tinted outline that fills.
+// Three intents, two sizes, a loading state that also disables. shadcn's shapes: a solid accent
+// for the one primary action, an outline for the rest, and danger as a tinted outline that fills.
 withDefaults(
   defineProps<{
     intent?: 'default' | 'primary' | 'danger'
@@ -13,7 +12,7 @@ withDefaults(
 )
 
 const INTENTS = {
-  default: 'border-light bg-default text-default hover:border-lighter hover:bg-light',
+  default: 'border-light bg-transparent text-default hover:bg-dark',
   primary: 'border-accent bg-accent text-white hover:border-accent-hover hover:bg-accent-hover',
   danger: 'border-danger/50 bg-danger/10 text-danger hover:border-danger hover:bg-danger/20',
 } as const

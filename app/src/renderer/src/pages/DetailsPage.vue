@@ -4,6 +4,7 @@
 // redrawn every second), or on a saved fight from the History tab. Moved by its header; its X
 // closes it.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import SkillIcon from '@/components/SkillIcon.vue'
 import { bridge } from '@/lib/bridge.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { CLASS_COLORS, type DetailsSkill, type DetailsView } from '@shared/meter.ts'
@@ -155,7 +156,12 @@ onBeforeUnmount(() => {
           </thead>
           <tbody>
             <tr v-for="s in skills" :key="`${s.code}-${s.dot}`" class="border-t border-card/60">
-              <td class="max-w-0 truncate px-3 py-1 text-dark" :title="s.name">{{ s.name }}<span v-if="s.dot" class="ml-1 text-darkest">DoT</span></td>
+              <td class="max-w-0 px-3 py-1 text-dark" :title="s.name">
+                <span class="flex min-w-0 items-center gap-1.5">
+                  <SkillIcon :code="s.code" :size="16" />
+                  <span class="truncate">{{ s.name }}</span><span v-if="s.dot" class="text-darkest">DoT</span>
+                </span>
+              </td>
               <td class="px-1 py-1 text-right text-default">{{ short(s.damage) }}</td>
               <td class="px-1 py-1 text-right text-darker">{{ pct(s.damage, skillTotal) }}</td>
               <td class="px-1 py-1 text-right text-darker">{{ s.hits }}</td>

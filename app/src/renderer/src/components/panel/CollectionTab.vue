@@ -219,7 +219,7 @@ const syncedAgo = computed(() => {
       </select>
     </div>
     <!-- The filters, one segment per group: what to show, then genus, then continent. -->
-    <div class="divide-y divide-[color:var(--gray-4)] rounded-lg border border-card bg-card">
+    <div class="divide-y divide-[color:var(--line)] rounded-lg border border-card bg-card">
       <div class="flex items-start gap-2 px-2.5 py-2">
         <span class="w-16 shrink-0 pt-1 text-[10px] font-semibold uppercase tracking-wide text-darkest">Show</span>
         <div class="flex flex-wrap gap-1.5">
@@ -282,7 +282,7 @@ const syncedAgo = computed(() => {
       you as you move: zone loads, teleports and the effects on you (buffs, heals, hits) all say where you are.
     </p>
 
-    <ul class="divide-y divide-[color:var(--gray-4)] overflow-hidden rounded-lg border border-card bg-card">
+    <ul class="divide-y divide-[color:var(--line)] overflow-hidden rounded-lg border border-card bg-card">
       <li
         v-for="pet in list"
         :key="pet.id"

@@ -1,4 +1,4 @@
-/** The theme is marnis-app's (Radix dark violet), copied as a preset so the two apps look alike. */
+/** The theme: shadcn/ui's dark zinc and blue (tailwind.preset.cjs). */
 module.exports = {
   presets: [require('./tailwind.preset.cjs')],
   content: ['./src/renderer/index.html', './src/renderer/src/**/*.{vue,ts}'],

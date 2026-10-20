@@ -83,7 +83,7 @@ const toggleHud = (): void => void bridge().invoke(hudOpen.value ? 'killfeed:clo
       <span class="ml-auto rounded-full bg-card px-2 py-0.5 tabular-nums text-dark" :title="`${filtered.length} kill${filtered.length === 1 ? '' : 's'} in the list`">{{ filtered.length }}</span>
     </div>
 
-    <ul v-if="filtered.length" class="divide-y divide-[color:var(--gray-4)] overflow-hidden rounded-lg border border-card bg-card">
+    <ul v-if="filtered.length" class="divide-y divide-[color:var(--line)] overflow-hidden rounded-lg border border-card bg-card">
       <li v-for="(k, i) in shown" :key="`${k.at}-${i}`" :class="['flex items-center gap-2 px-3 py-2 text-sm', rowClass(k)]">
         <div class="min-w-0 flex-1">
           <div class="flex min-w-0 items-center gap-1.5">

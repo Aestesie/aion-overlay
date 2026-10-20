@@ -4,7 +4,7 @@
  * pattern is marnis-app's (shared/ipc-contract.ts), with this app's channels.
  */
 import type { KinaSession } from './kina.ts'
-import type { DetailsSource, DetailsView, FightSummary, MeterData } from './meter.ts'
+import type { DetailsSource, DetailsView, FightSummary, MeterData, PersonalView } from './meter.ts'
 import type { SyncResult } from './lokthar.ts'
 import type { Point, SettingKey, Settings } from './settings.ts'
 import type { FieldBosses, TimerAlert, TimerId } from './timers.ts'
@@ -66,6 +66,11 @@ export interface InvokeChannels {
   /** Start the fight over: no target, no damage. */
   'meter:reset': { args: []; result: void }
   /** One target's breakdown by skill (A2Tools DPS Meter's TargetDetailsResponse). */
+  /** Your own skills on the meter's target (the skills window). */
+  'skills:get': { args: []; result: PersonalView }
+  'skills:moveTo': { args: [to: Point]; result: void }
+  'skills:dragEnd': { args: []; result: void }
+  'skills:resize': { args: [size: { width: number; height: number }]; result: void }
   /** Open the Details window on a fight (a meter row, a saved fight), or what it shows now. */
   'details:open': { args: [source: DetailsSource]; result: void }
   'details:get': { args: []; result: DetailsView | null }
@@ -145,6 +150,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'merchant:moveTo', 'merchant:dragEnd', 'merchant:resize', 'merchant:close', 'panel:showPet', 'timers:get', 'timers:dismiss', 'timers:open',
   'lokthar:test', 'lokthar:last',
   'meter:get', 'meter:reset', 'meter:moveTo', 'meter:dragEnd', 'meter:resize',
+  'skills:get', 'skills:moveTo', 'skills:dragEnd', 'skills:resize',
   'details:open', 'details:get', 'details:close', 'details:moveTo', 'details:dragEnd', 'history:list', 'history:delete',
 ]
 

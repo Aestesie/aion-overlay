@@ -58,7 +58,7 @@ const worldTabs = computed(() => current.value?.worlds.map((w) => ({ id: w.world
 const layers = computed<MapLayer[]>(() =>
   droppers.value.flatMap((d, i) => {
     const w = d.worlds.find((x) => x.world === worldId.value)
-    return w ? [{ key: d.npc, points: w.points, color: d.npc === selected.value ? '#a3acff' : colorOf(i), active: d.npc === selected.value }] : []
+    return w ? [{ key: d.npc, points: w.points, color: d.npc === selected.value ? '#60a5fa' : colorOf(i), active: d.npc === selected.value }] : []
   }),
 )
 /** You, on this map, when you are in this zone and the tracker knows where. */
@@ -125,7 +125,7 @@ const FIT_CLASS = { good: 'text-green', low: 'text-red', high: 'text-yellow' }
           @click="selected = d.npc"
         >
           <div class="flex items-center gap-2">
-            <span class="size-2.5 shrink-0 rounded-full" :style="{ background: d.npc === selected ? '#a3acff' : colorOf(i) }" />
+            <span class="size-2.5 shrink-0 rounded-full" :style="{ background: d.npc === selected ? '#60a5fa' : colorOf(i) }" />
             <a
               :href="npcUrl(d.npc)"
               target="_blank"

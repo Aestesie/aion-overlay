@@ -6,6 +6,7 @@
  *   hud       #/hud       the in-game overlay: click-through, sized to its content
  *   merchant  #/merchant  the Black Cloud Merchant's pets worth buying: opened when a tab of the
  *                         shop is, always movable, closed with its X
+ *   skills    #/skills    your own damage on the meter's target, skill by skill: with the meter
  *   details   #/details   a fight's breakdown by player and skill: opened from a meter row or a
  *                         saved fight in the History tab, moved by its header, closed with its X
  *   timerbar  #/timerbar  the timers with an alert on, as a bar of countdowns: open while the game
@@ -47,6 +48,8 @@ let killFeed: BrowserWindow | null = null
 let killFeedSize = { width: 0, height: 0 }
 let timerBar: BrowserWindow | null = null
 let details: BrowserWindow | null = null
+let skills: BrowserWindow | null = null
+let skillsSize = { width: 0, height: 0 }
 let detailsShowing: DetailsSource | null = null
 let timerBarSize = { width: 0, height: 0 }
 let meterSize = { width: 0, height: 0 }
@@ -202,7 +205,7 @@ export function createPanel(): BrowserWindow {
   const win = overlayWindow({
     ...dashboardBounds(),
     transparent: false,
-    backgroundColor: '#0e101d',
+    backgroundColor: '#09090b',
     resizable: true,
     minimizable: true,
     maximizable: true,
@@ -499,6 +502,59 @@ export function meterDragEnded(): void {
   settings.set('meter', { ...settings.get('meter'), position: { x, y } })
 }
 
+// ---- skills ---------------------------------------------------------------------------------
+
+function skillsPosition(): Point {
+  const saved = settings.get('skills').position
+  if (saved) return saved
+  const area = screen.getPrimaryDisplay().workArea
+  return { x: area.x + EDGE, y: area.y + 480 }
+}
+
+/** Open your skills' window, unless it is turned off. It shows once its page has measured itself. */
+export function createSkills(): void {
+  if (!settings.get('skills').enabled || alive(skills)) return
+  const p = skillsPosition()
+  const win = overlayWindow({ x: p.x, y: p.y, width: 300, height: 120 })
+  skills = win
+  skillsSize = { width: 0, height: 0 }
+  win.on('closed', () => (skills = null))
+  load(win, 'skills')
+}
+
+export function closeSkills(): void {
+  if (alive(skills)) skills.destroy()
+  skills = null
+}
+
+function refreshSkills(): void {
+  if (!alive(skills)) return
+  const { width, height } = skillsSize
+  if (width > 0 && height > 0) {
+    const p = skillsPosition()
+    skills.setBounds(clampToDisplay({ x: p.x, y: p.y, width, height }))
+    if (!skills.isVisible()) reveal(skills)
+  } else if (skills.isVisible()) {
+    skills.hide()
+  }
+}
+
+export function resizeSkills(size: { width: number; height: number }): void {
+  skillsSize = { width: Math.ceil(size.width), height: Math.ceil(size.height) }
+  refreshSkills()
+}
+
+export function moveSkills(to: Point): void {
+  if (!alive(skills)) return
+  skills.setBounds(clampToDisplay({ x: to.x, y: to.y, ...measured(skills, skillsSize) }))
+}
+
+export function skillsDragEnded(): void {
+  if (!alive(skills)) return
+  const { x, y } = skills.getBounds()
+  settings.set('skills', { ...settings.get('skills'), position: { x, y } })
+}
+
 // ---- details ----------------------------------------------------------------------------------
 
 const DETAILS_SIZE = { width: 520, height: 600 }
@@ -687,19 +743,20 @@ function restoreHidden(): void {
     if (alive(win) && held(win)) continue
     awayHidden.delete(win)
     // These decide below whether they have anything to show.
-    if (alive(win) && win !== hud && win !== merchant && win !== meter && win !== timerBar) win.showInactive()
+    if (alive(win) && win !== hud && win !== merchant && win !== meter && win !== timerBar && win !== skills) win.showInactive()
   }
   refreshHud()
   refreshMerchant()
   refreshMeter()
   refreshTimerBar()
+  refreshSkills()
 }
 
 /** Alt+Shift+E: every overlay off, or back on. The dashboard is left as it is. True when off. */
 export function toggleOverlays(): boolean {
   overlaysOff = !overlaysOff
   if (overlaysOff) {
-    for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, details]) {
+    for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, details, skills]) {
       if (!alive(win) || !win.isVisible()) continue
       awayHidden.add(win)
       win.hide()
@@ -721,7 +778,7 @@ export function setForeground(game: boolean, app: boolean): void {
   if (away) {
     awayTimer = setTimeout(() => {
       gameAway = true
-      for (const win of [bubble, panel, hud, merchant, meter, killFeed, timerBar, details]) {
+      for (const win of [bubble, panel, hud, merchant, meter, killFeed, timerBar, details, skills]) {
         if (!alive(win) || !win.isVisible()) continue
         awayHidden.add(win)
         win.hide()
@@ -746,7 +803,7 @@ const ON_TOP_EVERY_MS = 5_000
  */
 export function startOnTopWatch(): void {
   setInterval(() => {
-    for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, details]) {
+    for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, details, skills]) {
       if (!alive(win) || !win.isVisible()) continue
       win.setAlwaysOnTop(true, 'screen-saver')
       win.moveTop()
@@ -757,7 +814,9 @@ export function startOnTopWatch(): void {
 /** Settings that change how the windows behave, applied live. */
 export function applyWindowSettings(): void {
   const hidden = settings.get('hideFromCapture')
-  for (const w of [bubble, panel, hud, merchant, meter, killFeed, timerBar, details]) if (alive(w)) w.setContentProtection(hidden)
+  for (const w of [bubble, panel, hud, merchant, meter, killFeed, timerBar, details, skills]) if (alive(w)) w.setContentProtection(hidden)
+  if (!settings.get('skills').enabled) closeSkills()
+  else if (alive(bubble)) createSkills()
   // Turned on: with the other overlays, while they are up (the bubble is, awake).
   if (!settings.get('timerBar').enabled) closeTimerBar()
   else if (alive(bubble)) createTimerBar()
@@ -776,13 +835,14 @@ export function applyWindowSettings(): void {
  * window that is only hidden keeps its renderer process. An open panel stays open.
  */
 export function closeOverlays(): void {
-  for (const win of [bubble, hud, merchant, meter, killFeed, timerBar]) if (alive(win)) win.destroy()
+  for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, skills]) if (alive(win)) win.destroy()
   bubble = null
   hud = null
   merchant = null
   meter = null
   killFeed = null
   timerBar = null
+  skills = null
   awayHidden.clear()
   hudEditing = false
   hudSize = { width: 0, height: 0 }
@@ -818,6 +878,12 @@ export function rebuildWindow(win: BrowserWindow): string | null {
     merchant = null
     showMerchant()
     return 'merchant'
+  }
+  if (win === skills) {
+    win.destroy()
+    skills = null
+    createSkills()
+    return 'skills'
   }
   if (win === details) {
     const source = detailsShowing

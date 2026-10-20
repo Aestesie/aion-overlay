@@ -81,7 +81,7 @@ const lastPacket = computed(() => {
       </div>
     </div>
 
-    <ul v-if="gained.length" class="divide-y divide-[color:var(--gray-4)] rounded-lg border border-card bg-card">
+    <ul v-if="gained.length" class="divide-y divide-[color:var(--line)] rounded-lg border border-card bg-card">
       <li
         v-for="pet in gained"
         :key="pet.id"

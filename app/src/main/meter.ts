@@ -18,7 +18,9 @@ import {
   type FightRecord,
   type FightSummary,
   type MeterData,
+  type PersonalView,
   type TargetDetails,
+  NO_PERSONAL,
 } from '../shared/meter.ts'
 
 const ASK_TIMEOUT_MS = 5000
@@ -105,6 +107,25 @@ export const meterState = {
     if (!fight) return null
     const names = new Map(fight.actors.map((a) => [a.actorId, { name: a.nickname || `#${a.actorId}`, className: CLASS_NAMES[a.job] ?? null }]))
     return { ...detailsView(source, fight.bossName, fight.details, names), startedAt: fight.startTimeMs }
+  },
+  /** Your own damage on the meter's target, skill by skill (the skills window). */
+  async personal(): Promise<PersonalView> {
+    const me = meter.rows.find((r) => r.you)
+    const target = meter.target
+    if (!me || !target) return { ...NO_PERSONAL, battleTime: meter.battleTime }
+    const ev = await ask({ cmd: 'details', target: target.id, actors: [me.id] }, 'details', (e) => e['target'] === target.id)
+    if (!ev) return NO_PERSONAL
+    const view = detailsView({ kind: 'live', target: target.id }, target.name, ev as unknown as TargetDetails, liveNames())
+    const mine = view.skills.filter((s) => s.actor === me.id)
+    const total = mine.reduce((n, s) => n + s.damage, 0) || 1
+    const seconds = Math.max(1, view.battleTime / 1000)
+    return {
+      target: target.name,
+      battleTime: meter.battleTime,
+      dps: me.dps,
+      damage: me.damage,
+      skills: mine.map((s) => ({ code: s.code, name: s.name, damage: s.damage, dps: s.damage / seconds, share: (s.damage / total) * 100, dot: s.dot })),
+    }
   },
   /** The saved fights, newest first. */
   async history(): Promise<FightSummary[]> {

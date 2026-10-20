@@ -61,7 +61,7 @@ const setMeter = (patch: Partial<typeof store.settings.meter>): Promise<void> =>
   <div class="space-y-4 p-3">
     <section>
       <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-darkest">You</h3>
-      <div class="divide-y divide-[color:var(--gray-4)] rounded-lg border border-card bg-card px-3">
+      <div class="divide-y divide-[color:var(--line)] rounded-lg border border-card bg-card px-3">
         <SettingRow label="Character" :hint="who.hint">
           <span class="text-sm text-dark">{{ who.value }}</span>
         </SettingRow>
@@ -73,7 +73,7 @@ const setMeter = (patch: Partial<typeof store.settings.meter>): Promise<void> =>
 
     <section>
       <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-darkest">In-game HUD</h3>
-      <div class="divide-y divide-[color:var(--gray-4)] rounded-lg border border-card bg-card px-3">
+      <div class="divide-y divide-[color:var(--line)] rounded-lg border border-card bg-card px-3">
         <SettingRow label="Show the HUD" hint="Works over borderless or windowed mode, not exclusive fullscreen.">
           <Toggle :model-value="store.settings.hud.enabled" @update:model-value="store.setHud({ enabled: $event })" />
         </SettingRow>
@@ -137,12 +137,21 @@ const setMeter = (patch: Partial<typeof store.settings.meter>): Promise<void> =>
 
     <section>
       <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-darkest">DPS meter</h3>
-      <div class="divide-y divide-[color:var(--gray-4)] rounded-lg border border-card bg-card px-3">
+      <div class="divide-y divide-[color:var(--line)] rounded-lg border border-card bg-card px-3">
         <SettingRow label="Show the DPS meter" hint="Its own window while the game is open: drag it by its header. The numbers come from A2Tools DPS Meter's parser.">
           <Toggle :model-value="store.settings.meter.enabled" @update:model-value="setMeter({ enabled: $event })" />
         </SettingRow>
         <SettingRow label="Players listed">
           <Slider :model-value="store.settings.meter.rows" :min="1" :max="24" :step="1" @update:model-value="setMeter({ rows: $event })" />
+        </SettingRow>
+        <SettingRow label="My skills window" hint="Your own damage on the meter's target, skill by skill: DPS, share and damage of each.">
+          <Toggle :model-value="store.settings.skills.enabled" @update:model-value="store.set('skills', { ...store.settings.skills, enabled: $event })" />
+        </SettingRow>
+        <SettingRow v-if="store.settings.skills.enabled" label="Skills listed">
+          <Slider :model-value="store.settings.skills.rows" :min="1" :max="20" :step="1" @update:model-value="store.set('skills', { ...store.settings.skills, rows: $event })" />
+        </SettingRow>
+        <SettingRow v-if="store.settings.skills.enabled" label="Skills window opacity">
+          <Slider :model-value="store.settings.skills.opacity" :min="0.3" :max="1" :step="0.05" :format="pct" @update:model-value="store.set('skills', { ...store.settings.skills, opacity: $event })" />
         </SettingRow>
         <SettingRow label="Opacity">
           <Slider :model-value="store.settings.meter.opacity" :min="0.3" :max="1" :step="0.05" :format="pct" @update:model-value="setMeter({ opacity: $event })" />
@@ -152,7 +161,7 @@ const setMeter = (patch: Partial<typeof store.settings.meter>): Promise<void> =>
 
     <section>
       <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-darkest">Timer bar</h3>
-      <div class="divide-y divide-[color:var(--gray-4)] rounded-lg border border-card bg-card px-3">
+      <div class="divide-y divide-[color:var(--line)] rounded-lg border border-card bg-card px-3">
         <SettingRow label="Show the countdown bar" hint="The timers with an alert on (Timers tab), starting within 13 hours, as icons and countdowns over the game. Drag it to move it.">
           <Toggle :model-value="store.settings.timerBar.enabled" @update:model-value="store.set('timerBar', { ...store.settings.timerBar, enabled: $event })" />
         </SettingRow>
@@ -164,7 +173,7 @@ const setMeter = (patch: Partial<typeof store.settings.meter>): Promise<void> =>
 
     <section>
       <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-darkest">Windows</h3>
-      <div class="divide-y divide-[color:var(--gray-4)] rounded-lg border border-card bg-card px-3">
+      <div class="divide-y divide-[color:var(--line)] rounded-lg border border-card bg-card px-3">
         <SettingRow
           label="Sleep while Aion 2 is closed"
           hint="No bubble, HUD or capture until the game starts: only the tray icon, which still opens the dashboard."
@@ -185,7 +194,7 @@ const setMeter = (patch: Partial<typeof store.settings.meter>): Promise<void> =>
 
     <section>
       <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-darkest">Lokthar sync</h3>
-      <div class="divide-y divide-[color:var(--gray-4)] rounded-lg border border-card bg-card px-3">
+      <div class="divide-y divide-[color:var(--line)] rounded-lg border border-card bg-card px-3">
         <SettingRow
           label="Sync field bosses"
           hint="Sends the field boss list your map shows (ids, up or dead, times, your server) to the Lokthar timers. Nothing else, and only to the site below."

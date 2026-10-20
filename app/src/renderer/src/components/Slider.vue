@@ -12,7 +12,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: number] }>()
       :max="max"
       :step="step"
       :value="modelValue"
-      class="w-28 accent-[color:var(--violet-9)]"
+      class="w-28 accent-[color:var(--accent)]"
       @input="emit('update:modelValue', Number(($event.target as HTMLInputElement).value))"
     />
     <span class="w-10 text-right text-xs tabular-nums text-darker">{{ format ? format(modelValue) : modelValue }}</span>

@@ -67,6 +67,7 @@ function go(p: PageId): void {
 const current = computed(() => PAGES[page.value])
 
 const maximized = ref(false)
+const version = ref<string | null>(null)
 const minimize = (): void => void api.invoke('panel:minimize')
 const maximize = (): void => void api.invoke('panel:maximize')
 const hide = (): void => void api.invoke('panel:hide')
@@ -84,6 +85,7 @@ const onKey = (e: KeyboardEvent): void => {
 const offs: (() => void)[] = []
 onMounted(() => {
   window.addEventListener('keydown', onKey)
+  void api.invoke('app:info').then((i) => (version.value = i.version))
   // A pet clicked in the merchant window: its drop locations.
   offs.push(
     api.on('panel:showPet', (pet) => {
@@ -110,73 +112,87 @@ onBeforeUnmount(() => {
 <template>
   <div class="flex h-screen flex-col bg-app text-default">
     <!-- The title bar: dragged to move the window (its buttons excepted). -->
-    <header class="drag flex h-10 shrink-0 items-center gap-3 border-b border-card pl-3">
-      <img src="/icon.png" alt="" class="size-5" draggable="false" />
-      <span class="text-sm font-semibold">{{ DISPLAY_NAME }}</span>
-      <span class="ml-4 flex min-w-0 items-center gap-1.5 rounded-full border border-card bg-card px-2.5 py-0.5 text-xs text-darker">
-        <StatusDot :status="store.status" />
-        <span class="truncate">{{ statusText(store.status) }}</span>
-        <span v-if="who" class="truncate text-dark">· {{ who }}</span>
-      </span>
-      <span v-if="store.sessionSouls" class="text-xs text-green">+{{ store.sessionSouls }} souls this session</span>
-      <div class="no-drag ml-auto flex h-full">
-        <button type="button" class="flex w-11 items-center justify-center text-darker hover:bg-dark hover:text-default" title="Minimize" @click="minimize">
-          <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3.5 8h9" /></svg>
+    <header class="drag flex h-12 shrink-0 items-center border-b border-card">
+      <div class="flex h-full w-60 shrink-0 items-center gap-2.5 border-r border-card px-4">
+        <img src="/icon.png" alt="" class="size-5" draggable="false" />
+        <span class="text-[15px] font-semibold">{{ DISPLAY_NAME }}</span>
+      </div>
+      <div class="flex min-w-0 flex-1 items-center gap-2 px-4">
+        <span
+          :class="[
+            'flex min-w-0 items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium',
+            store.status?.state === 'locked' && store.status.gameActive ? 'border-green/30 bg-green/10 text-green' : 'border-card bg-dark text-darker',
+          ]"
+        >
+          <StatusDot :status="store.status" />
+          <span class="truncate">{{ statusText(store.status) }}</span>
+          <span v-if="who" class="truncate text-dark">· {{ who }}</span>
+        </span>
+        <span v-if="store.sessionSouls" class="rounded-full border border-card bg-dark px-3 py-1 text-xs text-green">+{{ store.sessionSouls }} souls this session</span>
+      </div>
+      <div class="no-drag flex h-full">
+        <button type="button" class="flex w-12 items-center justify-center text-darker hover:bg-dark hover:text-default" title="Minimize" @click="minimize">
+          <svg viewBox="0 0 16 16" class="size-4" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3.5 8h9" /></svg>
         </button>
-        <button type="button" class="flex w-11 items-center justify-center text-darker hover:bg-dark hover:text-default" :title="maximized ? 'Restore' : 'Maximize'" @click="maximize">
-          <svg v-if="!maximized" viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3.5" y="3.5" width="9" height="9" rx="1" /></svg>
-          <svg v-else viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M5.5 5.5V3.5h7v7h-2M3.5 5.5h7v7h-7z" /></svg>
+        <button type="button" class="flex w-12 items-center justify-center text-darker hover:bg-dark hover:text-default" :title="maximized ? 'Restore' : 'Maximize'" @click="maximize">
+          <svg v-if="!maximized" viewBox="0 0 16 16" class="size-4" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="3.5" y="3.5" width="9" height="9" rx="0.5" /></svg>
+          <svg v-else viewBox="0 0 16 16" class="size-4" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M5.5 5.5V3.5h7v7h-2M3.5 5.5h7v7h-7z" /></svg>
         </button>
-        <button type="button" class="flex w-11 items-center justify-center text-darker hover:bg-[#e5484d] hover:text-white" title="Close (the app keeps running in the tray)" @click="hide">
-          <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+        <button type="button" class="flex w-12 items-center justify-center text-darker hover:bg-[#e81123] hover:text-white" title="Close (the app keeps running in the tray)" @click="hide">
+          <svg viewBox="0 0 16 16" class="size-4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
         </button>
       </div>
     </header>
 
     <div class="flex min-h-0 flex-1">
-      <nav class="flex w-52 shrink-0 flex-col gap-4 overflow-y-auto border-r border-card bg-darker px-2 py-3">
-        <div v-for="s in SECTIONS" :key="s.title ?? ''">
-          <div v-if="s.title" class="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-darkest">{{ s.title }}</div>
+      <nav class="flex w-60 shrink-0 flex-col overflow-y-auto border-r border-card px-3 py-4">
+        <div v-for="(s, n) in SECTIONS" :key="s.title ?? ''" :class="n > 0 && 'mt-6'">
+          <div v-if="s.title" class="mb-1.5 px-3 text-xs font-medium uppercase tracking-wider text-darkest">{{ s.title }}</div>
           <button
             v-for="id in s.pages"
             :key="id"
             type="button"
             :class="[
-              'flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition',
-              page === id ? 'bg-card font-medium text-default' : 'text-darker hover:bg-dark hover:text-default',
+              'relative flex h-9 w-full items-center gap-3 rounded-md px-3 text-left text-[15px] transition-colors',
+              page === id ? 'bg-dark font-medium text-default' : 'text-dark hover:bg-dark hover:text-default',
             ]"
             @click="go(id)"
           >
-            <svg viewBox="0 0 16 16" :class="['size-4 shrink-0', page === id ? 'text-accent' : '']" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <span v-if="page === id" class="absolute -left-3 top-1.5 h-6 w-[3px] rounded-r bg-accent" />
+            <svg viewBox="0 0 16 16" :class="['size-[18px] shrink-0', page === id ? 'text-accent' : 'text-darker']" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
               <path :d="PAGES[id].icon" />
             </svg>
             {{ PAGES[id].label }}
           </button>
         </div>
-        <button
-          type="button"
-          :class="[
-            'mt-auto flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition',
-            page === 'settings' ? 'bg-card font-medium text-default' : 'text-darker hover:bg-dark hover:text-default',
-          ]"
-          @click="go('settings')"
-        >
-          <svg viewBox="0 0 16 16" :class="['size-4 shrink-0', page === 'settings' ? 'text-accent' : '']" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-            <path :d="PAGES.settings.icon" />
-          </svg>
-          Settings
-        </button>
+        <div class="mt-auto border-t border-card pt-3">
+          <button
+            type="button"
+            :class="[
+              'relative flex h-9 w-full items-center gap-3 rounded-md px-3 text-left text-[15px] transition-colors',
+              page === 'settings' ? 'bg-dark font-medium text-default' : 'text-dark hover:bg-dark hover:text-default',
+            ]"
+            @click="go('settings')"
+          >
+            <span v-if="page === 'settings'" class="absolute -left-3 top-1.5 h-6 w-[3px] rounded-r bg-accent" />
+            <svg viewBox="0 0 16 16" :class="['size-[18px] shrink-0', page === 'settings' ? 'text-accent' : 'text-darker']" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+              <path :d="PAGES.settings.icon" />
+            </svg>
+            Settings
+          </button>
+          <div v-if="version" class="px-3 pt-2 text-xs text-darkest">v{{ version }}</div>
+        </div>
       </nav>
 
       <main class="min-w-0 flex-1 overflow-y-auto">
-        <div :class="['mx-auto px-6 py-5', page === 'pets' && store.openPetId !== null ? 'max-w-6xl' : 'max-w-3xl']">
-          <div class="mb-3">
-            <h1 class="text-xl font-semibold">{{ current.label }}</h1>
-            <p class="text-sm text-darker">{{ current.about }}</p>
+        <div :class="['mx-auto px-10 py-8', page === 'pets' && store.openPetId !== null ? 'max-w-6xl' : 'max-w-4xl']">
+          <div class="mb-6">
+            <h1 class="text-3xl font-bold tracking-tight">{{ current.label }}</h1>
+            <p class="mt-1 text-[15px] text-darker">{{ current.about }}</p>
           </div>
           <div v-if="!store.ready" class="py-6 text-center text-sm text-darker">Loading…</div>
           <template v-else-if="page === 'pets'">
-            <PetDetail v-if="store.openPetId !== null" :id="store.openPetId" class="-mx-3 h-[calc(100vh-11rem)]" />
+            <PetDetail v-if="store.openPetId !== null" :id="store.openPetId" class="-mx-3 h-[calc(100vh-13rem)]" />
             <CollectionTab v-else class="-mx-3" />
           </template>
           <TimersTab v-else-if="page === 'timers'" class="-mx-3" />

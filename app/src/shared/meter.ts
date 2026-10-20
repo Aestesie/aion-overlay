@@ -216,6 +216,18 @@ export interface FightRecord {
   actors: { actorId: number; nickname: string; job: string }[]
 }
 
+/** Your own damage on the meter's target, skill by skill: the skills window. */
+export interface PersonalView {
+  /** The target's name; null with no target (or none of your damage on it). */
+  target: string | null
+  battleTime: number
+  dps: number
+  damage: number
+  skills: { code: number; name: string; damage: number; dps: number; share: number; dot: boolean }[]
+}
+
+export const NO_PERSONAL: PersonalView = { target: null, battleTime: 0, dps: 0, damage: 0, skills: [] }
+
 /** One saved fight in the list: A2Tools DPS Meter's `FightSummary`. */
 export interface FightSummary {
   id: string

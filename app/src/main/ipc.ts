@@ -26,14 +26,17 @@ import {
   moveKillFeed,
   moveMerchant,
   moveMeter,
+  moveSkills,
   moveTimerBar,
   resizeHud,
   resizeKillFeed,
   resizeMerchant,
   resizeMeter,
+  resizeSkills,
   resizeTimerBar,
   setHudEditing,
   setKillFeedOpen,
+  skillsDragEnded,
   showPetInPanel,
   showTimersInPanel,
   timerBarDragEnded,
@@ -142,6 +145,14 @@ export function registerIpc(): void {
 
   handle('meter:get', () => meterState.meter())
   handle('meter:reset', () => meterState.reset())
+  handle('skills:get', () => meterState.personal())
+  handle('skills:moveTo', (to) => {
+    if (isPoint(to)) moveSkills(to)
+  })
+  handle('skills:dragEnd', () => skillsDragEnded())
+  handle('skills:resize', (size) => {
+    if (isPoint({ x: size?.width, y: size?.height })) resizeSkills(size)
+  })
   handle('details:open', (source) => {
     const ok = source?.kind === 'live' ? Number.isInteger(source.target) : source?.kind === 'saved' && isPlainId(source.id)
     if (ok) openDetails(source)

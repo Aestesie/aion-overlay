@@ -1,35 +1,26 @@
 /**
- * The theme: Radix Colors' dark violet with a gray of the same hue, and the semantic names built on
- * them. The CSS variables for both scales are in assets/main.css.
+ * The theme: shadcn/ui's dark look, Tailwind's zinc neutrals with blue for the accent, and the
+ * semantic names built on them. The few CSS variables templates use are in assets/main.css.
  */
-const violet = {
-  1: '#0e101d',
-  2: '#141528',
-  3: '#1f1f4f',
-  4: '#282471',
-  5: '#312d81',
-  6: '#3a3990',
-  7: '#4645a5',
-  8: '#5453c5',
-  9: '#4f3cdd',
-  10: '#4427cb',
-  11: '#a3acff',
-  12: '#dae0ff',
+const zinc = {
+  50: '#fafafa',
+  200: '#e4e4e7',
+  300: '#d4d4d8',
+  400: '#a1a1aa',
+  500: '#71717a',
+  600: '#52525b',
+  700: '#3f3f46',
+  800: '#27272a',
+  900: '#18181b',
+  925: '#111113',
+  950: '#09090b',
 }
 
-const gray = {
-  1: '#0f101a',
-  2: '#151621',
-  3: '#1e1f2c',
-  4: '#252735',
-  5: '#2d2f3e',
-  6: '#373948',
-  7: '#474959',
-  8: '#606272',
-  9: '#6b6d7e',
-  10: '#787b8a',
-  11: '#b5b7c0',
-  12: '#eaebef',
+const blue = {
+  950: '#172554',
+  600: '#2563eb',
+  500: '#3b82f6',
+  400: '#60a5fa',
 }
 
 /** Status colours: Radix red, green, amber, blue, orange — solid (step 9) and text (step 11). */
@@ -64,13 +55,13 @@ const grades = {
 
 /** The numeric scale, used for overlays and backdrops (`bg-900/75`). */
 const steps = {
-  0: gray[12],
-  100: gray[11],
-  500: gray[6],
-  600: gray[5],
-  700: gray[3],
-  800: gray[2],
-  900: gray[1],
+  0: zinc[50],
+  100: zinc[400],
+  500: zinc[700],
+  600: zinc[800],
+  700: zinc[900],
+  800: zinc[925],
+  900: zinc[950],
   1000: '#000000',
 }
 
@@ -78,10 +69,10 @@ const steps = {
 const shared = {
   ...steps,
   ...grades,
-  accent: violet[9],
-  'accent-hover': violet[10],
-  'accent-soft': violet[3],
-  'accent-text': violet[11],
+  accent: blue[500],
+  'accent-hover': blue[600],
+  'accent-soft': blue[950],
+  'accent-text': blue[400],
   danger: status.red.solid,
   red: status.red.solid,
   green: status.green.solid,
@@ -91,8 +82,8 @@ const shared = {
   orange: status.orange.solid,
   blue: status.blue.solid,
   info: status.blue.solid,
-  darkest: gray[10],
-  raised: gray[3],
+  darkest: zinc[500],
+  raised: zinc[900],
   white: '#ffffff',
 }
 
@@ -126,30 +117,30 @@ module.exports = {
       colors: shared,
       backgroundColor: {
         ...shared,
-        app: violet[1],
-        card: violet[2],
-        darker: violet[1],
-        dark: '#191b33', // violet-2 lifted by violet-a2: tiles on a card
-        default: gray[3],
-        light: gray[4],
-        lighter: gray[5],
+        app: zinc[950],
+        card: zinc[925],
+        darker: zinc[950],
+        dark: zinc[900], // tiles on a card, and hovers
+        default: zinc[950],
+        light: zinc[800],
+        lighter: zinc[700],
       },
       borderColor: {
         ...shared,
-        app: violet[3],
-        card: violet[3],
-        dark: gray[5],
-        default: gray[6],
-        light: gray[6],
-        lighter: gray[8],
+        app: zinc[800],
+        card: zinc[800],
+        dark: zinc[800],
+        default: zinc[800],
+        light: zinc[800],
+        lighter: zinc[600],
       },
       textColor: {
         ...shared,
-        default: gray[12],
-        dark: violet[12],
-        darker: gray[11],
-        darkest: gray[10],
-        accent: violet[11],
+        default: zinc[50],
+        dark: zinc[200],
+        darker: zinc[400],
+        darkest: zinc[500],
+        accent: blue[400],
         danger: status.red.text,
         red: status.red.text,
         green: status.green.text,
@@ -163,8 +154,8 @@ module.exports = {
       ringColor: shared,
       fill: shared,
       boxShadow: {
-        // The lift a Radix card has on a dark page: a hairline plus a soft drop.
-        card: '0 0 0 1px rgb(0 0 0 / 0.15), 0 8px 24px -12px rgb(0 0 0 / 0.6)',
+        // A card's lift on a dark page: a hairline plus a soft drop.
+        card: '0 0 0 1px rgb(0 0 0 / 0.2), 0 8px 24px -12px rgb(0 0 0 / 0.7)',
       },
     },
   },

@@ -60,6 +60,9 @@ export interface Settings {
   /** The kill feed over the game: open (from the PvP Log tab), and where (null = top right). */
   killFeed: { open: boolean; position: Point | null }
 
+  /** Your own skills on the meter's target, as a window of their own. */
+  skills: { enabled: boolean; position: Point | null; rows: number; opacity: number }
+
   /** The DPS meter: its own window, fed by the engine (A2Tools DPS Meter's parser). */
   meter: {
     enabled: boolean
@@ -155,6 +158,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   detailsWindow: null,
   timerBar: { enabled: true, position: null, opacity: 0.92 },
   killFeed: { open: false, position: null },
+  skills: { enabled: true, position: null, rows: 6, opacity: 0.92 },
   meter: { enabled: true, position: null, targetMode: 'bossTargets', rows: 8, opacity: 0.92 },
   hideFromCapture: false,
   faction: 'elyos',
@@ -256,6 +260,15 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
     case 'killFeed': {
       const v = (value ?? {}) as Partial<Settings['killFeed']>
       return { open: bool(v.open, d.killFeed.open), position: point(v.position) } as Settings[K]
+    }
+    case 'skills': {
+      const v = (value ?? {}) as Partial<Settings['skills']>
+      return {
+        enabled: bool(v.enabled, d.skills.enabled),
+        position: point(v.position),
+        rows: Math.round(num(v.rows, 1, 20, d.skills.rows)),
+        opacity: num(v.opacity, 0.3, 1, d.skills.opacity),
+      } as Settings[K]
     }
     case 'meter': {
       const v = (value ?? {}) as Partial<Settings['meter']>
