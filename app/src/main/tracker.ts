@@ -1,20 +1,21 @@
 /**
- * The Python tracker as a child process (`python -m aion2_tracker.sidecar`), and the state the
- * windows render from: the pets, the tracker's status, and souls as they arrive.
+ * The engine (engine/, Rust) as a child process, and the state the windows render from: the pets,
+ * the tracker's status, and souls as they arrive. The engine captures the game's traffic, runs
+ * A2Tools DPS Meter's parser on it for the meter (main/meter.ts), and tracks the collection.
  *
- * The protocol is JSON lines both ways (aion2_tracker/sidecar.py documents it). The process is
+ * The protocol is JSON lines both ways (engine/src/sidecar.rs documents it). The process is
  * restarted with a backoff if it dies, and killed synchronously when the app exits: on Windows a
  * child outlives its parent otherwise (a marnis-app lesson).
  *
  * Environment overrides, for development:
- *   A2T_ROOT          the repo (where aion2_tracker/ is); found by walking up from the app otherwise
- *   A2T_PYTHON        the interpreter (also a setting); <root>/.venv/Scripts/python.exe otherwise
- *   A2T_REPLAY        a .pcap to replay instead of watching the game, to try the UI without it
+ *   A2T_ENGINE        the engine executable; <repo>/engine/target/{release,debug}/ otherwise
+ *   A2T_REPLAY        a .pcap, .pcapng or A2Tools packet log to replay instead of watching the
+ *                     game, to try the UI without it
  *   A2T_REPLAY_SPEED  its speed, as a multiple of real time (default 1)
  */
 import { app } from 'electron'
-import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { DISPLAY_NAME } from '../shared/app.ts'
 import { broadcast } from './broadcast.ts'
@@ -22,9 +23,11 @@ import { settings } from './settings.ts'
 import { kinaBalance, kinaRebase, NO_KINA, type KinaSession } from '../shared/kina.ts'
 import { fieldBosses } from './fieldBosses.ts'
 import type { FieldBosses } from '../shared/timers.ts'
-import { GAME_ACTIVE_S, NO_NEARBY, type Nearby, type Pet, type ShopItem, type ShopStock, type SoulToast, type TrackerStatus } from '../shared/tracker.ts'
+import { pvpLog } from './pvpLog.ts'
+import { GAME_ACTIVE_S, NO_NEARBY, type Nearby, type Pet, type PvpKill, type ShopItem, type ShopStock, type SoulToast, type TrackerStatus } from '../shared/tracker.ts'
 
 const RESTART_DELAYS_MS = [1000, 3000, 10000, 30000]
+const EXE = process.platform === 'win32' ? 'lokthar-engine.exe' : 'lokthar-engine'
 
 let child: ChildProcessWithoutNullStreams | null = null
 /** Whether the sidecar should be capturing: only while the game runs (see idle.ts). */
@@ -51,6 +54,8 @@ function setKina(next: KinaSession): void {
 const soulListeners = new Set<(toast: SoulToast) => void>()
 const statusListeners = new Set<(status: TrackerStatus) => void>()
 const shopListeners = new Set<(stock: ShopStock[]) => void>()
+/** Other modules' handlers for the engine's events, by type (the meter's, the kill feed's). */
+const eventListeners = new Map<string, Set<(ev: Record<string, unknown>) => void>>()
 
 let status: TrackerStatus = {
   state: 'starting',
@@ -61,6 +66,7 @@ let status: TrackerStatus = {
   synced: null,
   dataFile: null,
   character: null,
+  server: null,
 }
 
 /**
@@ -94,13 +100,14 @@ function setStatus(patch: Partial<TrackerStatus>): void {
   for (const fn of statusListeners) fn(status)
 }
 
-/** The repo: the folder holding aion2_tracker/, searched upwards from the app. */
-function repoRoot(): string | null {
-  const env = process.env['A2T_ROOT']
-  if (env) return env
+/** The repo's engine build, searched upwards from the app: release, then debug. */
+function devEngine(): string | null {
   let dir = resolve(app.getAppPath())
   for (let i = 0; i < 6; i++) {
-    if (existsSync(join(dir, 'aion2_tracker', 'sidecar.py'))) return dir
+    for (const profile of ['release', 'debug']) {
+      const exe = join(dir, 'engine', 'target', profile, EXE)
+      if (existsSync(exe)) return exe
+    }
     const up = dirname(dir)
     if (up === dir) break
     dir = up
@@ -108,20 +115,9 @@ function repoRoot(): string | null {
   return null
 }
 
-/**
- * The collection file. In development a first run takes over the one the command-line tracker
- * kept in the repo; an installed app starts empty and fills from the next login sync.
- */
-function dataFile(root: string | null): string {
-  const configured = settings.get('tracker').dataFile
-  if (configured) return configured
-  const file = join(app.getPath('userData'), 'collection.json')
-  const legacy = root ? join(root, 'collection.json') : null
-  if (legacy && !existsSync(file) && existsSync(legacy)) {
-    mkdirSync(dirname(file), { recursive: true })
-    copyFileSync(legacy, file)
-  }
-  return file
+/** The collection file: <userData>/collection.json unless set. */
+function dataFile(): string {
+  return settings.get('tracker').dataFile || join(app.getPath('userData'), 'collection.json')
 }
 
 /** Npcap is what the tracker captures with; it cannot be bundled, so each user installs it. */
@@ -130,20 +126,13 @@ export function npcapInstalled(): boolean {
   return existsSync(join(system, 'Npcap', 'wpcap.dll')) || existsSync(join(system, 'wpcap.dll'))
 }
 
-/**
- * What to run. An installed app runs the packaged helper (resources/sidecar/aion2-tracker.exe,
- * built by PyInstaller: no Python needed); development runs the repo's Python.
- */
-function trackerCommand(): { exe: string; args: string[]; cwd: string; root: string | null } | string {
-  const packaged = join(process.resourcesPath, 'sidecar', 'aion2-tracker.exe')
+/** What to run: the packaged engine (resources/engine) installed, the repo's build in development. */
+function engineCommand(): string | { error: string } {
   if (app.isPackaged) {
-    return existsSync(packaged) ? { exe: packaged, args: [], cwd: dirname(packaged), root: null } : `The tracker is missing from the install (${packaged}). Reinstall the app.`
+    const packaged = join(process.resourcesPath, 'engine', EXE)
+    return existsSync(packaged) ? packaged : { error: `The engine is missing from the install (${packaged}). Reinstall the app.` }
   }
-  const root = repoRoot()
-  if (!root) return 'Could not find the aion2_tracker folder next to the app (set A2T_ROOT).'
-  const python = settings.get('tracker').python || process.env['A2T_PYTHON'] || join(root, '.venv', 'Scripts', 'python.exe')
-  if (!existsSync(python)) return `Python not found at ${python}. Create the venv (.venv in the repo) or set it in Settings.`
-  return { exe: python, args: ['-u', '-m', 'aion2_tracker.sidecar'], cwd: root, root }
+  return process.env['A2T_ENGINE'] ?? devEngine() ?? { error: 'No engine build found: run `cargo build --release` in engine/ (or set A2T_ENGINE).' }
 }
 
 export function startTracker(): void {
@@ -157,23 +146,19 @@ export function startTracker(): void {
     })
     return
   }
-  const cmd = trackerCommand()
-  if (typeof cmd === 'string') {
-    setStatus({ state: 'error', detail: cmd })
+  const exe = engineCommand()
+  if (typeof exe !== 'string') {
+    setStatus({ state: 'error', detail: exe.error })
     return
   }
-  const data = dataFile(cmd.root)
-  const args = [...cmd.args, '--data', data]
+  const data = dataFile()
+  const args = ['--data', data]
   if (replay) args.push('--replay', replay, '--speed', process.env['A2T_REPLAY_SPEED'] ?? '1')
   else if (!capturing) args.push('--paused')
 
   stderrTail = []
   setStatus({ state: 'starting', detail: null, dataFile: data, replay: Boolean(replay), lastPacketAgo: null })
-  const proc = spawn(cmd.exe, args, {
-    cwd: cmd.cwd,
-    windowsHide: true,
-    env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUNBUFFERED: '1' },
-  })
+  const proc = spawn(exe, args, { cwd: dirname(exe), windowsHide: true })
   child = proc
 
   let buffer = ''
@@ -190,22 +175,22 @@ export function startTracker(): void {
   proc.stderr.setEncoding('utf8')
   proc.stderr.on('data', (chunk: string) => {
     const lines = chunk.split(/\r?\n/).filter(Boolean)
-    for (const line of lines) log(`tracker: ${line}`)
+    for (const line of lines) log(`engine: ${line}`)
     stderrTail = [...stderrTail, ...lines].slice(-20)
   })
   proc.on('error', (err) => {
-    setStatus({ state: 'error', detail: `Could not start the tracker: ${err.message}` })
+    setStatus({ state: 'error', detail: `Could not start the engine: ${err.message}` })
   })
   proc.on('exit', (code) => {
     if (child === proc) child = null
     if (stopping) return
     const why = stderrTail.at(-1) ?? `exit code ${code}`
     if (restarts >= RESTART_DELAYS_MS.length) {
-      setStatus({ state: 'error', detail: `The tracker keeps stopping: ${why}` })
+      setStatus({ state: 'error', detail: `The engine keeps stopping: ${why}` })
       return
     }
     const delay = RESTART_DELAYS_MS[restarts++]!
-    setStatus({ state: 'exited', detail: `Tracker stopped (${why}); restarting in ${delay / 1000}s` })
+    setStatus({ state: 'exited', detail: `Engine stopped (${why}); restarting in ${delay / 1000}s` })
     restartTimer = setTimeout(startTracker, delay)
   })
 }
@@ -218,11 +203,15 @@ function handleLine(line: string): void {
     stderrTail = [...stderrTail, `unparsed: ${line}`].slice(-20)
     return
   }
+  for (const fn of eventListeners.get(ev['type'] as string) ?? []) fn(ev)
   switch (ev['type']) {
     case 'ready':
       restarts = 0
       replacePets(ev['pets'] as Pet[])
-      setStatus({ character: (ev['character'] as { name: string } | null)?.name ?? null })
+      setStatus({
+        character: (ev['character'] as { name: string } | null)?.name ?? null,
+        server: (ev['character'] as { server?: number } | null)?.server ?? null,
+      })
       fieldBosses.setServer((ev['character'] as { server?: number } | null)?.server ?? null)
       break
     case 'character': {
@@ -230,7 +219,7 @@ function handleLine(line: string): void {
       const name = ev['name'] as string
       log(`character: ${name}${ev['server'] ? ` (server ${ev['server']})` : ''}${ev['switched'] ? ', switched collection' : ''}`)
       replacePets(ev['pets'] as Pet[])
-      setStatus({ character: name })
+      setStatus({ character: name, server: (ev['server'] as number | undefined) ?? null })
       fieldBosses.setServer((ev['server'] as number | undefined) ?? null)
       break
     }
@@ -290,6 +279,19 @@ function handleLine(line: string): void {
     case 'combat':
       broadcast('tracker:combat', Date.now())
       break
+    case 'pvpKill': {
+      const kill: PvpKill = {
+        at: Date.now(),
+        killer: ev['killer'] as PvpKill['killer'],
+        victim: (ev['victim'] as PvpKill['victim']) ?? null,
+        mine: ev['mine'] === true,
+        died: ev['died'] === true,
+        legion: ev['legion'] === true,
+      }
+      pvpLog.add(kill)
+      log(`pvp: ${kill.killer.name} (${kill.killer.server}) killed ${kill.victim ? `${kill.victim.name} (${kill.victim.server ?? '?'})` : 'a player out of view'}${kill.mine ? ' [you]' : kill.died ? ' [you died]' : ''}`)
+      break
+    }
     case 'fieldBosses':
       fieldBosses.fromMap(ev['world'] as number, ev['bosses'] as { id: number; up: boolean; at: number }[])
       break
@@ -346,7 +348,7 @@ function updatePet(pet: Pet): void {
   broadcast('tracker:pet', pet)
 }
 
-function command(cmd: Record<string, unknown>): void {
+export function command(cmd: Record<string, unknown>): void {
   if (child?.stdin.writable) child.stdin.write(JSON.stringify(cmd) + '\n')
 }
 
@@ -357,6 +359,8 @@ export const tracker = {
   shop: (): ShopStock[] => currentShop(),
   kina: (): KinaSession => kina,
   fieldBosses: (): FieldBosses => fieldBosses.all(),
+  pvp: (): PvpKill[] => pvpLog.all(),
+  clearPvp: (): void => pvpLog.clear(),
   /** Start the session again: the souls (the helper answers with every pet) and the Kina. */
   resetSession(): void {
     log('session reset')
@@ -377,6 +381,12 @@ export const tracker = {
   onStatus(fn: (status: TrackerStatus) => void): () => void {
     statusListeners.add(fn)
     return () => statusListeners.delete(fn)
+  },
+  /** Handle the engine's events of this type too (after the tracker's own handling). */
+  onEvent(type: string, fn: (ev: Record<string, unknown>) => void): () => void {
+    if (!eventListeners.has(type)) eventListeners.set(type, new Set())
+    eventListeners.get(type)!.add(fn)
+    return () => eventListeners.get(type)?.delete(fn)
   },
   /** The sidecar process is up (capturing or not). */
   running: (): boolean => child !== null,
@@ -403,6 +413,7 @@ export const tracker = {
 /** Ask the sidecar to quit, and make sure it is gone. Safe to call from `process.on('exit')`. */
 export function stopTracker(): void {
   stopping = true
+  pvpLog.flush()
   if (restartTimer) clearTimeout(restartTimer)
   restartTimer = null
   const proc = child
@@ -414,22 +425,14 @@ export function stopTracker(): void {
   } catch {
     // already closed
   }
-  // The capture thread may be blocked in Npcap; a quit it cannot act on promptly is a kill.
-  setTimeout(() => proc.exitCode === null && killTree(proc), 1500).unref()
-}
-
-/**
- * A venv's python.exe is a launcher that runs the real interpreter as its own child, so killing
- * the process we started would leave the tracker running. taskkill /T takes the whole tree.
- */
-function killTree(proc: ChildProcessWithoutNullStreams): void {
-  if (proc.pid === undefined) return
-  spawnSync('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { windowsHide: true })
+  // A capture thread may be blocked in Npcap; a quit it cannot act on promptly is a kill.
+  setTimeout(() => proc.exitCode === null && proc.kill(), 1500).unref()
 }
 
 /** For process exit, where timers never fire. */
 export function killTrackerNow(): void {
   stopping = true
-  if (child && child.exitCode === null) killTree(child)
+  pvpLog.flush()
+  if (child && child.exitCode === null) child.kill()
   child = null
 }

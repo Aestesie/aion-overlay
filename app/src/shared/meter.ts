@@ -1,6 +1,6 @@
 /**
  * What the engine (engine/, Rust: A2Tools DPS Meter's parser) tells the app about the fight, and
- * what the meter window shows of it. The wire format is documented in engine/src/main.rs; the
+ * what the meter window shows of it. The wire format is documented in engine/src/sidecar.rs; the
  * fields are A2Tools DPS Meter's `DpsData`.
  */
 
@@ -42,19 +42,6 @@ export interface MeterData {
   rows: MeterRow[]
   /** When main received it (ms since epoch). */
   at: number
-}
-
-export type EngineState =
-  | 'off' // the meter is turned off, or the app is asleep
-  | 'starting'
-  | 'listening' // capturing, the game connection not found yet
-  | 'locked' // reading the game connection
-  | 'error'
-  | 'exited' // the engine stopped; restarting
-
-export interface EngineStatus {
-  state: EngineState
-  detail: string | null
 }
 
 export const TARGET_MODES = ['bossTargets', 'mostDamage', 'mostRecent', 'lastHitByMe', 'allTargets', 'trainTargets'] as const

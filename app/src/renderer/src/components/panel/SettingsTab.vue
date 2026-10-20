@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // HUD, DPS meter, panel, privacy, Lokthar sync and tracker settings. Every change applies at once.
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import Button from '@/components/Button.vue'
 import SettingRow from '@/components/SettingRow.vue'
 import Slider from '@/components/Slider.vue'
@@ -8,7 +8,6 @@ import Toggle from '@/components/Toggle.vue'
 import { bridge } from '@/lib/bridge.ts'
 import { useApp } from '@/stores/app.ts'
 import type { SyncResult } from '@shared/lokthar.ts'
-import type { EngineStatus } from '@shared/meter.ts'
 
 const store = useApp()
 const info = ref<{ version: string; settingsFile: string; logFile: string } | null>(null)
@@ -16,8 +15,6 @@ onMounted(async () => (info.value = await bridge().invoke('app:info')))
 
 const pct = (v: number): string => `${Math.round(v * 100)}%`
 
-const python = ref(store.settings.tracker.python)
-const savePython = (): Promise<void> => store.set('tracker', { ...store.settings.tracker, python: python.value.trim() })
 
 // The Lokthar sync: the site and its token, a connection check, and how the last post went.
 const siteUrl = ref(store.settings.lokthar.url)
@@ -36,19 +33,6 @@ async function testSync(): Promise<void> {
 const ago = (at: number): string => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
 const setMeter = (patch: Partial<typeof store.settings.meter>): Promise<void> => store.set('meter', { ...store.settings.meter, ...patch })
-const engineStatus = ref<EngineStatus | null>(null)
-onMounted(async () => {
-  engineStatus.value = (await bridge().invoke('meter:get')).status
-  offEngine = bridge().on('meter:status', (s) => (engineStatus.value = s))
-})
-let offEngine: (() => void) | null = null
-onBeforeUnmount(() => offEngine?.())
-const engineHint = computed(() => {
-  const s = engineStatus.value
-  if (!s) return ''
-  const what = { off: 'Off', starting: 'Starting', listening: 'Looking for the game', locked: 'Reading the game', error: 'Error', exited: 'Restarting' }[s.state]
-  return s.detail ? `${what}: ${s.detail}` : what
-})
 </script>
 
 <template>
@@ -157,9 +141,6 @@ const engineHint = computed(() => {
         <SettingRow label="Opacity">
           <Slider :model-value="store.settings.meter.opacity" :min="0.3" :max="1" :step="0.05" :format="pct" @update:model-value="setMeter({ opacity: $event })" />
         </SettingRow>
-        <SettingRow label="Engine" :hint="engineHint">
-          <Button size="sm" @click="bridge().invoke('meter:restart')">Restart</Button>
-        </SettingRow>
       </div>
     </section>
 
@@ -237,17 +218,8 @@ const engineHint = computed(() => {
             Show in folder
           </button>
         </div>
-        <label class="block">
-          <span class="text-darker">Python</span>
-          <input
-            v-model="python"
-            class="mt-1 h-7 w-full rounded-md border border-light bg-default px-2 text-xs"
-            placeholder="C:\…\python.exe"
-            @change="savePython"
-          />
-        </label>
         <div class="flex justify-end pt-1">
-          <Button size="sm" @click="bridge().invoke('tracker:restart')">Restart tracker</Button>
+          <Button size="sm" @click="bridge().invoke('tracker:restart')">Restart engine</Button>
         </div>
       </div>
     </section>

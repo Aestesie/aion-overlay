@@ -17,9 +17,14 @@ to keep opening the Pets menu.
 - **Timers:** the game's events (Shugo Festival, the Black Cloud Merchant, rifts, the siege…) and
   Verteron's field bosses, read from the map's field boss list, with optional alerts. Field boss
   times come only from your own map.
+- **PvP log and kill feed:** every player kill around you, as the game credits it, in the panel's
+  PvP tab and in a small kill feed over the game; yours and your legion's marked.
 - **Black Cloud Merchant:** when you open one of its tabs, a window lists the pets it sells that
   you have not maxed, with where their soul monsters spawn.
-- **One collection per character:** switching to an alt shows that character's pets.
+- **One collection per server:** as in the game, your characters on a server share one; one on
+  another server has its own.
+- **DPS meter:** its own window while you play, from A2Tools DPS Meter's parser: everyone hitting
+  your target, the target's HP and the fight's time.
 - **Stays out of the way:** it sits in the tray and sleeps while Aion 2 is closed, waking when the
   game starts.
 - And whatever else I randomly find useful while I play Aion2. :D
@@ -65,32 +70,33 @@ automatic updates: to update, pull the new upstream version, review it, and rebu
 
 ## Build from source
 
-Needs Windows, [Python 3.12+](https://www.python.org), [Node.js 24](https://nodejs.org),
-[Rust](https://rustup.rs) (for the engine, `engine/`) and Npcap.
-
-```bash
-python -m venv .venv
-```
-
-```bash
-.venv\Scripts\python -m pip install -e . pyinstaller
-```
+Needs Windows, [Node.js 24](https://nodejs.org), [Rust](https://rustup.rs) (with the Visual
+Studio Build Tools rustup offers to install) and Npcap.
 
 ```bash
 cd app && npm install && npm run dist
 ```
 
-The installer is written to `app/dist/`. To run without installing, use `npm run build` and then
-start Electron from `app/` (`npx electron .`).
+The installer is written to `app/dist/`. For development, build the engine once and run the app
+with hot reload; it finds `engine/target/release` on its own:
+
+```bash
+cd engine && cargo build --release
+cd ../app && npm install && npm run dev
+```
+
+After changing the engine, build it again and use Settings → Restart engine. `A2T_REPLAY=<file>`
+plays a recording (`.pcap`, `.pcapng` or an A2Tools packet log) instead of the game.
 
 ## Credits
 
 - Lokthar Overlay started as a fork of [xCROv/aion2-nyerk](https://github.com/xCROv/aion2-nyerk)
-  (GPL-3.0), which gave it its overlay UI and its first pet tracker features.
+  (GPL-3.0), which gave it its overlay UI and its first pet tracker features (since ported to
+  Rust in `engine/src/tracker/`). The PvP log and kill feed are copied from Nyerk 0.2.17.
 - The DPS meter, packet capture and combat parsing use code from
   [taengu/A2Tools-DPS-Meter](https://github.com/taengu/A2Tools-DPS-Meter) (GPL-3.0): its parser
-  crate as a dependency, and its capture code copied into `engine/`. Monster names
-  (`data/npcs_en.json`) come from it too.
+  crate as a dependency, and its capture code copied into `engine/`. Its monster, skill and
+  buff tables are in `engine/data/`, and the meter's class icons are its too.
 - Pet record layouts and soul counting rules follow the pet-souls plugin of
   [taengu/A2Tools-Plugins](https://github.com/taengu/A2Tools-Plugins) (GPL-3.0).
 - Pet names, genus, portraits, spawn locations and zone maps come from

@@ -1,0 +1,369 @@
+//! The engine as the app's helper: JSON lines in, JSON lines out. The events
+//! and commands are the Python tracker's (sidecar.py, which this replaces),
+//! plus the DPS meter's.
+//!
+//!   lokthar-engine [--data collection.json] [--paused] [--replay X.pcap [--speed 4]]
+//!
+//! stdout, one JSON object per line (nothing else is ever written there):
+//!
+//!   {"type": "ready", "pets": [...], "character": {"name", "server"} | null, "data", "replay", "version"}
+//!   {"type": "character", "name": "Ksix", "server": 1104, "switched": true, "pets": [...]}
+//!       a character entered the world, on another server than the collection's (its own)
+//!       or for the first time
+//!   {"type": "status", "state": "listening" | "locked" | "idle" | "stopped" | "error", "server"?, "detail"?}
+//!   {"type": "heartbeat", "lastPacketAgo": 1.2}       every 2 s while capturing
+//!   {"type": "sync", "pets": 119, "souls": 938, "corrected": [...], "collection": [...]}
+//!   {"type": "soul", "amount": 1, "pet": {...}, "levelUp": false}     one per pet a pickup gives souls to
+//!   {"type": "crystal", "amount": 1, "genus": "fera" | "cogni" | null, "pet": {...} | null,
+//!    "npc", "raw", "levelCorrected", "kills": [{"npc", "name", "pet", "ago"}]}
+//!   {"type": "pet", "pet": {...}}                     after an edit, or a level-up the game sent
+//!   {"type": "combat"}                                you killed something (at most every 5 s)
+//!   {"type": "kina", "balance": 3769926}
+//!   {"type": "shop", "tab": 104, "nextAt": ms | null, "items": [{"slot", "item", "quantity", "currency", "base", "price"}]}
+//!   {"type": "fieldBosses", "world": 1010, "bosses": [{"id": 101021, "up": false, "at": ms}]}
+//!   {"type": "pvpKill", "killer": {"name", "server", "guild"}, "victim": {...} | null, "mine", "died", "legion"}
+//!   {"type": "snapshot", "pets": [...]}               answer to "snapshot" (then a nearby)
+//!   {"type": "nearby", "world": 1010, "position": [x, y] | null, "monsters": [{"npc", "count"}]}
+//!   {"type": "dps", ...DpsData}                       the meter, when it changes (else every 5 s)
+//!   {"type": "details", "target": 123, ...TargetDetailsResponse}
+//!   {"type": "error", "detail": "..."}
+//!
+//! stdin, one JSON object per line:
+//!
+//!   {"cmd": "snapshot"} · {"cmd": "set", "pet": 1006, "souls": 32} · {"cmd": "name", "pet": 1006, "name": "..."}
+//!   {"cmd": "resetSession"}            the session's soul counts start again (answered with a snapshot)
+//!   {"cmd": "capture", "on": false}    stop capturing (the game closed) or start again
+//!   {"cmd": "meter", "on": false}      stop sending the meter (it is turned off) or start again
+//!   {"cmd": "dpsReset"} · {"cmd": "targetMode", "mode": "bossTargets"} · {"cmd": "details", "target": 123, "actors"?: [..]}
+//!   {"cmd": "quit"}                    (closing stdin quits too)
+//!
+//! A pet is {"id", "name" (null if unknown), "souls", "level", "levelEstimated", "crystals", "session"}.
+
+use std::io::BufRead;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
+
+use a2tools_dps_meter_lib::capture::captured_payload::CapturedPayload;
+use a2tools_dps_meter_lib::capture::frame_tap;
+use a2tools_dps_meter_lib::clock;
+use parking_lot::Mutex;
+use serde_json::{Value, json};
+use tokio::sync::mpsc;
+
+use crate::capture::pcap_capturer::PcapCapturer;
+use crate::meter::Meter;
+use crate::tracker::Tracker;
+use crate::tracker::store::Store;
+use crate::{emit, event};
+
+const DPS_EVERY: Duration = Duration::from_millis(200);
+const DPS_RESEND: Duration = Duration::from_secs(5);
+const HEARTBEAT: Duration = Duration::from_secs(2);
+
+pub struct Options {
+    pub data: PathBuf,
+    pub paused: bool,
+    pub replay: Option<PathBuf>,
+    pub speed: f64,
+}
+
+impl Options {
+    pub fn parse(args: &[String]) -> Result<Self, String> {
+        let mut opts = Options { data: PathBuf::from("collection.json"), paused: false, replay: None, speed: 1.0 };
+        let mut rest = args.iter();
+        while let Some(arg) = rest.next() {
+            let mut value = || rest.next().cloned().ok_or(format!("{arg} needs a value"));
+            match arg.as_str() {
+                "--data" => opts.data = PathBuf::from(value()?),
+                "--paused" => opts.paused = true,
+                "--replay" => opts.replay = Some(PathBuf::from(value()?)),
+                "--speed" => opts.speed = value()?.parse().map_err(|_| "--speed needs a number")?,
+                _ => return Err(format!("unexpected argument {arg:?}")),
+            }
+        }
+        Ok(opts)
+    }
+}
+
+/// What is capturing now: live capture, or a recording played back in time.
+enum Source {
+    Live(PcapCapturer),
+    Replay(Arc<AtomicBool>),
+}
+
+struct Sidecar {
+    runtime: tokio::runtime::Runtime,
+    meter: Arc<Meter>,
+    tracker: Arc<Mutex<Tracker>>,
+    replay: Option<(PathBuf, f64)>,
+    source: Mutex<Option<Source>>,
+    capturing: Arc<AtomicBool>,
+    meter_on: Arc<AtomicBool>,
+    last_frame: Arc<Mutex<Option<Instant>>>,
+}
+
+pub fn run(opts: Options) -> Result<(), String> {
+    let runtime = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
+    let meter = Arc::new(Meter::new());
+    let pets = crate::tracker::data::pets();
+    // A collection that will not read is never written over: the tracker runs
+    // without saving, and says so.
+    let (store, path) = match Store::load(&opts.data, pets) {
+        Ok(store) => (store, (opts.replay.is_none()).then(|| opts.data.clone())),
+        Err(e) => {
+            emit(&event("status", json!({ "state": "error", "detail": format!("The collection could not be read ({e}); nothing will be saved") })));
+            (Store::default(), None)
+        }
+    };
+    let tracker = Arc::new(Mutex::new(Tracker::new(store, path, meter.npcs.clone(), meter.storage.clone(), Box::new(|ev| emit(&ev)))));
+
+    let sidecar = Arc::new(Sidecar {
+        runtime,
+        meter,
+        tracker,
+        replay: opts.replay.clone().map(|p| (p, opts.speed.max(0.01))),
+        source: Mutex::new(None),
+        capturing: Arc::new(AtomicBool::new(false)),
+        meter_on: Arc::new(AtomicBool::new(true)),
+        last_frame: Arc::new(Mutex::new(None)),
+    });
+
+    // Every frame the parser reads goes through the tracker too, timed by its
+    // capture time (the parser's clock is set to it around each parse).
+    {
+        let tracker = sidecar.tracker.clone();
+        let last_frame = sidecar.last_frame.clone();
+        frame_tap::set(Some(Arc::new(move |frame: &[u8]| {
+            *last_frame.lock() = Some(Instant::now());
+            tracker.lock().frame(clock::now_ms(), frame);
+        })));
+    }
+
+    {
+        let t = sidecar.tracker.lock();
+        emit(&event(
+            "ready",
+            json!({
+                "pets": t.snapshot(), "character": t.character(), "data": opts.data.display().to_string(),
+                "replay": opts.replay.is_some(), "version": env!("CARGO_PKG_VERSION"),
+            }),
+        ));
+    }
+    if opts.paused && opts.replay.is_none() {
+        emit(&event("status", json!({ "state": "idle" })));
+    } else {
+        sidecar.set_capture(true);
+    }
+    sidecar.publish();
+    sidecar.heartbeat();
+
+    // Commands, until stdin closes (the app quit) or says quit.
+    for line in std::io::stdin().lock().lines() {
+        let Ok(line) = line else { break };
+        if line.trim().is_empty() {
+            continue;
+        }
+        match serde_json::from_str::<Value>(&line) {
+            Ok(msg) => {
+                if !sidecar.command(&msg) {
+                    break;
+                }
+            }
+            Err(e) => emit(&event("error", json!({ "detail": format!("bad command: {e}") }))),
+        }
+    }
+    sidecar.set_capture(false);
+    frame_tap::set(None);
+    Ok(())
+}
+
+impl Sidecar {
+    /// Start or stop capturing. Each capture locks onto the game afresh: the
+    /// next game is a new connection.
+    fn set_capture(&self, on: bool) {
+        let mut source = self.source.lock();
+        if on == source.is_some() {
+            return;
+        }
+        if !on {
+            match source.take() {
+                Some(Source::Live(capturer)) => capturer.stop(),
+                Some(Source::Replay(halt)) => halt.store(true, Ordering::SeqCst),
+                None => {}
+            }
+            self.capturing.store(false, Ordering::SeqCst);
+            self.meter.port_detector.reset();
+            *self.last_frame.lock() = None;
+            let mut tracker = self.tracker.lock();
+            tracker.forget_view();
+            emit(&event("status", json!({ "state": "idle" })));
+            emit(&event("nearby", tracker.nearby()));
+            return;
+        }
+        let (tx, rx) = mpsc::channel::<CapturedPayload>(4096);
+        *source = Some(match &self.replay {
+            Some((path, speed)) => Source::Replay(self.start_replay(path.clone(), *speed, tx)),
+            None => {
+                let capturer = PcapCapturer::new(tx, self.meter.port_detector.clone());
+                capturer.start();
+                if !capturer.is_running() {
+                    emit(&event("status", json!({ "state": "error", "detail": "Packet capture did not start (is Npcap installed?)" })));
+                    return;
+                }
+                Source::Live(capturer)
+            }
+        });
+        self.capturing.store(true, Ordering::SeqCst);
+        let source_name = self.replay.as_ref().map_or("live".to_string(), |(p, _)| p.display().to_string());
+        emit(&event("status", json!({ "state": "listening", "source": source_name })));
+        let dispatcher = self.meter.dispatcher();
+        self.runtime.spawn(async move { dispatcher.run(rx).await });
+    }
+
+    /// A recording played back as if live: in its own time (divided by
+    /// `speed`), each packet stamped with when it is sent.
+    fn start_replay(&self, path: PathBuf, speed: f64, tx: mpsc::Sender<CapturedPayload>) -> Arc<AtomicBool> {
+        let halt = Arc::new(AtomicBool::new(false));
+        let stop = halt.clone();
+        std::thread::spawn(move || {
+            let payloads = match crate::capture::recording::read(&path) {
+                Ok(p) => p,
+                Err(e) => {
+                    emit(&event("status", json!({ "state": "error", "detail": e })));
+                    return;
+                }
+            };
+            let start = Instant::now();
+            let first = payloads.first().map_or(0, |p| p.captured_at_ms);
+            for mut payload in payloads {
+                let due = Duration::from_secs_f64((payload.captured_at_ms - first).max(0) as f64 / 1000.0 / speed);
+                if let Some(wait) = due.checked_sub(start.elapsed()) {
+                    std::thread::sleep(wait);
+                }
+                if stop.load(Ordering::SeqCst) {
+                    return;
+                }
+                payload.captured_at_ms = clock::now_ms();
+                if tx.blocking_send(payload).is_err() {
+                    return;
+                }
+            }
+            emit(&event("status", json!({ "state": "stopped" })));
+        });
+        halt
+    }
+
+    /// The meter, when it changes, and the lock, when it does.
+    fn publish(self: &Arc<Self>) {
+        let me = self.clone();
+        self.runtime.spawn(async move {
+            let mut tick = tokio::time::interval(DPS_EVERY);
+            tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            let mut last: Option<(Value, Instant)> = None;
+            let mut port = None;
+            loop {
+                tick.tick().await;
+                if !me.capturing.load(Ordering::SeqCst) {
+                    port = None;
+                    continue;
+                }
+                let now_port = me.meter.port_detector.current_port();
+                if now_port != port {
+                    port = now_port;
+                    if let Some(port) = port {
+                        let host = me.meter.storage.game_host().map_or_else(|| "?".to_string(), |ip| ip.to_string());
+                        emit(&event("status", json!({ "state": "locked", "server": format!("{host}:{port}") })));
+                    }
+                }
+                if !me.meter_on.load(Ordering::SeqCst) {
+                    continue;
+                }
+                let meter = me.meter.clone();
+                let Ok(dps) = tokio::task::spawn_blocking(move || meter.dps()).await else { continue };
+                if last.as_ref().is_none_or(|(prev, at)| *prev != dps || at.elapsed() >= DPS_RESEND) {
+                    emit(&event("dps", dps.clone()));
+                    last = Some((dps, Instant::now()));
+                }
+            }
+        });
+    }
+
+    /// Every 2 s while capturing: how long since the game's last frame, and
+    /// what is around you when it changed.
+    fn heartbeat(self: &Arc<Self>) {
+        let me = self.clone();
+        self.runtime.spawn(async move {
+            let mut tick = tokio::time::interval(HEARTBEAT);
+            loop {
+                tick.tick().await;
+                if !me.capturing.load(Ordering::SeqCst) {
+                    continue;
+                }
+                let ago = me.last_frame.lock().map(|at| (at.elapsed().as_secs_f64() * 10.0).round() / 10.0);
+                emit(&event("heartbeat", json!({ "lastPacketAgo": ago })));
+                let mut tracker = me.tracker.lock();
+                if tracker.nearby_dirty {
+                    emit(&event("nearby", tracker.nearby()));
+                }
+            }
+        });
+    }
+
+    /// Carry out one command; false to quit.
+    fn command(&self, msg: &Value) -> bool {
+        let pet = || msg["pet"].as_u64().map(|p| p as u32).ok_or("no pet");
+        let result: Result<(), &str> = (|| {
+            match msg["cmd"].as_str().unwrap_or_default() {
+                "quit" => return Err("quit"),
+                "snapshot" => {
+                    let mut t = self.tracker.lock();
+                    emit(&event("snapshot", json!({ "pets": t.snapshot() })));
+                    emit(&event("nearby", t.nearby()));
+                }
+                "set" => {
+                    let souls = msg["souls"].as_u64().ok_or("no souls")? as u32;
+                    let view = self.tracker.lock().set_souls(pet()?, souls);
+                    emit(&event("pet", json!({ "pet": view })));
+                }
+                "name" => {
+                    let name = msg["name"].as_str().ok_or("no name")?;
+                    let view = self.tracker.lock().set_name(pet()?, name);
+                    emit(&event("pet", json!({ "pet": view })));
+                }
+                "resetSession" => {
+                    let mut t = self.tracker.lock();
+                    t.reset_session();
+                    emit(&event("snapshot", json!({ "pets": t.snapshot() })));
+                }
+                "capture" => self.set_capture(msg["on"].as_bool().ok_or("no on")?),
+                "meter" => self.meter_on.store(msg["on"].as_bool().ok_or("no on")?, Ordering::SeqCst),
+                "dpsReset" => self.meter.reset(),
+                "targetMode" => {
+                    if !self.meter.set_target_mode(msg["mode"].as_str().unwrap_or_default()) {
+                        return Err("unknown target mode");
+                    }
+                }
+                "details" => {
+                    let target = msg["target"].as_i64().ok_or("no target")? as i32;
+                    let actors: Option<Vec<i32>> =
+                        msg["actors"].as_array().map(|a| a.iter().filter_map(|v| v.as_i64()).map(|v| v as i32).collect());
+                    let mut details = self.meter.details(target, actors.as_deref());
+                    details["target"] = json!(target);
+                    emit(&event("details", details));
+                }
+                _ => return Err("unknown command"),
+            }
+            Ok(())
+        })();
+        match result {
+            Err("quit") => false,
+            Err(e) => {
+                emit(&event("error", json!({ "detail": format!("{e}: {msg}") })));
+                true
+            }
+            Ok(()) => true,
+        }
+    }
+}

@@ -2,9 +2,8 @@
 #
 #   npm run dist      -> dist/Lokthar-Setup-<version>.exe
 #
-# The tracker helper is the PyInstaller build in ../build/sidecar/aion2-tracker, and the engine (the
-# DPS meter) the Rust build in ../build/engine; npm run dist builds both first
-# (scripts/build-sidecar.mjs, scripts/build-engine.mjs). Npcap is not bundled: its licence does not allow it, and
+# The engine (capture, tracking and the DPS meter) is the Rust build in ../build/engine; npm run dist
+# builds it first (scripts/build-engine.mjs). Npcap is not bundled: its licence does not allow it, and
 # the app tells the user to install it.
 # appId, executableName and the package name (the install folder) are kept from the first release:
 # the installed copy is found by them, so a new build installs over the old one. The product name
@@ -19,9 +18,6 @@ files:
   - out/**/*
   - package.json
 extraResources:
-  - from: ../build/sidecar/aion2-tracker
-    to: sidecar
-    filter: ['**/*']
   - from: ../build/engine
     to: engine
     filter: ['**/*']

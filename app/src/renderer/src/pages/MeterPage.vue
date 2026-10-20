@@ -6,7 +6,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { bridge } from '@/lib/bridge.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { useApp } from '@/stores/app.ts'
-import { CLASS_COLORS, NO_METER, TARGET_MODE_LABELS, TARGET_MODES, type EngineStatus, type MeterData, type TargetMode } from '@shared/meter.ts'
+import { CLASS_COLORS, NO_METER, TARGET_MODE_LABELS, TARGET_MODES, type MeterData, type TargetMode } from '@shared/meter.ts'
+import type { TrackerState } from '@shared/tracker.ts'
 
 const store = useApp()
 const root = ref<HTMLElement | null>(null)
@@ -14,7 +15,8 @@ const cfg = computed(() => store.settings.meter)
 const api = bridge()
 
 const meter = ref<MeterData>(NO_METER)
-const status = ref<EngineStatus>({ state: 'starting', detail: null })
+/** The engine's state: the meter and the tracker are the same process. */
+const status = computed(() => store.status ?? { state: 'starting' as TrackerState, detail: null })
 
 const icons = import.meta.glob<string>('@/assets/classes/*.png', { eager: true, import: 'default' })
 const icon = (className: string | null): string | null =>
@@ -42,16 +44,20 @@ const hpShare = computed(() => {
   return t && t.maxHp > 0 && t.hp !== null ? Math.min(1, Math.max(0, t.hp / t.maxHp)) : null
 })
 
-const STATUS_TEXT: Record<EngineStatus['state'], string> = {
-  off: 'Meter off',
+const STATUS_TEXT: Record<TrackerState, string> = {
   starting: 'Starting…',
   listening: 'Looking for the game connection…',
   locked: 'Waiting for a fight',
+  idle: 'Asleep until Aion 2 starts',
+  stopped: 'Replay finished',
   error: 'Error',
   exited: 'Restarting…',
 }
 const statusDot = computed(
-  () => ({ locked: 'bg-green', listening: 'bg-yellow', starting: 'bg-yellow', exited: 'bg-yellow', error: 'bg-danger', off: 'bg-darkest' })[status.value.state],
+  () =>
+    ({ locked: 'bg-green', listening: 'bg-yellow', starting: 'bg-yellow', exited: 'bg-yellow', error: 'bg-danger', idle: 'bg-darkest', stopped: 'bg-darkest' })[
+      status.value.state
+    ],
 )
 
 const drag = windowDrag({ move: 'meter:moveTo', end: 'meter:dragEnd' })
@@ -76,10 +82,7 @@ let observer: ResizeObserver | null = null
 const offs: (() => void)[] = []
 onMounted(async () => {
   offs.push(api.on('meter:dps', (m) => (meter.value = m)))
-  offs.push(api.on('meter:status', (s) => (status.value = s)))
-  const now = await api.invoke('meter:get')
-  meter.value = now.meter
-  status.value = now.status
+  meter.value = await api.invoke('meter:get')
   observer = new ResizeObserver(report)
   if (root.value) observer.observe(root.value)
   report()

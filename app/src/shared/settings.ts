@@ -51,6 +51,9 @@ export interface Settings {
   /** Where the Black Cloud Merchant window sits (top-left, screen DIPs); null = top centre. */
   merchantWindow: Point | null
 
+  /** The kill feed over the game: open (from the PvP Log tab), and where (null = top right). */
+  killFeed: { open: boolean; position: Point | null }
+
   /** The DPS meter: its own window, fed by the engine (A2Tools DPS Meter's parser). */
   meter: {
     enabled: boolean
@@ -108,8 +111,6 @@ export interface Settings {
   }
 
   tracker: {
-    /** The Python interpreter; empty = the repo's .venv. */
-    python: string
     /** The collection file; empty = <userData>/collection.json. */
     dataFile: string
   }
@@ -138,6 +139,7 @@ export const SETTINGS_DEFAULTS: Settings = {
     kina: true,
   },
   merchantWindow: null,
+  killFeed: { open: false, position: null },
   meter: { enabled: true, position: null, targetMode: 'bossTargets', rows: 8, opacity: 0.92 },
   hideFromCapture: false,
   faction: 'elyos',
@@ -154,7 +156,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   },
   sleepWithoutGame: true,
   lokthar: { sync: false, url: 'https://lokthar.com', token: '' },
-  tracker: { python: '', dataFile: '' },
+  tracker: { dataFile: '' },
 }
 
 const num = (v: unknown, lo: number, hi: number, fallback: number): number =>
@@ -224,6 +226,10 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         ) as Record<TimerId, boolean>,
       } as Settings[K]
     }
+    case 'killFeed': {
+      const v = (value ?? {}) as Partial<Settings['killFeed']>
+      return { open: bool(v.open, d.killFeed.open), position: point(v.position) } as Settings[K]
+    }
     case 'meter': {
       const v = (value ?? {}) as Partial<Settings['meter']>
       return {
@@ -249,7 +255,6 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
     case 'tracker': {
       const v = (value ?? {}) as Partial<Settings['tracker']>
       return {
-        python: typeof v.python === 'string' ? v.python.trim() : '',
         dataFile: typeof v.dataFile === 'string' ? v.dataFile.trim() : '',
       } as Settings[K]
     }

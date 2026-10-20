@@ -1,6 +1,6 @@
 /**
  * Lokthar (an Aion 2 overlay: pet collection, timers, the guild's field boss sync): a tray app with a floating bubble, a panel and an in-game HUD, fed by the
- * Python tracker running as a child process.
+ * engine (engine/, Rust) running as a child process.
  */
 import { app, session } from 'electron'
 import { DISPLAY_NAME } from '../shared/app.ts'
@@ -13,7 +13,7 @@ import { startIdleWatch } from './idle.ts'
 import { startLokthar } from './lokthar.ts'
 import { join } from 'node:path'
 import { moveDataFolder, OLD_NAMES } from './migrate.ts'
-import { engine, killEngineNow, stopEngine } from './engine.ts'
+import { startMeter } from './meter.ts'
 import { startTimers } from './timers.ts'
 import { killTrackerNow, log, stopTracker, tracker } from './tracker.ts'
 import { createTray, setTrayTooltip } from './tray.ts'
@@ -43,15 +43,11 @@ if (!app.requestSingleInstanceLock()) {
     registerIpc()
     createTray()
 
-    let targetMode = settings.get('meter').targetMode
     settings.onChanged((all) => {
       broadcast('settings:changed', all)
       applyWindowSettings()
-      if (all.meter.targetMode !== targetMode) {
-        targetMode = all.meter.targetMode
-        engine.applyTargetMode()
-      }
     })
+    startMeter()
     // A tab of the Black Cloud Merchant was opened: its pets worth buying, in their own window.
     tracker.onShop(() => showMerchant())
     tracker.onStatus((status) => {
@@ -96,11 +92,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('before-quit', () => {
     markQuitting()
     stopTracker()
-    stopEngine()
   })
-  // Windows children outlive their parent: make sure the tracker and the engine go with us.
-  process.on('exit', () => {
-    killTrackerNow()
-    killEngineNow()
-  })
+  // Windows children outlive their parent: make sure the engine goes with us.
+  process.on('exit', () => killTrackerNow())
 }

@@ -1,47 +1,33 @@
-//! Lokthar's engine: captures the game's traffic and runs A2Tools DPS Meter's
-//! parser on it. Two ways to run it:
+//! Lokthar's engine: captures the game's traffic, runs A2Tools DPS Meter's
+//! parser on it, and tracks the pet collection and the rest the overlay shows.
+//! Two ways to run it:
 //!
-//!   lokthar-engine                       the app's sidecar (below)
+//!   lokthar-engine [--data collection.json] [--paused] [--replay X.pcap [--speed 4]]
+//!       the app's helper: JSON lines on stdin and stdout (sidecar.rs)
 //!   lokthar-engine replay <file> [--every <s>] [--mode <target mode>]
+//!       a recording through the meter and the tracker as fast as it reads,
+//!       timed by capture time: the tracker's events and a `dps` line every
+//!       `--every` seconds of the recording (and at its end) on stdout, the
+//!       final meter as a table on stderr. Nothing is saved.
 //!
-//! As the sidecar it speaks JSON lines, like the Python tracker. Out, on stdout:
-//!
-//!   {"type": "ready", "version": "0.1.0"}
-//!   {"type": "status", "state": "listening" | "locked" | "error", "port"?: 13328, "detail"?: "..."}
-//!   {"type": "dps", ...DpsData}       when it changes (checked 5 times a second), else every 5 s
-//!   {"type": "details", "target": 123, ...TargetDetailsResponse}   answer to "details"
-//!   {"type": "error", "detail": "..."}
-//!
-//! In, on stdin:
-//!
-//!   {"cmd": "dpsReset"}                             start over: no target, no damage
-//!   {"cmd": "targetMode", "mode": "bossTargets"}    see meter::TARGET_MODES
-//!   {"cmd": "details", "target": 123, "actors"?: [1, 2]}
-//!   {"cmd": "quit"}
-//!
-//! Logs go to stderr. Replay reads a recording (capture::recording) as fast as
-//! it can, timed by capture time, and prints the meter: a `dps` line every
-//! `--every` seconds of the recording (and at its end) on stdout, and a table
-//! of the final one on stderr.
+//! Logs go to stderr.
 
 mod capture;
 mod meter;
 mod replay;
+mod sidecar;
+mod tracker;
 
-use std::io::{BufRead, Write};
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
-use a2tools_dps_meter_lib::capture::captured_payload::CapturedPayload;
+use a2tools_dps_meter_lib::capture::frame_tap;
+use a2tools_dps_meter_lib::clock;
+use parking_lot::Mutex;
 use serde_json::{Value, json};
-use tokio::sync::mpsc;
 
-use capture::pcap_capturer::PcapCapturer;
 use meter::Meter;
-
-const DPS_EVERY: Duration = Duration::from_millis(200);
-const DPS_RESEND: Duration = Duration::from_secs(5);
 
 fn main() {
     tracing_subscriber::fmt()
@@ -55,13 +41,12 @@ fn main() {
 
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = match args.first().map(String::as_str) {
-        None => sidecar(),
         Some("replay") => replay(&args[1..]),
         Some("--version") => {
             println!("{}", env!("CARGO_PKG_VERSION"));
             Ok(())
         }
-        Some(other) => Err(format!("unknown command {other:?}; run with no arguments, or `replay <file>`")),
+        _ => sidecar::Options::parse(&args).and_then(sidecar::run),
     };
     if let Err(e) = result {
         eprintln!("{e}");
@@ -70,105 +55,19 @@ fn main() {
 }
 
 /// One JSON line on stdout.
-fn emit(event: &Value) {
+pub fn emit(event: &Value) {
     let mut out = std::io::stdout().lock();
     let _ = writeln!(out, "{event}");
     let _ = out.flush();
 }
 
 /// `{"type": kind, ...fields}`.
-fn event(kind: &str, fields: Value) -> Value {
+pub fn event(kind: &str, fields: Value) -> Value {
     let mut ev = json!({ "type": kind });
     if let (Some(ev), Value::Object(fields)) = (ev.as_object_mut(), fields) {
         ev.extend(fields);
     }
     ev
-}
-
-fn sidecar() -> Result<(), String> {
-    let runtime = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let meter = Arc::new(Meter::new());
-    emit(&event("ready", json!({ "version": env!("CARGO_PKG_VERSION") })));
-
-    let (tx, rx) = mpsc::channel::<CapturedPayload>(4096);
-    let capturer = PcapCapturer::new(tx, meter.port_detector.clone());
-    capturer.start();
-    if capturer.is_running() {
-        emit(&event("status", json!({ "state": "listening" })));
-    } else {
-        emit(&event("status", json!({ "state": "error", "detail": "packet capture did not start (see the log)" })));
-    }
-
-    let dispatcher = meter.dispatcher();
-    runtime.spawn(async move { dispatcher.run(rx).await });
-
-    // The meter, when it changes, and the lock, when it does.
-    let publisher = meter.clone();
-    runtime.spawn(async move {
-        let mut tick = tokio::time::interval(DPS_EVERY);
-        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-        let mut last: Option<(Value, Instant)> = None;
-        let mut port = None;
-        loop {
-            tick.tick().await;
-            let now_port = publisher.port_detector.current_port();
-            if now_port != port {
-                port = now_port;
-                emit(&match port {
-                    Some(port) => event("status", json!({ "state": "locked", "port": port })),
-                    None => event("status", json!({ "state": "listening" })),
-                });
-            }
-            let meter = publisher.clone();
-            let Ok(dps) = tokio::task::spawn_blocking(move || meter.dps()).await else { continue };
-            if last.as_ref().is_none_or(|(prev, at)| *prev != dps || at.elapsed() >= DPS_RESEND) {
-                emit(&event("dps", dps.clone()));
-                last = Some((dps, Instant::now()));
-            }
-        }
-    });
-
-    // Commands, until stdin closes (the app quit) or says quit.
-    for line in std::io::stdin().lock().lines() {
-        let Ok(line) = line else { break };
-        if line.trim().is_empty() {
-            continue;
-        }
-        match serde_json::from_str::<Value>(&line) {
-            Ok(msg) => {
-                if !command(&meter, &msg) {
-                    break;
-                }
-            }
-            Err(e) => emit(&event("error", json!({ "detail": format!("bad command: {e}") }))),
-        }
-    }
-    capturer.stop();
-    Ok(())
-}
-
-/// Carry out one command; false to quit.
-fn command(meter: &Meter, msg: &Value) -> bool {
-    match msg["cmd"].as_str().unwrap_or_default() {
-        "quit" => return false,
-        "dpsReset" => meter.reset(),
-        "targetMode" => {
-            let mode = msg["mode"].as_str().unwrap_or_default();
-            if !meter.set_target_mode(mode) {
-                emit(&event("error", json!({ "detail": format!("unknown target mode {mode:?}") })));
-            }
-        }
-        "details" => {
-            let target = msg["target"].as_i64().unwrap_or_default() as i32;
-            let actors: Option<Vec<i32>> =
-                msg["actors"].as_array().map(|a| a.iter().filter_map(|v| v.as_i64()).map(|v| v as i32).collect());
-            let mut details = meter.details(target, actors.as_deref());
-            details["target"] = json!(target);
-            emit(&event("details", details));
-        }
-        other => emit(&event("error", json!({ "detail": format!("unknown command {other:?}") }))),
-    }
-    true
 }
 
 fn replay(args: &[String]) -> Result<(), String> {
@@ -198,6 +97,15 @@ fn replay(args: &[String]) -> Result<(), String> {
             return Err(format!("unknown target mode {mode:?}; one of {}", meter::TARGET_MODES.join(", ")));
         }
     }
+    // The tracker reads the same frames, from an empty collection.
+    let tracker = Arc::new(Mutex::new(tracker::Tracker::new(
+        tracker::store::Store::default(),
+        None,
+        meter.npcs.clone(),
+        meter.storage.clone(),
+        Box::new(|ev| emit(&ev)),
+    )));
+    frame_tap::set(Some(Arc::new(move |frame: &[u8]| tracker.lock().frame(clock::now_ms(), frame))));
     let last = replay::run(&meter, payloads, every_ms, |mut dps, at| {
         dps["at"] = json!(at);
         emit(&event("dps", dps));

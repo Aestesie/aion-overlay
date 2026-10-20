@@ -17,9 +17,8 @@
     "test": "node --test \"tests/**/*.test.ts\"",
     "check": "npm run typecheck && npm test",
     "icon": "node scripts/make-icon.mjs",
-    "build:sidecar": "node scripts/build-sidecar.mjs",
     "build:engine": "node scripts/build-engine.mjs",
-    "dist": "npm run build:sidecar && npm run build:engine && npm run build && electron-builder --win --publish never",
+    "dist": "npm run build:engine && npm run build && electron-builder --win --publish never",
     "pack": "npm run build && electron-builder --win --dir"
   },
   "dependencies": {

@@ -6,6 +6,7 @@
  *   hud       #/hud       the in-game overlay: click-through, sized to its content
  *   merchant  #/merchant  the Black Cloud Merchant's pets worth buying: opened when a tab of the
  *                         shop is, always movable, closed with its X
+ *   killfeed  #/killfeed  player kills around you, as they happen: opened from the PvP Log tab
  *   meter     #/meter     the DPS meter: open while the game is (and the meter is on), movable by
  *                         its header, sized to its rows
  *
@@ -38,6 +39,7 @@ let hud: BrowserWindow | null = null
 let merchant: BrowserWindow | null = null
 let merchantSize = { width: 0, height: 0 }
 let meter: BrowserWindow | null = null
+let killFeed: BrowserWindow | null = null
 let meterSize = { width: 0, height: 0 }
 let panelExpanded = false
 let hudEditing = false
@@ -448,6 +450,56 @@ export function meterDragEnded(): void {
   settings.set('meter', { ...settings.get('meter'), position: { x, y } })
 }
 
+// ---- kill feed (from Nyerk 0.2.17) ----------------------------------------------------------
+
+const KILL_FEED_WIDTH = 312
+
+function killFeedPosition(): Point {
+  const saved = settings.get('killFeed').position
+  if (saved) return saved
+  const area = screen.getPrimaryDisplay().workArea
+  return { x: area.x + area.width - KILL_FEED_WIDTH - EDGE, y: area.y + 120 }
+}
+
+/** The kill feed window, if the PvP Log has it open: made with the other overlays. */
+export function createKillFeed(): void {
+  if (!settings.get('killFeed').open || alive(killFeed)) return
+  const p = killFeedPosition()
+  const win = overlayWindow({ x: p.x, y: p.y, width: KILL_FEED_WIDTH, height: 40 })
+  killFeed = win
+  win.on('closed', () => (killFeed = null))
+  load(win, 'killfeed')
+  win.webContents.once('did-finish-load', () => alive(win) && win.showInactive())
+}
+
+/** PvP Log → Open HUD / the window's X. Remembered, so it comes back with the game. */
+export function setKillFeedOpen(open: boolean): void {
+  settings.set('killFeed', { ...settings.get('killFeed'), open })
+  if (open) createKillFeed()
+  else if (alive(killFeed)) {
+    killFeed.destroy()
+    killFeed = null
+  }
+}
+
+export function resizeKillFeed(size: { width: number; height: number }): void {
+  if (!alive(killFeed) || size.width <= 0 || size.height <= 0) return
+  const { x, y } = killFeed.getBounds()
+  killFeed.setBounds(clampToDisplay({ x, y, width: Math.ceil(size.width), height: Math.ceil(size.height) }))
+}
+
+export function moveKillFeed(to: Point): void {
+  if (!alive(killFeed)) return
+  const { width, height } = killFeed.getBounds()
+  killFeed.setBounds(clampToDisplay({ x: to.x, y: to.y, width, height }))
+}
+
+export function killFeedDragEnded(): void {
+  if (!alive(killFeed)) return
+  const { x, y } = killFeed.getBounds()
+  settings.set('killFeed', { ...settings.get('killFeed'), position: { x, y } })
+}
+
 // ---- all ------------------------------------------------------------------------------------
 
 const ON_TOP_EVERY_MS = 5_000
@@ -461,7 +513,7 @@ const ON_TOP_EVERY_MS = 5_000
  */
 export function startOnTopWatch(): void {
   setInterval(() => {
-    for (const win of [bubble, hud, merchant, meter]) {
+    for (const win of [bubble, hud, merchant, meter, killFeed]) {
       if (!alive(win) || !win.isVisible()) continue
       win.setAlwaysOnTop(true, 'screen-saver')
       win.moveTop()
@@ -472,7 +524,7 @@ export function startOnTopWatch(): void {
 /** Settings that change how the windows behave, applied live. */
 export function applyWindowSettings(): void {
   const hidden = settings.get('hideFromCapture')
-  for (const w of [bubble, panel, hud, merchant, meter]) if (alive(w)) w.setContentProtection(hidden)
+  for (const w of [bubble, panel, hud, merchant, meter, killFeed]) if (alive(w)) w.setContentProtection(hidden)
   if (!settings.get('hud').merchant) closeMerchant()
   if (!settings.get('meter').enabled) closeMeter()
   if (alive(panel)) {
@@ -488,11 +540,12 @@ export function applyWindowSettings(): void {
  * window that is only hidden keeps its renderer process. An open panel stays open.
  */
 export function closeOverlays(): void {
-  for (const win of [bubble, hud, merchant, meter]) if (alive(win)) win.destroy()
+  for (const win of [bubble, hud, merchant, meter, killFeed]) if (alive(win)) win.destroy()
   bubble = null
   hud = null
   merchant = null
   meter = null
+  killFeed = null
   hudEditing = false
   hudSize = { width: 0, height: 0 }
   if (alive(panel) && !panel.isVisible()) {
@@ -527,6 +580,12 @@ export function rebuildWindow(win: BrowserWindow): string | null {
     merchant = null
     showMerchant()
     return 'merchant'
+  }
+  if (win === killFeed) {
+    win.destroy()
+    killFeed = null
+    createKillFeed()
+    return 'killfeed'
   }
   if (win === meter) {
     win.destroy()

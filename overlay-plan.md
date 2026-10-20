@@ -176,6 +176,14 @@ Order: this is the first Python feature to port in phase 2. It needs no saved st
 Nyerk 0.2.17 also has things we don't (to look at during phase 2): effect records `2A 38`/`2B 38` used for your position between zone loads, an addons system (`aion2_tracker/addons.py`, `app/src/main/addons.ts`) with `timers` and `pvp-log` addons, and a `session` event.
 - CI: `cargo build --release` in `build.yml`; ship the exe through electron-builder `extraResources`.
 
+Status (2026-10-19), built but not yet run against the game:
+- Python is gone: `aion2_tracker/`, `packaging/`, `pyproject.toml`, `data/` and the PyInstaller build removed. The app runs one helper, `lokthar-engine` (4.5 MB), for everything.
+- `engine/src/tracker/`: `protocol.rs` (every `protocol.py` record, plus `14 90`, the soul list, kill credits with legion and player-victim, `45 36`, `33 8A`; pet ids, levels and counts checked so misreads give nothing), `mod.rs` (the tracker on the parser's frame tap), `store.rs` (collection v2, per server; v1 migrated once, misread pets dropped, the old file kept as `collection.v1.json`), `data.rs` (pets and droppers from the app's own `pets.json` / `spawns.json`).
+- `engine/src/sidecar.rs`: the Python sidecar's events and commands, plus the meter's (`meter` on/off, `dpsReset`, `targetMode`, `details`); `--replay <file> --speed <x>` plays a recording in real time for UI work.
+- App: `main/tracker.ts` spawns the engine; `main/meter.ts` handles the meter's events; PvP Log tab, kill feed window and `pvp.json` log copied from Nyerk 0.2.17; the meter shows the engine's status.
+- `cargo test`: 28 pass (decoders, tracker rules, migration, capture, an end-to-end replay). A synthetic login + two-pet pickup replayed through the sidecar gave the right sync, souls and level-ups.
+- Not yet: in-game check of every parity row on Windows; server tags beyond KAI/LUM (upstream's `src/data/servers.json` has them all); Nyerk's position-from-effects (`2A 38`/`2B 38`) and addons; an error status when no capture device opens.
+
 **Phase 3: extras.** Skill breakdown, fight history, buffs (`abnormal.rs`), ping (`PingTracker`), maybe Linux (their capture supports it).
 
 ### Risks

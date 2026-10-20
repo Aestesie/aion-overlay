@@ -1,6 +1,6 @@
 /**
- * What the Python tracker (aion2_tracker.sidecar) tells the app, and what the app keeps of it.
- * The wire format is documented in that module; these types mirror it.
+ * What the engine's tracker (engine/src/tracker) tells the app, and what the app keeps of it.
+ * The wire format is documented in engine/src/sidecar.rs; these types mirror it.
  */
 
 /** One pet of the collection, as the sidecar reports it. */
@@ -40,8 +40,10 @@ export interface TrackerStatus {
   synced: { at: number; pets: number; souls: number } | null
   /** Where the collection is saved. */
   dataFile: string | null
-  /** The character whose collection this is (pet levels are per character); null until seen. */
+  /** The character playing; null until seen. */
   character: string | null
+  /** That character's game server (Kaisinel 1104): the collection is that server's. Null until seen. */
+  server: number | null
 }
 
 /** What is loaded around you, from the tracker: monsters by code, your zone and position. */
@@ -59,6 +61,20 @@ export const NO_NEARBY: Nearby = { world: null, position: null, positionAt: null
 
 /** A pet the collection has no record of yet (seen nearby, or opened from the map). */
 export const blankPet = (id: number): Pet => ({ id, name: null, souls: 0, level: 0, levelEstimated: true, crystals: 0, session: 0 })
+
+/** A player killed by a player around you, as the game credits it (the killing blow). */
+export interface PvpKill {
+  at: number
+  killer: { name: string; server: number; guild: string | null }
+  /** Null when the victim was never in view (no name to give). */
+  victim: { name: string; server: number | null; guild?: string | null } | null
+  /** You were the killer. */
+  mine: boolean
+  /** You were the victim. */
+  died: boolean
+  /** Your legion was the killer's or the victim's (you included). */
+  legion: boolean
+}
 
 /** A soul as the HUD toasts it. */
 export interface SoulToast {

@@ -2,7 +2,7 @@
  * Asleep while Aion 2 is closed, so the app can be left running and cost next to nothing.
  *
  * Asleep: no bubble, no HUD and no meter (their windows are closed, not hidden: a hidden window
- * keeps its renderer process), no capture, no tracker and no engine process. Only the tray icon is left, and the game
+ * keeps its renderer process), no capture and no engine process. Only the tray icon is left, and the game
  * watcher's check every few seconds (game.ts). The panel can still be opened from the tray; the
  * tracker then runs paused to serve the collection, and stops again LINGER_MS after the panel is
  * closed.
@@ -13,11 +13,10 @@
  *
  * Settings → "Sleep while Aion 2 is closed" turns this off; a replay (A2T_REPLAY) never sleeps.
  */
-import { startEngine, stopEngine } from './engine.ts'
 import { game } from './game.ts'
 import { settings } from './settings.ts'
 import { log, startTracker, stopTracker, tracker } from './tracker.ts'
-import { closeMeter, closeOverlays, createBubble, createHud, createMeter, onPanelVisible, panelVisible } from './windows.ts'
+import { closeMeter, closeOverlays, createBubble, createHud, createKillFeed, createMeter, onPanelVisible, panelVisible } from './windows.ts'
 
 const EXIT_GRACE_MS = 20_000
 const LINGER_MS = 120_000
@@ -45,19 +44,15 @@ function wake(why: string): void {
   log(`awake: ${why}`)
   createBubble()
   createHud()
+  createKillFeed()
   tracker.setCapture(true)
   applyMeter()
 }
 
-/** The meter's window and engine, while awake and the meter is on. */
+/** The meter's window, while awake and the meter is on. */
 function applyMeter(): void {
-  if (asleep === false && settings.get('meter').enabled) {
-    createMeter()
-    startEngine()
-  } else {
-    closeMeter()
-    stopEngine()
-  }
+  if (asleep === false && settings.get('meter').enabled) createMeter()
+  else closeMeter()
 }
 
 function sleep(why: string): void {
@@ -66,7 +61,6 @@ function sleep(why: string): void {
   asleep = true
   log(`asleep: ${why}`)
   closeOverlays()
-  stopEngine()
   tracker.setCapture(false)
   if (!panelVisible()) stopTracker()
 }

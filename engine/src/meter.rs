@@ -27,7 +27,7 @@ pub struct Meter {
     pub port_detector: Arc<CombatPortDetector>,
     pub calculator: Mutex<DpsCalculator>,
     skills: Arc<SkillLookup>,
-    npcs: Arc<NpcLookup>,
+    pub npcs: Arc<NpcLookup>,
     ping: Arc<PingTracker>,
     dot_skill_ids: HashSet<i32>,
 }

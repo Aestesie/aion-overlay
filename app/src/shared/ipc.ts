@@ -4,11 +4,11 @@
  * pattern is marnis-app's (shared/ipc-contract.ts), with this app's channels.
  */
 import type { KinaSession } from './kina.ts'
-import type { EngineStatus, MeterData } from './meter.ts'
+import type { MeterData } from './meter.ts'
 import type { SyncResult } from './lokthar.ts'
 import type { Point, SettingKey, Settings } from './settings.ts'
 import type { FieldBosses, TimerAlert, TimerId } from './timers.ts'
-import type { Nearby, Pet, ShopStock, SoulToast, TrackerStatus } from './tracker.ts'
+import type { Nearby, Pet, PvpKill, ShopStock, SoulToast, TrackerStatus } from './tracker.ts'
 
 /** Renderer → main, request/response. */
 export interface InvokeChannels {
@@ -19,7 +19,9 @@ export interface InvokeChannels {
   'settings:all': { args: []; result: Settings }
   'settings:set': { args: [key: SettingKey, value: unknown]; result: void }
 
-  'tracker:get': { args: []; result: { status: TrackerStatus; pets: Pet[]; nearby: Nearby; shop: ShopStock[]; kina: KinaSession; fieldBosses: FieldBosses } }
+  'tracker:get': { args: []; result: { status: TrackerStatus; pets: Pet[]; nearby: Nearby; shop: ShopStock[]; kina: KinaSession; fieldBosses: FieldBosses; pvp: PvpKill[] } }
+  /** Empty the PvP log. */
+  'tracker:clearPvp': { args: []; result: void }
   'tracker:setSouls': { args: [pet: number, souls: number]; result: void }
   'tracker:setName': { args: [pet: number, name: string]; result: void }
   'tracker:restart': { args: []; result: void }
@@ -40,6 +42,12 @@ export interface InvokeChannels {
   'merchant:dragEnd': { args: []; result: void }
   'merchant:resize': { args: [size: { width: number; height: number }]; result: void }
   'merchant:close': { args: []; result: void }
+  /** The kill feed over the game: opened from the PvP Log tab, closed there or with its X. */
+  'killfeed:open': { args: []; result: void }
+  'killfeed:close': { args: []; result: void }
+  'killfeed:moveTo': { args: [to: Point]; result: void }
+  'killfeed:dragEnd': { args: []; result: void }
+  'killfeed:resize': { args: [size: { width: number; height: number }]; result: void }
   /** The timers alerting now; and dismissing them (a click on the bubble). */
   'timers:get': { args: []; result: TimerAlert[] }
   'timers:dismiss': { args: []; result: void }
@@ -47,11 +55,10 @@ export interface InvokeChannels {
   'timers:open': { args: []; result: void }
   /** Open the panel on a pet's drop locations (from the merchant window). */
   'panel:showPet': { args: [pet: number]; result: void }
-  /** The DPS meter: the fight as it stands, and the engine's state. */
-  'meter:get': { args: []; result: { meter: MeterData; status: EngineStatus } }
+  /** The DPS meter: the fight as it stands. */
+  'meter:get': { args: []; result: MeterData }
   /** Start the fight over: no target, no damage. */
   'meter:reset': { args: []; result: void }
-  'meter:restart': { args: []; result: void }
   /** One target's breakdown by skill (A2Tools DPS Meter's TargetDetailsResponse). */
   'meter:details': { args: [target: number, actors?: number[]]; result: unknown }
   'meter:moveTo': { args: [to: Point]; result: void }
@@ -76,6 +83,9 @@ export interface EventChannels {
   'tracker:shop': ShopStock[]
   /** This session's Kina, whenever the balance changes. */
   'tracker:kina': KinaSession
+  /** The whole PvP log (a window opening, or a Clear); then each kill as it comes. */
+  'tracker:pvp': PvpKill[]
+  'tracker:pvpKill': PvpKill
   /** The field bosses, whenever the map's list changes them. */
   'tracker:fieldBosses': FieldBosses
   /** A timer started alerting (once per start: the chime). */
@@ -90,7 +100,6 @@ export interface EventChannels {
   'panel:visible': boolean
   /** The fight, as the engine last reported it (checked 5 times a second, sent on change). */
   'meter:dps': MeterData
-  'meter:status': EngineStatus
 }
 
 export type InvokeChannel = keyof InvokeChannels
@@ -108,14 +117,15 @@ export interface Bridge {
 export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'app:info', 'app:quit', 'app:openPath',
   'settings:all', 'settings:set',
-  'tracker:get', 'tracker:setSouls', 'tracker:setName', 'tracker:restart', 'tracker:resetSession',
+  'tracker:get', 'tracker:setSouls', 'tracker:setName', 'tracker:restart', 'tracker:resetSession', 'tracker:clearPvp',
+  'killfeed:open', 'killfeed:close', 'killfeed:moveTo', 'killfeed:dragEnd', 'killfeed:resize',
   'bubble:moveTo', 'bubble:dragEnd', 'panel:toggle', 'panel:hide', 'panel:setExpanded',
   'hud:setEditing', 'hud:moveTo', 'hud:dragEnd', 'hud:resize',
   'merchant:moveTo', 'merchant:dragEnd', 'merchant:resize', 'merchant:close', 'panel:showPet', 'timers:get', 'timers:dismiss', 'timers:open',
   'lokthar:test', 'lokthar:last',
-  'meter:get', 'meter:reset', 'meter:restart', 'meter:details', 'meter:moveTo', 'meter:dragEnd', 'meter:resize',
+  'meter:get', 'meter:reset', 'meter:details', 'meter:moveTo', 'meter:dragEnd', 'meter:resize',
 ]
 
 export const EVENT_CHANNELS: readonly EventChannel[] = [
-  'settings:changed', 'tracker:status', 'tracker:pets', 'tracker:pet', 'tracker:soul', 'tracker:nearby', 'tracker:combat', 'tracker:shop', 'tracker:kina', 'tracker:fieldBosses', 'panel:showPet', 'panel:showTimers', 'timers:alert', 'timers:alerting', 'hud:editing', 'panel:visible', 'meter:dps', 'meter:status',
+  'settings:changed', 'tracker:status', 'tracker:pets', 'tracker:pet', 'tracker:soul', 'tracker:nearby', 'tracker:combat', 'tracker:shop', 'tracker:kina', 'tracker:fieldBosses', 'tracker:pvp', 'tracker:pvpKill', 'panel:showPet', 'panel:showTimers', 'timers:alert', 'timers:alerting', 'hud:editing', 'panel:visible', 'meter:dps',
 ]

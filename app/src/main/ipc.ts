@@ -1,6 +1,6 @@
 /** Every invoke handler, typed against the contract in shared/ipc.ts. */
 import { app, ipcMain, shell } from 'electron'
-import { engine } from './engine.ts'
+import { meterState } from './meter.ts'
 import { lokthar } from './lokthar.ts'
 import { settings } from './settings.ts'
 import { timers } from './timers.ts'
@@ -10,17 +10,21 @@ import {
   closeMerchant,
   hidePanel,
   hudDragEnded,
+  killFeedDragEnded,
   markQuitting,
   merchantDragEnded,
   meterDragEnded,
   moveBubble,
   moveHud,
+  moveKillFeed,
   moveMerchant,
   moveMeter,
   resizeHud,
+  resizeKillFeed,
   resizeMerchant,
   resizeMeter,
   setHudEditing,
+  setKillFeedOpen,
   setPanelExpanded,
   showPetInPanel,
   showTimersInPanel,
@@ -58,7 +62,17 @@ export function registerIpc(): void {
     settings.set(key as SettingKey, value)
   })
 
-  handle('tracker:get', () => ({ status: tracker.status(), pets: tracker.pets(), nearby: tracker.nearby(), shop: tracker.shop(), kina: tracker.kina(), fieldBosses: tracker.fieldBosses() }))
+  handle('tracker:get', () => ({ status: tracker.status(), pets: tracker.pets(), nearby: tracker.nearby(), shop: tracker.shop(), kina: tracker.kina(), fieldBosses: tracker.fieldBosses(), pvp: tracker.pvp() }))
+  handle('tracker:clearPvp', () => tracker.clearPvp())
+  handle('killfeed:open', () => setKillFeedOpen(true))
+  handle('killfeed:close', () => setKillFeedOpen(false))
+  handle('killfeed:moveTo', (to) => {
+    if (isPoint(to)) moveKillFeed(to)
+  })
+  handle('killfeed:dragEnd', () => killFeedDragEnded())
+  handle('killfeed:resize', (size) => {
+    if (isPoint({ x: size?.width, y: size?.height })) resizeKillFeed(size)
+  })
   handle('tracker:setSouls', (pet, souls) => {
     if (Number.isInteger(pet) && Number.isInteger(souls) && souls >= 0 && souls < 100000) tracker.setSouls(pet, souls)
   })
@@ -106,13 +120,12 @@ export function registerIpc(): void {
     if (Number.isInteger(pet)) showPetInPanel(pet)
   })
 
-  handle('meter:get', () => ({ meter: engine.meter(), status: engine.status() }))
-  handle('meter:reset', () => engine.reset())
-  handle('meter:restart', () => engine.restart())
+  handle('meter:get', () => meterState.meter())
+  handle('meter:reset', () => meterState.reset())
   handle('meter:details', (target, actors) => {
     if (!Number.isInteger(target)) return null
     const ids = Array.isArray(actors) ? actors.filter((a) => Number.isInteger(a)).slice(0, 64) : undefined
-    return engine.details(target, ids)
+    return meterState.details(target, ids)
   })
   handle('meter:moveTo', (to) => {
     if (isPoint(to)) moveMeter(to)

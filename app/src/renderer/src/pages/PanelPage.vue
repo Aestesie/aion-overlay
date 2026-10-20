@@ -3,6 +3,7 @@
 // hides it.
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import CollectionTab from '@/components/panel/CollectionTab.vue'
+import PvpLogTab from '@/components/panel/PvpLogTab.vue'
 import PetDetail from '@/components/panel/PetDetail.vue'
 import SessionTab from '@/components/panel/SessionTab.vue'
 import SettingsTab from '@/components/panel/SettingsTab.vue'
@@ -17,6 +18,7 @@ const TABS = [
   { id: 'collection', label: 'Collection' },
   { id: 'session', label: 'Session' },
   { id: 'timers', label: 'Timers' },
+  { id: 'pvp', label: 'PvP' },
   { id: 'settings', label: 'Settings' },
 ] as const
 const tab = ref<(typeof TABS)[number]['id']>('collection')
@@ -94,6 +96,7 @@ onBeforeUnmount(() => {
       <CollectionTab v-else-if="tab === 'collection'" />
       <SessionTab v-else-if="tab === 'session'" />
       <TimersTab v-else-if="tab === 'timers'" />
+      <PvpLogTab v-else-if="tab === 'pvp'" />
       <SettingsTab v-else />
     </main>
   </div>
