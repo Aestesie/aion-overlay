@@ -13,6 +13,8 @@ import { windowDrag } from '@/lib/windowDrag.ts'
 import { useApp } from '@/stores/app.ts'
 import { blankPet } from '@shared/tracker.ts'
 
+/** The map overlay follows you rather than fitting anything. */
+const NO_FOCUS: [number, number][] = []
 const PALETTE = ['#f76b15', '#30a46c', '#0090ff', '#e54666', '#12a594', '#ab4aba', '#8e8c99', '#ffffff']
 
 const store = useApp()
@@ -123,7 +125,7 @@ onBeforeUnmount(() => observer?.disconnect())
           <WorldMap
             :world="world"
             :layers="layers"
-            :focus="[]"
+            :focus="NO_FOCUS"
             :you="store.nearby.position"
             :cubes="cubes"
             :follow="cfg.zoom"

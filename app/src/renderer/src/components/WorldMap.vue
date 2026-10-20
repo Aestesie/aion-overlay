@@ -60,11 +60,20 @@ const zoom = ref(props.follow)
 watch(
   () => props.follow,
   (z) => {
-    if (z === zoom.value) return
-    zoom.value = z
-    centre(true)
+    // A zoom still being saved is newer than this one.
+    if (z && z !== zoom.value && !saveTimer) zoomTo(z)
   },
 )
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+/** Follow at zoom `z`: around you, or around the middle of the view while where you are is not known. */
+function zoomTo(z: number): void {
+  zoom.value = z
+  if (youXY.value) return centre(true)
+  const { w, h } = boxSize()
+  const { k, x, y } = view.value
+  const k2 = (Math.min(w, h) / SIZE) * z
+  view.value = { k: k2, x: w / 2 - ((w / 2 - x) / k) * k2, y: h / 2 - ((h / 2 - y) / k) * k2 }
+}
 watch(youXY, () => centre())
 const followTimer = setInterval(() => centre(), 2000)
 const projected = computed(() =>
@@ -101,7 +110,6 @@ function fit(): void {
   view.value = { k, x: w / 2 - ((x0 + x1) / 2) * k, y: h / 2 - ((y0 + y1) / 2) * k }
 }
 
-let saveTimer: ReturnType<typeof setTimeout> | null = null
 function onWheel(e: WheelEvent): void {
   e.preventDefault()
   const r = box.value!.getBoundingClientRect()
@@ -115,12 +123,12 @@ function onWheel(e: WheelEvent): void {
     // Following: the zoom changes around you (around the middle while where you are is not known),
     // straight away, and is remembered once the wheel stops.
     const base = Math.min(w, h) / SIZE
-    zoom.value = Math.min(40, Math.max(1, next / base))
-    const k2 = base * zoom.value
-    if (youXY.value) centre(true)
-    else view.value = { k: k2, x: w / 2 - ((w / 2 - x) / k) * k2, y: h / 2 - ((h / 2 - y) / k) * k2 }
+    zoomTo(Math.min(40, Math.max(1, next / base)))
     if (saveTimer) clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => emit('zoom', zoom.value!), 300)
+    saveTimer = setTimeout(() => {
+      saveTimer = null
+      emit('zoom', zoom.value!)
+    }, 300)
     return
   }
   // Keep the map point under the pointer where it is.
@@ -145,12 +153,19 @@ function onPointerDown(e: PointerEvent): void {
   el.addEventListener('pointerup', up)
 }
 
-watch(() => [props.world.key, props.focus], fit, { deep: false })
+// Following, only a new zone fits the view again (its redraws as you move must not undo a zoom).
+watch(() => props.world.key, fit)
+watch(() => props.focus, () => !zoom.value && fit())
 let observer: ResizeObserver | null = null
 onMounted(() => {
   fit()
   // The panel grows when a map opens: fit again once the box has its new size.
-  observer = new ResizeObserver(() => fit())
+  // Following without knowing where you are, only the first size fits it (a window drag can nudge it).
+  let sized = false
+  observer = new ResizeObserver(() => {
+    if (!zoom.value || youXY.value || !sized) fit()
+    sized = true
+  })
   if (box.value) observer.observe(box.value)
 })
 onBeforeUnmount(() => {
