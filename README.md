@@ -39,8 +39,9 @@ to keep opening the Pets menu.
   target's HP and time to kill, crit rates and your ping. Click a player for their details: skills,
   hits (crits, back attacks, perfect, multi-hits), defense, rotation and buffs. Boss fights are
   saved, and the History page opens them again.
-- **Training dummy:** runs against the clock or to a damage goal, saved, and compared two at a
-  time, skill by skill.
+- **Training dummy:** runs against the clock or to a damage goal, saved with their skills' DPS and
+  the meter's whole breakdown (hits, defense, rotation, buffs) in the Details window, and compared
+  two at a time, skill by skill.
 - **Recordings:** the game's traffic during a fight, kept to replay it in the engine after a patch.
 - **Stays out of the way:** it sits in the tray and sleeps while Aion 2 is closed, waking when the
   game starts.

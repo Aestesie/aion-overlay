@@ -124,6 +124,7 @@ export const meterState = {
       const fightBuffs: FightBuffs | null = live ? { targetId: source.target, durationMs: live.durationMs, tracks: live.buffs } : null
       return { ...detailsView(source, title || 'Target', ev as unknown as TargetDetails, liveNames()), buffs: fightBuffs }
     }
+    if (source.kind !== 'saved') return null
     const ev = await ask({ cmd: 'fight', id: source.id }, 'fight', (e) => e['id'] === source.id)
     const fight = ev?.['fight'] as FightRecord | undefined
     if (!fight) return null

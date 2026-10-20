@@ -39,6 +39,8 @@ export interface DummyRun extends DummyPlan {
   /** The goal was met (a time goal reached, or the damage done); false when stopped early. */
   finished: boolean
   skills: DummySkill[]
+  /** Its whole breakdown is kept (the Details window opens it): runs saved before have none. */
+  details?: boolean
 }
 
 /** The run going on: waiting for the first hit (`startedAt` null), then on the clock. */

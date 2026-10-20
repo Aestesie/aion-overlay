@@ -2,8 +2,9 @@
 // Training Dummy (questlog.gg's page): runs on a training dummy against the clock or to a damage
 // goal; only your own damage counts. With auto-start on, a run starts by itself with your first hit
 // on a dummy (its clock with it); the Training overlay starts and stops them over the game too.
-// Each run is saved with its skills; tick two to compare them (DPS, damage, crits, hits, and skill
-// by skill). Runs are kept in groups: "New group" starts the next.
+// Each run is saved with its skills; open one for its skills' DPS, or its Details for the whole
+// breakdown (hits, rotation, buffs...), or tick two to compare them (DPS, damage, crits, hits, and
+// skill by skill). Runs are kept in groups: "New group" starts the next.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Button from '@/components/Button.vue'
 import SkillIcon from '@/components/SkillIcon.vue'
@@ -21,6 +22,20 @@ const set = (patch: Partial<typeof cfg.value>): void => void store.set('dummy', 
 const state = ref<DummyState>(structuredClone(NO_DUMMY))
 const name = ref('')
 const picked = ref<string[]>([])
+/** The run whose skills are shown under it. */
+const expanded = ref<string | null>(null)
+const seconds = (r: DummyRun): number => Math.max(1, r.durationMs / 1000)
+/** A run's skills: DPS, share, hits, crit rate and the average hit. */
+const skillRows = (r: DummyRun) =>
+  r.skills.map((s) => ({
+    ...s,
+    key: `${s.code}-${s.dot}`,
+    dps: s.damage / seconds(r),
+    share: r.damage ? (s.damage / r.damage) * 100 : 0,
+    critRate: s.hits ? (s.crits / s.hits) * 100 : 0,
+    avg: s.hits ? s.damage / s.hits : 0,
+  }))
+const openDetails = (r: DummyRun): void => void api.invoke('details:open', { kind: 'run', id: r.id })
 // The clock, between the run's updates.
 const now = ref(Date.now())
 const ticker = setInterval(() => (now.value = Date.now()), 250)
@@ -75,7 +90,7 @@ const compared = computed(() => {
       const sx = x.skills.find((s) => `${s.code}-${s.dot}` === key)
       const sy = y.skills.find((s) => `${s.code}-${s.dot}` === key)
       const s = (sx ?? sy)!
-      return { key, code: s.code, name: s.name, dot: s.dot, a: sx?.damage ?? 0, b: sy?.damage ?? 0 }
+      return { key, code: s.code, name: s.name, dot: s.dot, a: (sx?.damage ?? 0) / seconds(x), b: (sy?.damage ?? 0) / seconds(y) }
     })
     .sort((p, q) => Math.max(q.a, q.b) - Math.max(p.a, p.b))
   return { x, y, skills }
@@ -178,7 +193,7 @@ onBeforeUnmount(() => off?.())
         <table class="w-full text-sm">
           <thead class="bg-card text-xs uppercase tracking-wide text-darker">
             <tr class="border-b border-card">
-              <th class="py-2 pl-4 text-left font-medium">Skill</th>
+              <th class="py-2 pl-4 text-left font-medium">Skill DPS</th>
               <th class="w-28 px-3 text-right font-medium">{{ compared.x.name }}</th>
               <th class="w-28 px-3 text-right font-medium">{{ compared.y.name }}</th>
               <th class="w-24 pr-4 text-right font-medium">Change</th>
@@ -209,7 +224,8 @@ onBeforeUnmount(() => off?.())
         <div class="border-b border-card bg-card px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-darker">Group {{ group }}</div>
         <table class="w-full text-sm">
           <tbody class="divide-y divide-[color:var(--line)]">
-            <tr v-for="r in runs" :key="r.id" :class="['group cursor-pointer', picked.includes(r.id) ? 'bg-accent-soft/40' : 'hover:bg-card']" @click="pick(r.id)">
+            <template v-for="r in runs" :key="r.id">
+            <tr :class="['group cursor-pointer', picked.includes(r.id) ? 'bg-accent-soft/40' : 'hover:bg-card']" @click="pick(r.id)">
               <td class="w-10 py-2 pl-4"><input type="checkbox" class="accent-[color:var(--accent)]" :checked="picked.includes(r.id)" @click.stop="pick(r.id)" /></td>
               <td class="py-2">
                 <div class="font-medium">{{ r.name }}<span v-if="!r.finished" class="ml-1.5 rounded border border-light px-1 text-[10px] font-normal text-darker">stopped</span></div>
@@ -220,12 +236,62 @@ onBeforeUnmount(() => off?.())
               <td class="w-16 px-3 text-right tabular-nums text-darker">{{ clock(r.durationMs) }}</td>
               <td class="w-16 px-3 text-right tabular-nums text-darker">{{ (r.critRate * 100).toFixed(0) }}%</td>
               <td class="w-32 px-3 text-xs text-darker">{{ when(r.at) }}</td>
+              <td class="w-40 px-1 text-right">
+                <button
+                  type="button"
+                  :class="['h-7 rounded-md px-2 text-xs hover:bg-light', expanded === r.id ? 'text-default' : 'text-darker']"
+                  title="Its skills: DPS, share, hits and crits"
+                  @click.stop="expanded = expanded === r.id ? null : r.id"
+                >Skills {{ expanded === r.id ? '▴' : '▾' }}</button>
+                <button
+                  v-if="r.details"
+                  type="button"
+                  class="h-7 rounded-md px-2 text-xs text-accent hover:bg-light"
+                  title="The whole breakdown: skills, hits, defense, rotation and buffs"
+                  @click.stop="openDetails(r)"
+                >Details</button>
+              </td>
               <td class="w-12 pr-3 text-right">
                 <button type="button" class="inline-flex size-7 items-center justify-center rounded-md text-darker opacity-0 hover:bg-light hover:text-danger group-hover:opacity-100" title="Delete this run" @click.stop="api.invoke('dummy:delete', r.id)">
                   <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M5 4.5l.5 8.5h5l.5-8.5" /></svg>
                 </button>
               </td>
             </tr>
+            <tr v-if="expanded === r.id" class="bg-default/40">
+              <td colspan="9" class="px-4 py-2">
+                <p v-if="!r.skills.length" class="text-xs text-darker">No skills recorded for this run.</p>
+                <table v-else class="w-full text-xs">
+                  <thead class="text-darker">
+                    <tr>
+                      <th class="py-1 text-left font-medium">Skill</th>
+                      <th class="w-20 text-right font-medium">DPS</th>
+                      <th class="w-20 text-right font-medium">Damage</th>
+                      <th class="w-36 pl-3 text-left font-medium">Share</th>
+                      <th class="w-14 text-right font-medium">Hits</th>
+                      <th class="w-14 text-right font-medium">Crit</th>
+                      <th class="w-20 text-right font-medium">Avg hit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="s in skillRows(r)" :key="s.key">
+                      <td class="py-1"><span class="flex items-center gap-2"><SkillIcon :code="s.code" :size="18" />{{ s.name }}<span v-if="s.dot" class="text-darker">DoT</span></span></td>
+                      <td class="text-right font-semibold tabular-nums">{{ short(s.dps) }}</td>
+                      <td class="text-right tabular-nums text-darker">{{ short(s.damage) }}</td>
+                      <td class="pl-3">
+                        <span class="flex items-center gap-2">
+                          <span class="h-1.5 w-20 overflow-hidden rounded-full bg-dark"><span class="block h-full bg-accent" :style="{ width: `${s.share}%` }" /></span>
+                          <span class="tabular-nums text-darker">{{ s.share.toFixed(1) }}%</span>
+                        </span>
+                      </td>
+                      <td class="text-right tabular-nums text-darker">{{ s.hits }}</td>
+                      <td class="text-right tabular-nums text-darker">{{ s.critRate.toFixed(0) }}%</td>
+                      <td class="text-right tabular-nums text-darker">{{ short(s.avg) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </td>
+            </tr>
+            </template>
           </tbody>
         </table>
       </div>

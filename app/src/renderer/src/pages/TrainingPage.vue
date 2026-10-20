@@ -2,8 +2,11 @@
 // The Training overlay (questlog.gg's): a training dummy run over the game. Its name, its clock
 // large (counting down to the time limit, or up), your DPS, and Stop and save or Cancel; between
 // runs, Start and how the last one went. It shows while you train (a run, or a dummy hit in the last
-// two minutes) and while the dashboard is up, to be placed; moved by its header.
+// two minutes) and while the dashboard is up, to be placed; moved by its header. Its dash shrinks it
+// to that line (the clock and your DPS while a run goes on); its X turns it off (the Training Dummy
+// page turns it on again). The last run's Details opens its breakdown.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import CollapseButton from '@/components/CollapseButton.vue'
 import { bridge } from '@/lib/bridge.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { useApp } from '@/stores/app.ts'
@@ -54,6 +57,7 @@ const shown = computed(
 )
 
 const drag = windowDrag({ move: 'training:moveTo', end: 'training:dragEnd' })
+const set = (patch: Partial<typeof cfg.value>): void => void store.set('dummy', { ...cfg.value, ...patch })
 
 /** Tell main how big the window is; nothing to show measures 0, and main keeps it hidden. */
 let sent = ''
@@ -65,7 +69,7 @@ function report(): void {
   sent = key
   void api.invoke('training:resize', { width: r.width, height: r.height })
 }
-watch([shown, active, last], () => void nextTick(report))
+watch([shown, active, last, () => cfg.value.collapsed], () => void nextTick(report))
 
 let timer: ReturnType<typeof setInterval> | null = null
 let observer: ResizeObserver | null = null
@@ -89,12 +93,33 @@ onBeforeUnmount(() => {
   <div class="inline-block">
     <div ref="root" class="inline-block">
       <div v-if="shown" class="m-1.5 w-[280px] rounded-xl border border-card bg-darker/95 shadow-card">
-        <header class="flex cursor-move items-center gap-2 px-3.5 pb-1 pt-3" title="Drag to move" @pointerdown="drag.onPointerDown">
+        <header
+          :class="['flex cursor-move items-center gap-2 pl-3.5 pr-2', cfg.collapsed ? 'py-2' : 'pb-1 pt-2.5']"
+          title="Drag to move"
+          @pointerdown="drag.onPointerDown"
+        >
           <span class="text-base font-semibold">Training</span>
           <span v-if="active?.startedAt" class="size-2 animate-pulse rounded-full bg-danger" />
+          <span v-if="cfg.collapsed && active" class="ml-auto truncate text-sm tabular-nums">
+            {{ shownTime }} · <span class="font-semibold text-accent">{{ short(active.dps) }}</span><span class="text-xs text-darker"> DPS</span>
+          </span>
+          <span v-else class="flex-1" />
+          <CollapseButton :collapsed="cfg.collapsed" @toggle="set({ collapsed: !cfg.collapsed })" />
+          <button
+            type="button"
+            class="flex size-5 shrink-0 items-center justify-center rounded text-darker hover:bg-dark hover:text-default"
+            title="Close (the Training Dummy page turns it on again)"
+            @pointerdown.stop
+            @click="set({ overlay: false })"
+          >
+            <svg viewBox="0 0 16 16" class="size-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
+          </button>
         </header>
 
-        <template v-if="active">
+        <template v-if="cfg.collapsed" />
+        <template v-else-if="active">
           <div class="truncate px-3.5 text-center text-sm text-dark">{{ active.name }}</div>
           <div class="text-center text-5xl font-bold tabular-nums leading-tight">{{ shownTime }}</div>
           <div v-if="!active.startedAt" class="px-3.5 text-center text-xs text-darker">Hit the dummy: the clock starts with your first hit.</div>
@@ -117,7 +142,10 @@ onBeforeUnmount(() => {
         <template v-else>
           <div class="px-3.5 text-xs text-darker">{{ planText }}</div>
           <div v-if="last" class="mx-3 mt-2 rounded-lg bg-dark px-3 py-2 text-xs">
-            <div class="text-darker">Last: {{ last.name }}</div>
+            <div class="flex text-darker">
+              Last: {{ last.name }}
+              <button v-if="last.details" type="button" class="ml-auto text-accent hover:underline" @click="api.invoke('details:open', { kind: 'run', id: last.id })">Details</button>
+            </div>
             <div class="flex items-baseline gap-2">
               <span class="text-lg font-semibold tabular-nums text-accent">{{ short(last.dps) }}</span><span class="text-darker">DPS</span>
               <span class="ml-auto tabular-nums text-darker">{{ short(last.damage) }} · {{ clock(last.durationMs) }}</span>

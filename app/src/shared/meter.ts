@@ -221,7 +221,11 @@ export function meterData(ev: DpsEvent, at: number, ping: number | null = null):
 // ---- a fight's breakdown -----------------------------------------------------------------------
 
 /** What the Details window shows: the live target's, or a saved fight's. */
-export type DetailsSource = { kind: 'live'; target: number; actor?: number } | { kind: 'saved'; id: string; actor?: number }
+export type DetailsSource =
+  | { kind: 'live'; target: number; actor?: number }
+  | { kind: 'saved'; id: string; actor?: number }
+  /** A training dummy run (main/dummy.ts keeps its breakdown). */
+  | { kind: 'run'; id: string; actor?: number }
 
 /** One skill of one player (or one heal). */
 export interface DetailsSkill {

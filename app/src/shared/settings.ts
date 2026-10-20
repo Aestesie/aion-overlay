@@ -95,7 +95,7 @@ export interface Settings {
    * Training dummy runs: their goal (a time limit, or damage), whether a run starts by itself with
    * your first hit on a dummy (and its clock with it), and the Training overlay over the game.
    */
-  dummy: { overlay: boolean; position: Point | null; autoStart: boolean; goal: DummyGoal; limitMs: number | null; damageGoal: number }
+  dummy: { overlay: boolean; position: Point | null; autoStart: boolean; goal: DummyGoal; limitMs: number | null; damageGoal: number; collapsed: boolean }
 
   /** Your own skills on the meter's target, as a window of their own. */
   skills: { enabled: boolean; position: Point | null; rows: number; opacity: number }
@@ -205,7 +205,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   timerBar: { enabled: true, position: null, opacity: 0.92 },
   killFeed: { open: false, position: null },
   skills: { enabled: true, position: null, rows: 6, opacity: 0.92 },
-  dummy: { overlay: true, position: null, autoStart: true, goal: 'time', limitMs: 60_000, damageGoal: 10e6 },
+  dummy: { overlay: true, position: null, autoStart: true, goal: 'time', limitMs: 60_000, damageGoal: 10e6, collapsed: false },
   buffs: { enabled: true, position: null, opacity: 0.92, size: 34, perRow: 10, debuffs: true, passives: false, consumables: false, cc: true, ccPosition: null, ccDebuffs: false },
   meter: { enabled: true, position: null, targetMode: 'bossTargets', players: 'party', stat: 'damage', rows: 8, opacity: 0.92, collapsed: false },
   hideFromCapture: false,
@@ -357,6 +357,7 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         goal: v.goal === 'damage' ? 'damage' : 'time',
         limitMs: v.limitMs === null || DUMMY_LIMITS.some((l) => l.id === v.limitMs) ? (v.limitMs ?? null) : d.dummy.limitMs,
         damageGoal: DUMMY_DAMAGE_GOALS.includes(v.damageGoal as number) ? (v.damageGoal as number) : d.dummy.damageGoal,
+        collapsed: bool(v.collapsed, false),
       } as Settings[K]
     }
     case 'meter': {
