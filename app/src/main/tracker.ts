@@ -25,7 +25,7 @@ import { fieldBosses } from './fieldBosses.ts'
 import type { FieldBosses } from '../shared/timers.ts'
 import { pvpLog } from './pvpLog.ts'
 import { serverFaction, serverRegion } from '../shared/servers.ts'
-import { GAME_ACTIVE_S, NO_NEARBY, type Nearby, type Pet, type PvpKill, type ShopItem, type ShopStock, type SoulToast, type TrackerStatus } from '../shared/tracker.ts'
+import { GAME_ACTIVE_S, NO_NEARBY, type Cube, type Nearby, type Pet, type PvpKill, type ShopItem, type ShopStock, type SoulToast, type TrackerStatus } from '../shared/tracker.ts'
 
 const RESTART_DELAYS_MS = [1000, 3000, 10000, 30000]
 const EXE = process.platform === 'win32' ? 'lokthar-engine.exe' : 'lokthar-engine'
@@ -39,6 +39,8 @@ let restartTimer: NodeJS.Timeout | null = null
 let stderrTail: string[] = []
 const pets = new Map<number, Pet>()
 let nearby: Nearby = NO_NEARBY
+/** The Hidden Cubes in view, as the engine last listed them. */
+let cubes: Cube[] = []
 /** The Black Cloud Merchant's stock: the latest of each tab opened, kept until its restock. */
 const shopTabs = new Map<number, ShopStock>()
 const currentShop = (): ShopStock[] => {
@@ -291,6 +293,14 @@ function handleLine(line: string): void {
     case 'combat':
       broadcast('tracker:combat', Date.now())
       break
+    case 'cubes': {
+      const before = new Map(cubes.map((c) => [c.id, c.seenAt]))
+      const now = Date.now()
+      cubes = (ev['cubes'] as Omit<Cube, 'seenAt'>[]).map((c) => ({ ...c, seenAt: before.get(c.id) ?? now }))
+      for (const c of cubes) if (!before.has(c.id)) log(`hidden cube ${c.id} (template ${c.template}) at ${c.position.join(', ')}`)
+      broadcast('tracker:cubes', cubes)
+      break
+    }
     case 'pvpKill': {
       const kill: PvpKill = {
         at: Date.now(),
@@ -381,6 +391,7 @@ export const tracker = {
   status: (): TrackerStatus => status,
   pets: (): Pet[] => [...pets.values()],
   nearby: (): Nearby => nearby,
+  cubes: (): Cube[] => cubes,
   shop: (): ShopStock[] => currentShop(),
   kina: (): KinaSession => kina,
   fieldBosses: (): FieldBosses => fieldBosses.all(),

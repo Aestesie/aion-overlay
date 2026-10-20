@@ -38,6 +38,10 @@ const CAST_RANGE: f32 = 2500.0;
 /// not you (5,400/s mounted or dashing, in Nyerk's captures).
 const MAX_SPEED: f32 = 10_000.0;
 const MAX_JUMP_MS: i64 = 2000;
+/// The object templates that are Hidden Cubes: Verteron's two, seen opened in
+/// dr89mh/aion2-cube-radar's captures (FINDINGS B5, B9), and Altgard's, from
+/// another tool (Cube Watch) and not yet seen there. Each zone has its own.
+const CUBE_TEMPLATES: [u32; 3] = [1_200_039, 1_200_041, 1_301_199];
 
 pub type Emit = Box<dyn Fn(Value) + Send + Sync>;
 
@@ -76,6 +80,8 @@ pub struct Tracker {
     position_exact: bool,
     pub nearby_dirty: bool,
 
+    /// The Hidden Cubes in view (sent once you are within about 100 m): object id -> cube.
+    cubes: HashMap<u32, p::ObjectSpawn>,
     /// Players in view and their legions, for the kill feed; cleared on each zone load.
     players: HashMap<u32, p::Player>,
     legions: HashMap<u32, String>,
@@ -119,6 +125,7 @@ impl Tracker {
             position_ms: 0,
             position_exact: false,
             nearby_dirty: false,
+            cubes: HashMap::new(),
             players: HashMap::new(),
             legions: HashMap::new(),
             self_entity: None,
@@ -180,10 +187,39 @@ impl Tracker {
         self.players.clear();
         self.legions.clear();
         self.self_entity = None;
+        self.clear_cubes();
         self.world = None;
         self.position = None;
         self.position_exact = false;
         self.nearby_dirty = true;
+    }
+
+    /// The cubes in view, as the overlay shows them: where (the map data's x, -y), how high,
+    /// and since when they exist.
+    pub fn cubes(&self) -> Value {
+        let mut list: Vec<&p::ObjectSpawn> = self.cubes.values().collect();
+        list.sort_by_key(|c| c.id);
+        Value::Array(
+            list.into_iter()
+                .map(|c| {
+                    json!({
+                        "id": c.id, "template": c.template, "position": [c.x.round() as i64, (-c.y).round() as i64],
+                        "height": c.z.round() as i64, "createdAt": c.created_ms,
+                    })
+                })
+                .collect(),
+        )
+    }
+
+    fn cubes_changed(&self, ts: i64) {
+        (self.emit)(json!({ "type": "cubes", "ts": ts, "cubes": self.cubes() }));
+    }
+
+    fn clear_cubes(&mut self) {
+        if !self.cubes.is_empty() {
+            self.cubes.clear();
+            (self.emit)(json!({ "type": "cubes", "cubes": [] }));
+        }
     }
 
     /// You are at game (x, y): kept as the map data's (x, -y).
@@ -262,6 +298,23 @@ impl Tracker {
                     }
                 }
             }
+            p::OP_OBJECT_SPAWN => {
+                if let Some(o) = p::object_spawn(f) {
+                    if CUBE_TEMPLATES.contains(&o.template) && self.cubes.insert(o.id, o).is_none() {
+                        tracing::info!("hidden cube {} (template {}) at {:.0}, {:.0}", o.id, o.template, o.x, o.y);
+                        self.cubes_changed(ts);
+                    }
+                }
+            }
+            p::OP_OBJECT_REMOVED => {
+                // Opened (04) or out of range (01): either way not there for you any more.
+                if let Some((id, reason)) = p::object_removed(f) {
+                    if self.cubes.remove(&id).is_some() {
+                        tracing::info!("hidden cube {id} gone (reason {reason})");
+                        self.cubes_changed(ts);
+                    }
+                }
+            }
             p::OP_DEATH => {
                 if let Some((entity, flag)) = p::death(f) {
                     // Any 42 36 takes a monster out of view: 1 out of range, 3 killed, 7 gone.
@@ -276,6 +329,11 @@ impl Tracker {
             p::OP_MAP_LOAD => {
                 if let Some((world, x, y)) = p::map_load(f) {
                     // A new zone: nothing from the last one is around you any more.
+                    // Another zone: its cubes are not around you. The same zone again
+                    // (a teleport inside it) keeps them; the server removes what is out of range.
+                    if self.world != Some(world) {
+                        self.clear_cubes();
+                    }
                     self.world = Some(world);
                     self.move_to(ts, x, y, true);
                     self.visible.clear();
@@ -781,6 +839,31 @@ mod tests {
         t.frame(2200, &effect(5, 5300.0, 6000.0));
         assert_eq!(t.position, Some((5300.0, -6000.0)));
         assert!(t.nearby_dirty);
+    }
+
+    #[test]
+    fn a_cube_in_view_is_reported_until_it_is_opened() {
+        let (mut t, events) = tracker();
+        let mut cube = vec![0xe5, 0xff, 0x03, 0x04, 0x00];
+        cube.extend(1_200_039u32.to_le_bytes());
+        for v in [-50205.0f32, 126283.0, 15449.0, 0.0, 0.0] {
+            cube.extend(v.to_le_bytes());
+        }
+        cube.extend([1, 1, 1]);
+        cube.extend(1_792_350_000_000u64.to_le_bytes());
+        t.frame(1000, &frame(p::OP_OBJECT_SPAWN, &cube));
+        // Another object (a gathering spot): not a cube.
+        let mut other = cube.clone();
+        other[5..9].copy_from_slice(&1_500_041u32.to_le_bytes());
+        other[0] = 0x10;
+        t.frame(1100, &frame(p::OP_OBJECT_SPAWN, &other));
+        let shown = t.cubes();
+        assert_eq!(shown.as_array().unwrap().len(), 1);
+        assert_eq!(shown[0]["position"], json!([-50205, -126283]));
+        t.frame(2000, &frame(p::OP_OBJECT_REMOVED, &[0xe5, 0xff, 0x03, 0x04, 0x03, 0x00]));
+        assert!(t.cubes().as_array().unwrap().is_empty());
+        let reported = events.lock().unwrap().iter().filter(|e| e["type"] == "cubes").count();
+        assert_eq!(reported, 2, "once in view, once opened");
     }
 
     #[test]

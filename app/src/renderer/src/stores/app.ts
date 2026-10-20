@@ -5,7 +5,7 @@
 import { defineStore } from 'pinia'
 import { computed, reactive, ref, toRaw } from 'vue'
 import { SETTINGS_DEFAULTS, type SettingKey, type Settings } from '@shared/settings.ts'
-import { MAX_LEVEL, NO_NEARBY, type Nearby, type Pet, type PvpKill, type ShopStock, type SoulToast, type TrackerStatus } from '@shared/tracker.ts'
+import { MAX_LEVEL, NO_NEARBY, type Cube, type Nearby, type Pet, type PvpKill, type ShopStock, type SoulToast, type TrackerStatus } from '@shared/tracker.ts'
 import { kinaPerHour, kinaSeries, NO_KINA, type KinaSession } from '@shared/kina.ts'
 import type { FieldBosses, TimerAlert, TimerId } from '@shared/timers.ts'
 import { bridge } from '@/lib/bridge.ts'
@@ -33,6 +33,8 @@ export const useApp = defineStore('app', () => {
   const shop = ref<ShopStock[]>([])
   /** Player kills around you, oldest first (the PvP Log and the kill feed). */
   const pvp = ref<PvpKill[]>([])
+  /** The Hidden Cubes in view (within about 100 m). */
+  const cubes = ref<Cube[]>([])
   /** This session's Kina; the rate is redrawn every few seconds as active time runs on. */
   const kina = ref<KinaSession>(NO_KINA)
   const now = ref(Date.now())
@@ -121,6 +123,7 @@ export const useApp = defineStore('app', () => {
     api.on('tracker:shop', (s) => (shop.value = s))
     api.on('tracker:fieldBosses', (b) => (fieldBosses.value = b))
     api.on('tracker:pvp', (k) => (pvp.value = k))
+    api.on('tracker:cubes', (c) => (cubes.value = c))
     api.on('tracker:pvpKill', (k) => (pvp.value = [...pvp.value, k]))
     api.on('tracker:kina', (k) => {
       kina.value = k
@@ -133,6 +136,7 @@ export const useApp = defineStore('app', () => {
     settings.value = s
     status.value = t.status
     pvp.value = t.pvp
+    cubes.value = t.cubes
     petMap.value = new Map(t.pets.map((p) => [p.id, p]))
     nearby.value = t.nearby
     shop.value = t.shop
@@ -168,7 +172,7 @@ export const useApp = defineStore('app', () => {
   }
 
   return {
-    settings, status, pets, toasts, fighting, collectionView, shop, kina, kinaRate, kinaTimeline, alerting, timerFocus, fieldBosses, pvp, hudEditing, panelVisible, ready, sessionSouls, recentPets, openPetId, nearby,
+    settings, status, pets, toasts, fighting, collectionView, shop, kina, kinaRate, kinaTimeline, alerting, timerFocus, fieldBosses, pvp, cubes, hudEditing, panelVisible, ready, sessionSouls, recentPets, openPetId, nearby,
     init, set, setHud, togglePin, openPet, hiddenPet,
   }
 })

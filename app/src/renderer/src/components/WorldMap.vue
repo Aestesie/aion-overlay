@@ -1,7 +1,9 @@
 <script setup lang="ts">
 // A zone map with spawn points: the zone image and an SVG layer of dots in one 1000x1000 "map
 // space", moved and scaled as one. Wheel zooms around the pointer, dragging pans, and the view
-// fits whatever `focus` is (the selected monster's spawns) whenever it changes.
+// fits whatever `focus` is (the selected monster's spawns) whenever it changes. With `follow` (a
+// zoom), it keeps you in the middle instead, at that zoom, until you drag it; a double-click or 10 s
+// later it follows again. Hidden Cubes draw as golden cubes.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { mapImage, project, type World } from '@/lib/spawns.ts'
 
@@ -12,7 +14,18 @@ export interface MapLayer {
   active: boolean
 }
 
-const props = defineProps<{ world: World; layers: MapLayer[]; focus: [number, number][]; you?: [number, number] | null }>()
+const props = defineProps<{
+  world: World
+  layers: MapLayer[]
+  focus: [number, number][]
+  you?: [number, number] | null
+  cubes?: [number, number][]
+  /** Keep you in the middle at this zoom (times the whole zone's): the map overlay. */
+  follow?: number
+  /** The help line at the bottom (off in the small map overlay). */
+  hint?: boolean
+}>()
+const emit = defineEmits<{ zoom: [zoom: number] }>()
 
 const SIZE = 1000
 const box = ref<HTMLElement | null>(null)
@@ -20,6 +33,31 @@ const view = ref({ k: 1, x: 0, y: 0 })
 const loaded = ref(false)
 
 const youXY = computed(() => (props.you ? project(props.world, props.you).map((v) => v * SIZE) : null))
+const cubeXY = computed(() => (props.cubes ?? []).map((c) => project(props.world, c).map((v) => v * SIZE) as [number, number]))
+/** A golden cube's three faces, centred on 0,0, at `r` map units across. */
+function cubeFaces(r: number): { top: string; left: string; right: string } {
+  const p = (x: number, y: number): string => `${x * r},${y * r}`
+  return {
+    top: [p(0, -1), p(0.9, -0.5), p(0, 0), p(-0.9, -0.5)].join(' '),
+    left: [p(-0.9, -0.5), p(0, 0), p(0, 1), p(-0.9, 0.5)].join(' '),
+    right: [p(0.9, -0.5), p(0, 0), p(0, 1), p(0.9, 0.5)].join(' '),
+  }
+}
+
+/** When the map was last dragged by hand: following waits a while after. */
+let draggedAt = 0
+const FOLLOW_PAUSE_MS = 10_000
+/** You in the middle, at the `follow` zoom. */
+function centre(force = false): void {
+  if (!props.follow || !youXY.value) return
+  if (!force && Date.now() - draggedAt < FOLLOW_PAUSE_MS) return
+  const { w, h } = boxSize()
+  const k = (Math.min(w, h) / SIZE) * props.follow
+  view.value = { k, x: w / 2 - youXY.value[0]! * k, y: h / 2 - youXY.value[1]! * k }
+}
+watch(youXY, () => centre())
+watch(() => props.follow, () => centre(true))
+const followTimer = setInterval(() => centre(), 2000)
 const projected = computed(() =>
   props.layers.map((l) => ({ ...l, xy: l.points.map((p) => project(props.world, p).map((v) => v * SIZE) as [number, number]) })),
 )
@@ -31,6 +69,10 @@ function boxSize(): { w: number; h: number } {
 
 /** Fit the focus points (or the whole zone) into the box, with a margin. */
 function fit(): void {
+  if (props.follow && youXY.value) {
+    draggedAt = 0
+    return centre(true)
+  }
   const { w, h } = boxSize()
   const pts = props.focus.map((p) => project(props.world, p).map((v) => v * SIZE))
   let [x0, y0, x1, y1] = [0, 0, SIZE, SIZE]
@@ -59,6 +101,12 @@ function onWheel(e: WheelEvent): void {
   const { w, h } = boxSize()
   const minK = Math.min(w, h) / SIZE / 1.5
   const next = Math.min(40, Math.max(minK, k * Math.exp(-e.deltaY * 0.0015)))
+  if (props.follow) {
+    // Following: the zoom changes around you, and is remembered.
+    const base = Math.min(w, h) / SIZE
+    emit('zoom', Math.min(40, Math.max(1, next / base)))
+    return
+  }
   // Keep the map point under the pointer where it is.
   view.value = { k: next, x: px - ((px - x) / k) * next, y: py - ((py - y) / k) * next }
 }
@@ -69,6 +117,7 @@ function onPointerDown(e: PointerEvent): void {
   el.setPointerCapture(e.pointerId)
   const start = { ...view.value, px: e.clientX, py: e.clientY }
   const move = (ev: PointerEvent): void => {
+    draggedAt = Date.now()
     view.value = { k: start.k, x: start.x + ev.clientX - start.px, y: start.y + ev.clientY - start.py }
   }
   const up = (ev: PointerEvent): void => {
@@ -88,7 +137,10 @@ onMounted(() => {
   observer = new ResizeObserver(() => fit())
   if (box.value) observer.observe(box.value)
 })
-onBeforeUnmount(() => observer?.disconnect())
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  clearInterval(followTimer)
+})
 
 defineExpose({ fit })
 </script>
@@ -127,6 +179,12 @@ defineExpose({ fit })
             :stroke-width="(layer.active ? 1.5 : 1) / view.k"
           />
         </template>
+        <!-- Hidden Cubes: golden cubes. -->
+        <g v-for="(c, i) in cubeXY" :key="`cube-${i}`" :transform="`translate(${c[0]} ${c[1]})`">
+          <polygon :points="cubeFaces(9 / view.k).top" fill="#fde68a" stroke="#78350f" :stroke-width="1 / view.k" />
+          <polygon :points="cubeFaces(9 / view.k).left" fill="#f59e0b" stroke="#78350f" :stroke-width="1 / view.k" />
+          <polygon :points="cubeFaces(9 / view.k).right" fill="#b45309" stroke="#78350f" :stroke-width="1 / view.k" />
+        </g>
         <!-- You: a ring with a dot, drawn last so nothing covers it. -->
         <g v-if="youXY">
           <circle :cx="youXY[0]" :cy="youXY[1]" :r="11 / view.k" fill="none" stroke="#ffffff" :stroke-width="3 / view.k" />
@@ -136,7 +194,7 @@ defineExpose({ fit })
       </svg>
     </div>
     <div v-if="!loaded" class="absolute inset-0 flex items-center justify-center text-xs text-black/60">Loading map…</div>
-    <div class="pointer-events-none absolute bottom-1.5 right-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] text-white/80">
+    <div v-if="hint !== false" class="pointer-events-none absolute bottom-1.5 right-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] text-white/80">
       scroll to zoom · drag to pan · double-click to fit
     </div>
   </div>

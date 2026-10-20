@@ -25,6 +25,8 @@
 //!   {"type": "pvpKill", "killer": {"name", "server", "guild"}, "victim": {...} | null, "mine", "died", "legion"}
 //!   {"type": "snapshot", "pets": [...]}               answer to "snapshot" (then a nearby)
 //!   {"type": "nearby", "world": 1010, "position": [x, y] | null, "monsters": [{"npc", "count"}]}
+//!   {"type": "cubes", "cubes": [{"id", "template", "position": [x, y], "height", "createdAt": ms | null}]}
+//!                                                     the Hidden Cubes in view (within ~100 m), when they change
 //!   {"type": "dps", ...DpsData}                       the meter, when it changes (else every 5 s)
 //!   {"type": "ping", "ms": 42 | null}                 your ping to the game server, when it changes
 //!   {"type": "historyChanged", "count": 1}            boss fights were saved (every 30 s, and before a reset)
@@ -378,6 +380,7 @@ impl Sidecar {
                     let mut t = self.tracker.lock();
                     emit(&event("snapshot", json!({ "pets": t.snapshot() })));
                     emit(&event("nearby", t.nearby()));
+                    emit(&event("cubes", json!({ "cubes": t.cubes() })));
                 }
                 "set" => {
                     let souls = msg["souls"].as_u64().ok_or("no souls")? as u32;

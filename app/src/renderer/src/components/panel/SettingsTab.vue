@@ -108,6 +108,12 @@ const setMeter = (patch: Partial<typeof store.settings.meter>): Promise<void> =>
         <SettingRow label="Kina per hour" hint="This session's Kina per hour, at the top right of the HUD.">
           <Toggle :model-value="store.settings.hud.kina" @update:model-value="store.setHud({ kina: $event })" />
         </SettingRow>
+        <SettingRow label="Hidden Cubes" hint="A cube in view (the game tells you within about 100 m) at the top of the HUD, with how far and which way.">
+          <Toggle :model-value="store.settings.hud.cubes" @update:model-value="store.setHud({ cubes: $event })" />
+        </SettingRow>
+        <SettingRow v-if="store.settings.hud.cubes" label="Chime for a cube" hint="When one comes into view (at the timers' volume).">
+          <Toggle :model-value="store.settings.hud.cubeSound" @update:model-value="store.setHud({ cubeSound: $event })" />
+        </SettingRow>
         <SettingRow label="Black Cloud Merchant pets" hint="When you open one of its tabs, a window lists the pets it sells that you have not maxed: prices, and where they spawn. Its X closes it.">
           <Toggle :model-value="store.settings.hud.merchant" @update:model-value="store.setHud({ merchant: $event })" />
         </SettingRow>
@@ -155,6 +161,21 @@ const setMeter = (patch: Partial<typeof store.settings.meter>): Promise<void> =>
         </SettingRow>
         <SettingRow label="Opacity">
           <Slider :model-value="store.settings.meter.opacity" :min="0.3" :max="1" :step="0.05" :format="pct" @update:model-value="setMeter({ opacity: $event })" />
+        </SettingRow>
+      </div>
+    </section>
+
+    <section>
+      <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-darkest">Map overlay</h3>
+      <div class="divide-y divide-[color:var(--line)] rounded-lg border border-card bg-card px-3">
+        <SettingRow label="Show the map overlay" hint="Your zone around you, following you: the spawns of your pinned pets and of those whose monsters are near, and Hidden Cubes as golden cubes. Scroll to zoom; drag the map to look around.">
+          <Toggle :model-value="store.settings.minimap.enabled" @update:model-value="store.set('minimap', { ...store.settings.minimap, enabled: $event })" />
+        </SettingRow>
+        <SettingRow v-if="store.settings.minimap.enabled" label="Size">
+          <Slider :model-value="store.settings.minimap.size" :min="160" :max="520" :step="20" :format="(v: number) => `${v}px`" @update:model-value="store.set('minimap', { ...store.settings.minimap, size: $event })" />
+        </SettingRow>
+        <SettingRow v-if="store.settings.minimap.enabled" label="Opacity">
+          <Slider :model-value="store.settings.minimap.opacity" :min="0.3" :max="1" :step="0.05" :format="pct" @update:model-value="store.set('minimap', { ...store.settings.minimap, opacity: $event })" />
         </SettingRow>
       </div>
     </section>

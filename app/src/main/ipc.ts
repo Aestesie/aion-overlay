@@ -26,12 +26,15 @@ import {
   moveKillFeed,
   moveMerchant,
   moveMeter,
+  moveMiniMap,
+  miniMapDragEnded,
   moveSkills,
   moveTimerBar,
   resizeHud,
   resizeKillFeed,
   resizeMerchant,
   resizeMeter,
+  resizeMiniMap,
   resizeSkills,
   resizeTimerBar,
   setHudEditing,
@@ -77,7 +80,7 @@ export function registerIpc(): void {
     settings.set(key as SettingKey, value)
   })
 
-  handle('tracker:get', () => ({ status: tracker.status(), pets: tracker.pets(), nearby: tracker.nearby(), shop: tracker.shop(), kina: tracker.kina(), fieldBosses: tracker.fieldBosses(), pvp: tracker.pvp() }))
+  handle('tracker:get', () => ({ status: tracker.status(), pets: tracker.pets(), nearby: tracker.nearby(), shop: tracker.shop(), kina: tracker.kina(), fieldBosses: tracker.fieldBosses(), pvp: tracker.pvp(), cubes: tracker.cubes() }))
   handle('tracker:clearPvp', () => tracker.clearPvp())
   handle('timerbar:moveTo', (to) => {
     if (isPoint(to)) moveTimerBar(to)
@@ -145,6 +148,13 @@ export function registerIpc(): void {
 
   handle('meter:get', () => meterState.meter())
   handle('meter:reset', () => meterState.reset())
+  handle('minimap:moveTo', (to) => {
+    if (isPoint(to)) moveMiniMap(to)
+  })
+  handle('minimap:dragEnd', () => miniMapDragEnded())
+  handle('minimap:resize', (size) => {
+    if (isPoint({ x: size?.width, y: size?.height })) resizeMiniMap(size)
+  })
   handle('skills:get', () => meterState.personal())
   handle('skills:moveTo', (to) => {
     if (isPoint(to)) moveSkills(to)

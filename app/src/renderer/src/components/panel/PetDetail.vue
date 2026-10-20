@@ -175,7 +175,7 @@ const FIT_CLASS = { good: 'text-green', low: 'text-red', high: 'text-yellow' }
           </button>
         </div>
         <div class="min-h-0 flex-1">
-          <WorldMap v-if="world" :world="world" :layers="layers" :focus="focus" :you="you" />
+          <WorldMap v-if="world" :world="world" :layers="layers" :focus="focus" :you="you" :cubes="you ? store.cubes.map((c) => c.position) : []" />
           <div v-else class="flex h-full items-center justify-center rounded-lg border border-card text-sm text-darker">
             This monster has no spawn points on the map.
           </div>

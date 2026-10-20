@@ -47,7 +47,14 @@ export interface Settings {
     merchant: boolean
     /** This session's Kina per hour, at the top right. */
     kina: boolean
+    /** Hidden Cubes in view at the top, with how far and which way. */
+    cubes: boolean
+    /** A chime when a Hidden Cube comes into view. */
+    cubeSound: boolean
   }
+
+  /** The map overlay: your zone around you, your tracked pets' spawns and the Hidden Cubes. */
+  minimap: { enabled: boolean; position: Point | null; size: number; opacity: number; zoom: number }
 
   /** Where the Black Cloud Merchant window sits (top-left, screen DIPs); null = top centre. */
   merchantWindow: Point | null
@@ -153,7 +160,10 @@ export const SETTINGS_DEFAULTS: Settings = {
     idleHideSeconds: 45,
     merchant: true,
     kina: true,
+    cubes: true,
+    cubeSound: true,
   },
+  minimap: { enabled: true, position: null, size: 260, opacity: 0.92, zoom: 6 },
   merchantWindow: null,
   detailsWindow: null,
   timerBar: { enabled: true, position: null, opacity: 0.92 },
@@ -228,6 +238,8 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         idleHideSeconds: Math.round(num(v.idleHideSeconds, 0, 600, d.hud.idleHideSeconds)),
         merchant: bool(v.merchant, d.hud.merchant),
         kina: bool(v.kina, d.hud.kina),
+        cubes: bool(v.cubes, d.hud.cubes),
+        cubeSound: bool(v.cubeSound, d.hud.cubeSound),
       } as Settings[K]
     }
     case 'timers': {
@@ -247,6 +259,16 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         shown: Object.fromEntries(
           TIMERS.map((t) => [t.id, bool((v.shown as Partial<Record<TimerId, unknown>> | undefined)?.[t.id], defaultShown(t))]),
         ) as Record<TimerId, boolean>,
+      } as Settings[K]
+    }
+    case 'minimap': {
+      const v = (value ?? {}) as Partial<Settings['minimap']>
+      return {
+        enabled: bool(v.enabled, d.minimap.enabled),
+        position: point(v.position),
+        size: Math.round(num(v.size, 160, 520, d.minimap.size)),
+        opacity: num(v.opacity, 0.3, 1, d.minimap.opacity),
+        zoom: num(v.zoom, 1, 40, d.minimap.zoom),
       } as Settings[K]
     }
     case 'timerBar': {

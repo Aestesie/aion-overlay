@@ -64,6 +64,19 @@ export const NO_NEARBY: Nearby = { world: null, position: null, positionAt: null
 /** A pet the collection has no record of yet (seen nearby, or opened from the map). */
 export const blankPet = (id: number): Pet => ({ id, name: null, souls: 0, level: 0, levelEstimated: true, crystals: 0, session: 0 })
 
+/** A Hidden Cube in view (the server sends one within about 100 m of you). */
+export interface Cube {
+  id: number
+  template: number
+  /** Where it is, in the map data's (x, -y), as Nearby gives yours. */
+  position: [number, number]
+  height: number
+  /** When it spawned (ms since epoch), as its record says; null when it does not. */
+  createdAt: number | null
+  /** When the app first heard of it (ms since epoch). */
+  seenAt: number
+}
+
 /** A player killed by a player around you, as the game credits it (the killing blow). */
 export interface PvpKill {
   at: number

@@ -19,6 +19,10 @@ to keep opening the Pets menu.
   times come only from your own map.
 - **Countdown bar:** the timers whose alert you turned on, starting within 13 hours, as a small
   bar of icons and countdowns over the game.
+- **Hidden Cubes:** a cube in view (within about 100 m) shows at the top of the HUD with how far
+  and which way, with a chime, and as a golden cube on the maps.
+- **Map overlay:** your zone around you, following you, with your tracked pets' spawns and the
+  Hidden Cubes.
 - **PvP log and kill feed:** every player kill around you, as the game credits it, in the panel's
   PvP tab and in a small kill feed over the game; yours and your legion's marked.
 - **Black Cloud Merchant:** when you open one of its tabs, a window lists the pets it sells that
@@ -101,6 +105,9 @@ plays a recording (`.pcap`, `.pcapng` or an A2Tools packet log) instead of the g
   [taengu/A2Tools-DPS-Meter](https://github.com/taengu/A2Tools-DPS-Meter) (GPL-3.0): its parser
   crate as a dependency, and its capture code copied into `engine/`. Its monster, skill and
   buff tables are in `engine/data/`, and the meter's class icons are its too.
+- Hidden Cubes are found as [dr89mh/aion2-cube-radar](https://github.com/dr89mh/aion2-cube-radar)
+  (GPL-3.0) found them: the object records and the cube templates from its `ObjectMessages.cs`
+  and `docs/FINDINGS.md`.
 - Pet record layouts and soul counting rules follow the pet-souls plugin of
   [taengu/A2Tools-Plugins](https://github.com/taengu/A2Tools-Plugins) (GPL-3.0).
 - Skill icons are the game's own (its asset CDN), matched to skills by A2Tools DPS Meter's

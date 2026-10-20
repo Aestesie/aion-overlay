@@ -8,7 +8,7 @@ import type { DetailsSource, DetailsView, FightSummary, MeterData, PersonalView 
 import type { SyncResult } from './lokthar.ts'
 import type { Point, SettingKey, Settings } from './settings.ts'
 import type { FieldBosses, TimerAlert, TimerId } from './timers.ts'
-import type { Nearby, Pet, PvpKill, ShopStock, SoulToast, TrackerStatus } from './tracker.ts'
+import type { Cube, Nearby, Pet, PvpKill, ShopStock, SoulToast, TrackerStatus } from './tracker.ts'
 
 /** Renderer → main, request/response. */
 export interface InvokeChannels {
@@ -19,7 +19,7 @@ export interface InvokeChannels {
   'settings:all': { args: []; result: Settings }
   'settings:set': { args: [key: SettingKey, value: unknown]; result: void }
 
-  'tracker:get': { args: []; result: { status: TrackerStatus; pets: Pet[]; nearby: Nearby; shop: ShopStock[]; kina: KinaSession; fieldBosses: FieldBosses; pvp: PvpKill[] } }
+  'tracker:get': { args: []; result: { status: TrackerStatus; pets: Pet[]; nearby: Nearby; shop: ShopStock[]; kina: KinaSession; fieldBosses: FieldBosses; pvp: PvpKill[]; cubes: Cube[] } }
   /** Empty the PvP log. */
   'tracker:clearPvp': { args: []; result: void }
   'tracker:setSouls': { args: [pet: number, souls: number]; result: void }
@@ -66,6 +66,10 @@ export interface InvokeChannels {
   /** Start the fight over: no target, no damage. */
   'meter:reset': { args: []; result: void }
   /** One target's breakdown by skill (A2Tools DPS Meter's TargetDetailsResponse). */
+  /** The map overlay. */
+  'minimap:moveTo': { args: [to: Point]; result: void }
+  'minimap:dragEnd': { args: []; result: void }
+  'minimap:resize': { args: [size: { width: number; height: number }]; result: void }
   /** Your own skills on the meter's target (the skills window). */
   'skills:get': { args: []; result: PersonalView }
   'skills:moveTo': { args: [to: Point]; result: void }
@@ -96,6 +100,8 @@ export interface EventChannels {
   'tracker:pet': Pet
   'tracker:soul': SoulToast
   'tracker:nearby': Nearby
+  /** The Hidden Cubes in view, whenever they change. */
+  'tracker:cubes': Cube[]
   /** You killed something (at most every 5 s): keeps the HUD up between souls. */
   'tracker:combat': number
   /** The merchant's stock: the latest of each tab opened, until its restock. */
@@ -150,10 +156,11 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'merchant:moveTo', 'merchant:dragEnd', 'merchant:resize', 'merchant:close', 'panel:showPet', 'timers:get', 'timers:dismiss', 'timers:open',
   'lokthar:test', 'lokthar:last',
   'meter:get', 'meter:reset', 'meter:moveTo', 'meter:dragEnd', 'meter:resize',
+  'minimap:moveTo', 'minimap:dragEnd', 'minimap:resize',
   'skills:get', 'skills:moveTo', 'skills:dragEnd', 'skills:resize',
   'details:open', 'details:get', 'details:close', 'details:moveTo', 'details:dragEnd', 'history:list', 'history:delete',
 ]
 
 export const EVENT_CHANNELS: readonly EventChannel[] = [
-  'settings:changed', 'tracker:status', 'tracker:pets', 'tracker:pet', 'tracker:soul', 'tracker:nearby', 'tracker:combat', 'tracker:shop', 'tracker:kina', 'tracker:fieldBosses', 'tracker:pvp', 'tracker:pvpKill', 'panel:showPet', 'panel:showTimers', 'timers:alert', 'timers:alerting', 'hud:editing', 'panel:visible', 'panel:maximized', 'meter:dps', 'details:source', 'history:changed',
+  'settings:changed', 'tracker:status', 'tracker:pets', 'tracker:pet', 'tracker:soul', 'tracker:nearby', 'tracker:cubes', 'tracker:combat', 'tracker:shop', 'tracker:kina', 'tracker:fieldBosses', 'tracker:pvp', 'tracker:pvpKill', 'panel:showPet', 'panel:showTimers', 'timers:alert', 'timers:alerting', 'hud:editing', 'panel:visible', 'panel:maximized', 'meter:dps', 'details:source', 'history:changed',
 ]

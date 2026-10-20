@@ -23,6 +23,8 @@ pub const OP_SHOP: [u8; 2] = [0x91, 0x56];
 pub const OP_KILL: [u8; 2] = [0x04, 0x8D];
 pub const OP_PLAYER: [u8; 2] = [0x45, 0x36];
 pub const OP_LEGION: [u8; 2] = [0x33, 0x8A];
+pub const OP_OBJECT_SPAWN: [u8; 2] = [0x34, 0x36];
+pub const OP_OBJECT_REMOVED: [u8; 2] = [0x35, 0x36];
 
 /// `42 36`'s flag for a monster killed in combat (1: out of range, 7: gone).
 pub const DEATH_FLAG_COMBAT: u32 = 3;
@@ -448,6 +450,45 @@ pub fn shop(frame: &[u8]) -> Option<(u8, Vec<ShopItem>, Option<u64>)> {
     Some((tab, items, next))
 }
 
+/// A world object (a gadget) coming into view, a Hidden Cube among them.
+/// Layouts from dr89mh/aion2-cube-radar (GPL-3.0), `ObjectMessages.cs` and
+/// docs/FINDINGS.md, checked there against cubes opened in its own captures.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ObjectSpawn {
+    pub id: u32,
+    pub template: u32,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+    /// When it spawned (ms since 1970); None when the record has no time.
+    pub created_ms: Option<u64>,
+}
+
+/// `34 36 <id varint> <kind u16> <template u32> <x y z f32> <f32> <heading f32>
+/// <u8 u8 state u8> <created u64 ms> ...`: an object in view, sent once you are
+/// within its range (about 100 m for a cube).
+pub fn object_spawn(frame: &[u8]) -> Option<ObjectSpawn> {
+    let b = body(frame, OP_OBJECT_SPAWN)?;
+    let (id, o) = varint(b, 0)?;
+    if o + 26 > b.len() {
+        return None;
+    }
+    let (x, y, z) = (f32_at(b, o + 6)?, f32_at(b, o + 10)?, f32_at(b, o + 14)?);
+    if !(x.is_finite() && y.is_finite() && z.is_finite()) {
+        return None;
+    }
+    let created_ms = u64_at(b, o + 29).filter(|t| (1_600_000_000_000..2_600_000_000_000).contains(t));
+    Some(ObjectSpawn { id, template: u32_at(b, o + 2)?, x, y, z, created_ms })
+}
+
+/// `35 36 <id varint> <reason u8> ...`: an object gone from view: 04 destroyed
+/// (a cube opened), 01 out of range.
+pub fn object_removed(frame: &[u8]) -> Option<(u32, u8)> {
+    let b = body(frame, OP_OBJECT_REMOVED)?;
+    let (id, o) = varint(b, 0)?;
+    Some((id, *b.get(o)?))
+}
+
 /// A player coming into view: `45 36 <entity varint> <4 bytes> 17 <len><name>
 /// <u32> <faction 01 02 01 | 02 02 02> ...`, and some 100-120 bytes on
 /// `<server u16> <2 bytes> 00 00 00 00 <server u16> <len><legion>` (Nyerk 0.2.17).
@@ -567,6 +608,18 @@ mod tests {
         let mut pvp = body.clone();
         *pvp.last_mut().unwrap() = 1;
         assert!(kill_credits(&frame(OP_KILL, &pvp))[0].player_victim);
+    }
+
+    /// The two Verteron cubes of dr89mh/aion2-cube-radar's FINDINGS (B5), opened
+    /// there with a key; their positions match th.gl's cube spots exactly.
+    #[test]
+    fn a_hidden_cube_spawn_and_its_removal_read() {
+        let cube = hex("e5ff03 0400 a74f1200 001d44c7 80a5f647 00647146 00000000 00000000 010101 aae4a534a1010000");
+        let s = object_spawn(&frame(OP_OBJECT_SPAWN, &cube)).unwrap();
+        assert_eq!((s.id, s.template), (65509, 1_200_039));
+        assert_eq!((s.x.round(), s.y.round(), s.z.round()), (-50205.0, 126283.0, 15449.0));
+        assert!(s.created_ms.is_some());
+        assert_eq!(object_removed(&frame(OP_OBJECT_REMOVED, &hex("e5ff03 04 0300"))), Some((65509, 4)));
     }
 
     #[test]

@@ -3,12 +3,15 @@
 // main sizes the window to fit (an empty HUD is a hidden window). In edit mode it takes the mouse
 // so it can be dragged; Escape or Done ends that.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import CubeIcon from '@/components/CubeIcon.vue'
 import GenusPill from '@/components/GenusPill.vue'
 import LevelBadge from '@/components/LevelBadge.vue'
 import LevelBar from '@/components/LevelBar.vue'
 import PetIcon from '@/components/PetIcon.vue'
 import Sparkline from '@/components/Sparkline.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { playChime } from '@/lib/chime.ts'
+import { cubeBearings, meters } from '@/lib/cubes.ts'
 import { displayName, GENUS_LABEL, petInfo } from '@/lib/petDb.ts'
 import { nearbyPets, useSpawns, type NearbyPet } from '@/lib/spawns.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
@@ -69,10 +72,32 @@ const kinaText = computed(() => {
   // Kina is coming in, but under a minute of it: no rate yet.
   return store.kina.earned ? 'Kina/h measuring…' : null
 })
-/** Between fights (idle timeout): nothing to show, so the HUD hides; pinned pets included. */
+/** The Hidden Cubes in view, nearest first, with how far and which way. */
+const cubeRows = computed(() => (hud.value.cubes ? cubeBearings(store.cubes, store.nearby.position) : []))
+// A cube coming into view chimes, once per cube.
+const chimed = new Set<number>()
+watch(
+  () => store.cubes,
+  (list) => {
+    const fresh = list.filter((c) => !chimed.has(c.id))
+    for (const c of fresh) chimed.add(c.id)
+    if (fresh.length && store.ready && hud.value.cubes && hud.value.cubeSound) playChime(store.settings.timers.volume)
+  },
+)
+// "spawned 3 min ago", kept current.
+const clock = ref(Date.now())
+const clockTimer = setInterval(() => (clock.value = Date.now()), 5000)
+function since(at: number): string {
+  const min = Math.floor((clock.value - at) / 60_000)
+  return min < 1 ? 'just now' : min < 60 ? `${min} min ago` : `${Math.floor(min / 60)} h ago`
+}
+
+/** Between fights (idle timeout): nothing to show, so the HUD hides; pinned pets included. A cube in view shows all the same. */
 const resting = computed(() => !!hud.value.idleHideSeconds && !store.fighting)
 const empty = computed(
-  () => resting.value || (nearRows.value.length === 0 && rows.value.length === 0 && toasts.value.length === 0),
+  () =>
+    cubeRows.value.length === 0 &&
+    (resting.value || (nearRows.value.length === 0 && rows.value.length === 0 && toasts.value.length === 0)),
 )
 
 const drag = windowDrag({ move: 'hud:moveTo', end: 'hud:dragEnd' })
@@ -96,7 +121,7 @@ function report(): void {
 // A hidden window does not run ResizeObserver (Chromium pauses rendering there), and the HUD is
 // hidden exactly while it is empty: the first soul would never show it. So it also measures
 // itself after every change to what it shows, which works hidden or not.
-watch([nearRows, rows, toasts, kinaText, resting, () => store.hudEditing, () => hud.value.scale, () => store.nearby], () => void nextTick(report), { deep: true })
+watch([cubeRows, nearRows, rows, toasts, kinaText, resting, () => store.hudEditing, () => hud.value.scale, () => store.nearby], () => void nextTick(report), { deep: true })
 
 let observer: ResizeObserver | null = null
 onMounted(() => {
@@ -106,6 +131,7 @@ onMounted(() => {
   report()
 })
 onBeforeUnmount(() => {
+  clearInterval(clockTimer)
   window.removeEventListener('keydown', onKey)
   observer?.disconnect()
 })
@@ -134,6 +160,28 @@ onBeforeUnmount(() => {
             Done
           </button>
         </div>
+
+        <section v-if="cubeRows.length" :class="['rounded-md border border-yellow/40 bg-yellow/10 px-2 py-1.5', (nearRows.length || kinaText || rows.length) && 'mb-2.5']">
+          <div class="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-yellow">
+            <span class="size-1.5 animate-pulse rounded-full bg-yellow" />
+            Hidden cube{{ cubeRows.length > 1 ? `s · ${cubeRows.length}` : '' }} nearby
+          </div>
+          <div class="space-y-1.5">
+            <div v-for="c in cubeRows" :key="c.cube.id" class="flex items-center gap-2">
+              <CubeIcon :size="26" />
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center justify-between gap-2 text-[13px]">
+                  <span class="font-medium text-dark">Hidden Cube</span>
+                  <span v-if="c.distance !== null" class="shrink-0 font-semibold tabular-nums text-yellow">{{ meters(c.distance) }} {{ c.direction }}</span>
+                  <span v-else class="shrink-0 text-xs text-darker">within ~100 m</span>
+                </div>
+                <div class="text-[11px] text-darker">
+                  {{ c.cube.createdAt ? `spawned ${since(c.cube.createdAt)}` : `seen ${since(c.cube.seenAt)}` }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <div v-if="nearRows.length || kinaText" class="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
           <template v-if="nearRows.length"><span class="size-1.5 rounded-full bg-green" /><span class="text-green">Nearby</span></template>
