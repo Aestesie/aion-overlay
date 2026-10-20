@@ -49,14 +49,23 @@ let draggedAt = 0
 const FOLLOW_PAUSE_MS = 10_000
 /** You in the middle, at the `follow` zoom. */
 function centre(force = false): void {
-  if (!props.follow || !youXY.value) return
+  if (!zoom.value || !youXY.value) return
   if (!force && Date.now() - draggedAt < FOLLOW_PAUSE_MS) return
   const { w, h } = boxSize()
-  const k = (Math.min(w, h) / SIZE) * props.follow
+  const k = (Math.min(w, h) / SIZE) * zoom.value
   view.value = { k, x: w / 2 - youXY.value[0]! * k, y: h / 2 - youXY.value[1]! * k }
 }
+/** The follow zoom as shown: the wheel changes it at once, and it is saved (emitted) a moment later. */
+const zoom = ref(props.follow)
+watch(
+  () => props.follow,
+  (z) => {
+    if (z === zoom.value) return
+    zoom.value = z
+    centre(true)
+  },
+)
 watch(youXY, () => centre())
-watch(() => props.follow, () => centre(true))
 const followTimer = setInterval(() => centre(), 2000)
 const projected = computed(() =>
   props.layers.map((l) => ({ ...l, xy: l.points.map((p) => project(props.world, p).map((v) => v * SIZE) as [number, number]) })),
@@ -69,7 +78,7 @@ function boxSize(): { w: number; h: number } {
 
 /** Fit the focus points (or the whole zone) into the box, with a margin. */
 function fit(): void {
-  if (props.follow && youXY.value) {
+  if (zoom.value && youXY.value) {
     draggedAt = 0
     return centre(true)
   }
@@ -92,6 +101,7 @@ function fit(): void {
   view.value = { k, x: w / 2 - ((x0 + x1) / 2) * k, y: h / 2 - ((y0 + y1) / 2) * k }
 }
 
+let saveTimer: ReturnType<typeof setTimeout> | null = null
 function onWheel(e: WheelEvent): void {
   e.preventDefault()
   const r = box.value!.getBoundingClientRect()
@@ -101,10 +111,16 @@ function onWheel(e: WheelEvent): void {
   const { w, h } = boxSize()
   const minK = Math.min(w, h) / SIZE / 1.5
   const next = Math.min(40, Math.max(minK, k * Math.exp(-e.deltaY * 0.0015)))
-  if (props.follow) {
-    // Following: the zoom changes around you, and is remembered.
+  if (zoom.value) {
+    // Following: the zoom changes around you (around the middle while where you are is not known),
+    // straight away, and is remembered once the wheel stops.
     const base = Math.min(w, h) / SIZE
-    emit('zoom', Math.min(40, Math.max(1, next / base)))
+    zoom.value = Math.min(40, Math.max(1, next / base))
+    const k2 = base * zoom.value
+    if (youXY.value) centre(true)
+    else view.value = { k: k2, x: w / 2 - ((w / 2 - x) / k) * k2, y: h / 2 - ((h / 2 - y) / k) * k2 }
+    if (saveTimer) clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => emit('zoom', zoom.value!), 300)
     return
   }
   // Keep the map point under the pointer where it is.
@@ -140,6 +156,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   observer?.disconnect()
   clearInterval(followTimer)
+  if (saveTimer) clearTimeout(saveTimer)
 })
 
 defineExpose({ fit })

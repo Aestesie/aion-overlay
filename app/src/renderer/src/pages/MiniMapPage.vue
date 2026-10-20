@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The map overlay: your zone around you, following you, with the spawns of your tracked pets (the
 // ones pinned in the collection, and those whose soul monsters are around you), and the Hidden
-// Cubes in view as golden cubes. Moved by its header; the wheel zooms (remembered); dragging the map
+// Cubes in view as golden cubes. Moved by its header; the wheel or the +/- buttons zoom (remembered); dragging the map
 // looks around, and it follows you again a few seconds later. Hidden while the zone is not known.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PetIcon from '@/components/PetIcon.vue'
@@ -50,7 +50,10 @@ const cubes = computed(() => store.cubes.map((c) => c.position))
 const pet = (id: number) => store.pets.find((p) => p.id === id) ?? blankPet(id)
 
 const drag = windowDrag({ move: 'minimap:moveTo', end: 'minimap:dragEnd' })
-const setZoom = (zoom: number): void => void api.invoke('settings:set', 'minimap', { ...cfg.value, zoom })
+const setZoom = (zoom: number): void =>
+  void api.invoke('settings:set', 'minimap', { ...cfg.value, zoom: Math.min(40, Math.max(1, zoom)) })
+/** The + and - buttons: a step of 1.5 times either way. */
+const ZOOM_STEP = 1.5
 
 /** Tell main how big the window is; no zone known measures 0, and main keeps it hidden. */
 let sent = ''
@@ -88,7 +91,35 @@ onBeforeUnmount(() => observer?.disconnect())
           </span>
           <span v-if="!store.nearby.position" :class="['shrink-0 text-darkest', !store.cubes.length && 'ml-auto']">where you are: unknown</span>
         </header>
-        <div :style="{ height: `${cfg.size}px` }">
+        <div class="relative" :style="{ height: `${cfg.size}px` }">
+          <div class="absolute right-1.5 top-1.5 z-10 flex flex-col overflow-hidden rounded-md border border-black/40 bg-black/60 text-white shadow">
+            <button
+              type="button"
+              class="flex size-6 items-center justify-center hover:bg-white/15 disabled:opacity-40"
+              title="Zoom in"
+              :disabled="cfg.zoom >= 40"
+              @pointerdown.stop
+              @dblclick.stop
+              @click="setZoom(cfg.zoom * ZOOM_STEP)"
+            >
+              <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <path d="M8 3.5v9M3.5 8h9" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="flex size-6 items-center justify-center border-t border-white/15 hover:bg-white/15 disabled:opacity-40"
+              title="Zoom out"
+              :disabled="cfg.zoom <= 1"
+              @pointerdown.stop
+              @dblclick.stop
+              @click="setZoom(cfg.zoom / ZOOM_STEP)"
+            >
+              <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <path d="M3.5 8h9" />
+              </svg>
+            </button>
+          </div>
           <WorldMap
             :world="world"
             :layers="layers"
