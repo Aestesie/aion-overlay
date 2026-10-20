@@ -91,21 +91,17 @@ module.exports = {
   theme: {
     extend: {
       /*
-       * Inter, declared in assets/main.css and shipped with the renderer.
-       * Tailwind's preflight puts `fontFamily.sans` on `html`, so naming it
-       * here is what makes it the app's face — the overlay included, since
-       * that is the same renderer on a different route.
-       *
-       * The fallbacks matter for the first paint of a cold start and for the
-       * glyphs Inter's Latin cut does not carry: Segoe UI Variable Text is
-       * Windows 11's own small-text face, and the emoji families are Tailwind's
-       * defaults, kept so a symbol in an item name still renders.
+       * Windows' own face first, as the apps this one sits beside use: Segoe UI Variable (Windows
+       * 11), else Segoe UI. Tailwind's preflight puts `fontFamily.sans` on `html`, so naming it
+       * here makes it the app's face, the overlays included (the same renderer on other routes).
+       * Inter (assets/main.css, shipped with the renderer) stands in off Windows; the emoji
+       * families are Tailwind's defaults, kept so a symbol in an item name still renders.
        */
       fontFamily: {
         sans: [
-          'Inter Variable',
           'Segoe UI Variable Text',
           'Segoe UI',
+          'Inter Variable',
           'system-ui',
           'sans-serif',
           'Apple Color Emoji',

@@ -112,15 +112,15 @@ onBeforeUnmount(() => {
 <template>
   <div class="flex h-screen flex-col bg-app text-default">
     <!-- The title bar: dragged to move the window (its buttons excepted). -->
-    <header class="drag flex h-12 shrink-0 items-center border-b border-card">
-      <div class="flex h-full w-60 shrink-0 items-center gap-2.5 border-r border-card px-4">
-        <img src="/icon.png" alt="" class="size-5" draggable="false" />
-        <span class="text-[15px] font-semibold">{{ DISPLAY_NAME }}</span>
+    <header class="drag flex h-10 shrink-0 items-center border-b border-card">
+      <div class="flex h-full w-56 shrink-0 items-center gap-2 border-r border-card px-4">
+        <img src="/icon.png" alt="" class="size-[18px]" draggable="false" />
+        <span class="text-sm font-semibold">{{ DISPLAY_NAME }}</span>
       </div>
       <div class="flex min-w-0 flex-1 items-center gap-2 px-4">
         <span
           :class="[
-            'flex min-w-0 items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium',
+            'flex min-w-0 items-center gap-2 rounded-full border px-2.5 py-0.5 text-xs font-medium',
             store.status?.state === 'locked' && store.status.gameActive ? 'border-green/30 bg-green/10 text-green' : 'border-card bg-dark text-darker',
           ]"
         >
@@ -128,7 +128,7 @@ onBeforeUnmount(() => {
           <span class="truncate">{{ statusText(store.status) }}</span>
           <span v-if="who" class="truncate text-dark">· {{ who }}</span>
         </span>
-        <span v-if="store.sessionSouls" class="rounded-full border border-card bg-dark px-3 py-1 text-xs text-green">+{{ store.sessionSouls }} souls this session</span>
+        <span v-if="store.sessionSouls" class="rounded-full border border-card bg-dark px-2.5 py-0.5 text-xs text-green">+{{ store.sessionSouls }} souls this session</span>
       </div>
       <div class="no-drag flex h-full">
         <button type="button" class="flex w-12 items-center justify-center text-darker hover:bg-dark hover:text-default" title="Minimize" @click="minimize">
@@ -145,21 +145,21 @@ onBeforeUnmount(() => {
     </header>
 
     <div class="flex min-h-0 flex-1">
-      <nav class="flex w-60 shrink-0 flex-col overflow-y-auto border-r border-card px-3 py-4">
-        <div v-for="(s, n) in SECTIONS" :key="s.title ?? ''" :class="n > 0 && 'mt-6'">
-          <div v-if="s.title" class="mb-1.5 px-3 text-xs font-medium uppercase tracking-wider text-darkest">{{ s.title }}</div>
+      <nav class="flex w-56 shrink-0 flex-col overflow-y-auto border-r border-card px-2.5 py-3">
+        <div v-for="(s, n) in SECTIONS" :key="s.title ?? ''" :class="n > 0 && 'mt-5'">
+          <div v-if="s.title" class="mb-1 px-2.5 text-[11px] font-medium uppercase tracking-wider text-darkest">{{ s.title }}</div>
           <button
             v-for="id in s.pages"
             :key="id"
             type="button"
             :class="[
-              'relative flex h-9 w-full items-center gap-3 rounded-md px-3 text-left text-[15px] transition-colors',
+              'relative flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm transition-colors',
               page === id ? 'bg-dark font-medium text-default' : 'text-dark hover:bg-dark hover:text-default',
             ]"
             @click="go(id)"
           >
-            <span v-if="page === id" class="absolute -left-3 top-1.5 h-6 w-[3px] rounded-r bg-accent" />
-            <svg viewBox="0 0 16 16" :class="['size-[18px] shrink-0', page === id ? 'text-accent' : 'text-darker']" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+            <span v-if="page === id" class="absolute -left-2.5 top-1.5 h-5 w-[3px] rounded-r bg-accent" />
+            <svg viewBox="0 0 16 16" :class="['size-4 shrink-0', page === id ? 'text-accent' : 'text-darker']" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
               <path :d="PAGES[id].icon" />
             </svg>
             {{ PAGES[id].label }}
@@ -169,26 +169,26 @@ onBeforeUnmount(() => {
           <button
             type="button"
             :class="[
-              'relative flex h-9 w-full items-center gap-3 rounded-md px-3 text-left text-[15px] transition-colors',
+              'relative flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm transition-colors',
               page === 'settings' ? 'bg-dark font-medium text-default' : 'text-dark hover:bg-dark hover:text-default',
             ]"
             @click="go('settings')"
           >
-            <span v-if="page === 'settings'" class="absolute -left-3 top-1.5 h-6 w-[3px] rounded-r bg-accent" />
-            <svg viewBox="0 0 16 16" :class="['size-[18px] shrink-0', page === 'settings' ? 'text-accent' : 'text-darker']" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+            <span v-if="page === 'settings'" class="absolute -left-2.5 top-1.5 h-5 w-[3px] rounded-r bg-accent" />
+            <svg viewBox="0 0 16 16" :class="['size-4 shrink-0', page === 'settings' ? 'text-accent' : 'text-darker']" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
               <path :d="PAGES.settings.icon" />
             </svg>
             Settings
           </button>
-          <div v-if="version" class="px-3 pt-2 text-xs text-darkest">v{{ version }}</div>
+          <div v-if="version" class="px-2.5 pt-2 text-[11px] text-darkest">v{{ version }}</div>
         </div>
       </nav>
 
       <main class="min-w-0 flex-1 overflow-y-auto">
-        <div :class="['mx-auto px-10 py-8', page === 'pets' && store.openPetId !== null ? 'max-w-6xl' : 'max-w-4xl']">
-          <div class="mb-6">
-            <h1 class="text-3xl font-bold tracking-tight">{{ current.label }}</h1>
-            <p class="mt-1 text-[15px] text-darker">{{ current.about }}</p>
+        <div :class="['mx-auto px-8 py-6', page === 'pets' && store.openPetId !== null ? 'max-w-6xl' : 'max-w-4xl']">
+          <div class="mb-5">
+            <h1 class="text-2xl font-bold tracking-tight">{{ current.label }}</h1>
+            <p class="mt-0.5 text-sm text-darker">{{ current.about }}</p>
           </div>
           <div v-if="!store.ready" class="py-6 text-center text-sm text-darker">Loading…</div>
           <template v-else-if="page === 'pets'">
