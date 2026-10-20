@@ -1,5 +1,7 @@
 /** Every invoke handler, typed against the contract in shared/ipc.ts. */
 import { app, ipcMain, shell } from 'electron'
+import { mkdir } from 'node:fs/promises'
+import { dummy } from './dummy.ts'
 import { meterState } from './meter.ts'
 import { lokthar } from './lokthar.ts'
 import { settings } from './settings.ts'
@@ -8,6 +10,12 @@ import { logPath, tracker } from './tracker.ts'
 import {
   bubbleDragEnded,
   buffsDragEnded,
+  ccDragEnded,
+  moveTraining,
+  resizeTraining,
+  trainingDragEnded,
+  moveCc,
+  resizeCc,
   moveBuffs,
   resizeBuffs,
   closeDetails,
@@ -168,9 +176,38 @@ export function registerIpc(): void {
   handle('skills:resize', (size) => {
     if (isPoint({ x: size?.width, y: size?.height })) resizeSkills(size)
   })
+  handle('dummy:get', () => dummy.get())
+  handle('dummy:start', (name) => dummy.start(typeof name === 'string' ? name : undefined))
+  handle('dummy:stop', (save) => dummy.stop(save === true))
+  handle('training:moveTo', (to) => {
+    if (isPoint(to)) moveTraining(to)
+  })
+  handle('training:dragEnd', () => trainingDragEnded())
+  handle('training:resize', (size) => {
+    if (isPoint({ x: size?.width, y: size?.height })) resizeTraining(size)
+  })
+  handle('dummy:newGroup', () => dummy.newGroup())
+  handle('dummy:delete', (id) => {
+    if (typeof id === 'string') dummy.remove(id)
+  })
+  handle('recordings:get', () => meterState.recordings())
+  handle('recordings:set', (on) => meterState.record(on === true))
+  handle('recordings:open', async () => {
+    const dir = meterState.recordingsDir()
+    if (!dir) return
+    await mkdir(dir, { recursive: true })
+    await shell.openPath(dir)
+  })
   handle('overlays:toggle', () => toggleOverlays())
   handle('overlays:hidden', () => overlaysHidden())
   handle('buffs:get', () => meterState.buffs())
+  handle('cc:moveTo', (to) => {
+    if (isPoint(to)) moveCc(to)
+  })
+  handle('cc:dragEnd', () => ccDragEnded())
+  handle('cc:resize', (size) => {
+    if (isPoint({ x: size?.width, y: size?.height })) resizeCc(size)
+  })
   handle('buffs:moveTo', (to) => {
     if (isPoint(to)) moveBuffs(to)
   })

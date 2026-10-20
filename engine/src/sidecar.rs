@@ -37,6 +37,10 @@
 //!   {"type": "focus", "game": true, "app": false}     what is in front, when it changes (Windows):
 //!                                                     the game, the app's own window (--app-pid), or neither
 //!   {"type": "details", "target": 123, ...TargetDetailsResponse, "fightBuffs": {"startTimeMs", "durationMs", "buffs"} | null}
+//!   {"type": "recording", "on": true, "path": "...", "segments"?: 1234}
+//!                                                     a recording started or stopped (it stops with the capture)
+//!   {"type": "recordings", "dir": "...", "recording": path | null, "files": [{"name", "path", "bytes", "modified": ms}]}
+//!                                                     answer to "recordings"
 //!   {"type": "error", "detail": "..."}
 //!
 //! stdin, one JSON object per line:
@@ -46,9 +50,12 @@
 //!   {"cmd": "capture", "on": false}    stop capturing (the game closed) or start again
 //!   {"cmd": "meter", "on": false}      stop sending the meter (it is turned off) or start again
 //!   {"cmd": "buffs", "on": true}       send your buffs (the buffs overlay is on) or stop
+//!   {"cmd": "training", "on": true}    send the meter (its `train`) even while it is off: training runs
 //!   {"cmd": "dpsReset"} · {"cmd": "targetMode", "mode": "bossTargets"} · {"cmd": "details", "target": 123, "actors"?: [..]}
 //!   {"cmd": "history"} · {"cmd": "fight", "id": "..."} · {"cmd": "deleteFight", "id": "..."}
 //!                                      the saved boss fights (in <data folder>/history)
+//!   {"cmd": "record", "on": true}      record the game's traffic (<data folder>/recordings), or stop
+//!   {"cmd": "recordings"}              the recordings kept
 //!   {"cmd": "quit"}                    (closing stdin quits too)
 //!
 //! A pet is {"id", "name" (null if unknown), "souls", "level", "levelEstimated", "crystals", "session"}.
@@ -67,6 +74,7 @@ use serde_json::{Value, json};
 use tokio::sync::mpsc;
 
 use crate::capture::pcap_capturer::PcapCapturer;
+use crate::capture::recorder::Recorder;
 use crate::meter::Meter;
 use crate::tracker::Tracker;
 use crate::tracker::store::Store;
@@ -79,8 +87,8 @@ const HEARTBEAT: Duration = Duration::from_secs(2);
 const DEVICES_OPEN_WITHIN: Duration = Duration::from_secs(5);
 const NO_DEVICE_OPENED: &str =
     "No network device could be opened for capture. Reinstall Npcap without \"Restrict Npcap driver's access to Administrators only\", or run the app as administrator.";
-/// Your buffs are read this often (ticks of DPS_EVERY: 0.4 s).
-const BUFFS_EVERY: u32 = 2;
+/// Your buffs are read this often (ticks of DPS_EVERY: 0.2 s): a knockdown lasts about a second.
+const BUFFS_EVERY: u32 = 1;
 /// Boss fights are saved this often while they go on, as upstream does.
 const SAVE_FIGHTS_EVERY: u32 = 150; // ticks of DPS_EVERY: 30 s
 
@@ -134,7 +142,9 @@ struct Sidecar {
     capturing: Arc<AtomicBool>,
     meter_on: Arc<AtomicBool>,
     buffs_on: Arc<AtomicBool>,
+    training_on: Arc<AtomicBool>,
     last_frame: Arc<Mutex<Option<Instant>>>,
+    recorder: Arc<Mutex<Recorder>>,
 }
 
 pub fn run(opts: Options) -> Result<(), String> {
@@ -174,7 +184,11 @@ pub fn run(opts: Options) -> Result<(), String> {
         capturing: Arc::new(AtomicBool::new(false)),
         meter_on: Arc::new(AtomicBool::new(true)),
         buffs_on: Arc::new(AtomicBool::new(false)),
+        training_on: Arc::new(AtomicBool::new(false)),
         last_frame: Arc::new(Mutex::new(None)),
+        recorder: Arc::new(Mutex::new(Recorder::new(
+            opts.data.parent().map_or_else(|| PathBuf::from("recordings"), |p| p.join("recordings")),
+        ))),
     });
 
     // Every frame the parser reads goes through the tracker too, timed by its
@@ -242,6 +256,7 @@ impl Sidecar {
                 None => {}
             }
             self.capturing.store(false, Ordering::SeqCst);
+            self.stop_recording();
             self.meter.port_detector.reset();
             *self.last_frame.lock() = None;
             let mut tracker = self.tracker.lock();
@@ -254,7 +269,18 @@ impl Sidecar {
         *source = Some(match &self.replay {
             Some((path, speed)) => Source::Replay(self.start_replay(path.clone(), *speed, tx)),
             None => {
-                let capturer = Arc::new(PcapCapturer::new(tx, self.meter.port_detector.clone()));
+                // Live traffic passes the recorder on its way to the parser.
+                let (to_recorder, mut from_capture) = mpsc::channel::<CapturedPayload>(4096);
+                let (recorder, ports, to_parser) = (self.recorder.clone(), self.meter.port_detector.clone(), tx);
+                self.runtime.spawn(async move {
+                    while let Some(payload) = from_capture.recv().await {
+                        recorder.lock().note(&payload, ports.current_port());
+                        if to_parser.send(payload).await.is_err() {
+                            break;
+                        }
+                    }
+                });
+                let capturer = Arc::new(PcapCapturer::new(to_recorder, self.meter.port_detector.clone()));
                 capturer.start();
                 if !capturer.is_running() {
                     let why = capturer.start_error().unwrap_or_else(|| "Packet capture did not start (is Npcap installed?)".into());
@@ -281,6 +307,13 @@ impl Sidecar {
         emit(&event("status", json!({ "state": "listening", "source": source_name })));
         let dispatcher = self.meter.dispatcher();
         self.runtime.spawn(async move { dispatcher.run(rx).await });
+    }
+
+    /// Finish the recording, if one is going, and say where it went.
+    fn stop_recording(&self) {
+        if let Some((path, segments)) = self.recorder.lock().stop() {
+            emit(&event("recording", json!({ "on": false, "path": path.display().to_string(), "segments": segments })));
+        }
     }
 
     /// A recording played back as if live: in its own time (divided by
@@ -363,7 +396,7 @@ impl Sidecar {
                         buffs = Some(now);
                     }
                 }
-                if !me.meter_on.load(Ordering::SeqCst) {
+                if !me.meter_on.load(Ordering::SeqCst) && !me.training_on.load(Ordering::SeqCst) {
                     continue;
                 }
                 let meter = me.meter.clone();
@@ -434,7 +467,20 @@ impl Sidecar {
                 "capture" => self.set_capture(msg["on"].as_bool().ok_or("no on")?),
                 "meter" => self.meter_on.store(msg["on"].as_bool().ok_or("no on")?, Ordering::SeqCst),
                 "buffs" => self.buffs_on.store(msg["on"].as_bool().ok_or("no on")?, Ordering::SeqCst),
+                "training" => self.training_on.store(msg["on"].as_bool().ok_or("no on")?, Ordering::SeqCst),
                 "dpsReset" => self.meter.reset(),
+                "record" => {
+                    if msg["on"].as_bool().ok_or("no on")? {
+                        let path = self.recorder.lock().start().map_err(|e| {
+                            emit(&event("error", json!({ "detail": format!("recording not started: {e}") })));
+                            "recording not started"
+                        })?;
+                        emit(&event("recording", json!({ "on": true, "path": path.display().to_string() })));
+                    } else {
+                        self.stop_recording();
+                    }
+                }
+                "recordings" => emit(&event("recordings", self.recorder.lock().list())),
                 "history" => {
                     let fights = self.meter.history.get().map(|h| h.list_fights()).unwrap_or_default();
                     emit(&event("history", json!({ "fights": fights })));

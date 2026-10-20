@@ -1,12 +1,27 @@
 <script setup lang="ts">
 // The DPS meter, in a window of its own: open while the game is (and the meter is on), moved by its
-// header, sized to its rows. The numbers are the engine's (A2Tools DPS Meter's parser); this page
-// only draws them. The class icons and colours are A2Tools DPS Meter's too.
+// header, sized to its rows. questlog.gg's layout: the fight's time and total, the target's HP with
+// how long until it dies, then a row per player in their class colour (DPS, share, damage, crit).
+// Hovering shows the switches: which targets, which players, and damage, healing or damage taken.
+// The numbers are the engine's (A2Tools DPS Meter's parser); the class icons and colours are its too.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { bridge } from '@/lib/bridge.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { useApp } from '@/stores/app.ts'
-import { CLASS_COLORS, NO_METER, TARGET_MODE_LABELS, TARGET_MODES, type MeterData, type TargetMode } from '@shared/meter.ts'
+import {
+  CLASS_COLORS,
+  MAIN_TARGET_MODES,
+  METER_PLAYERS,
+  METER_STATS,
+  meterRows,
+  NO_METER,
+  TARGET_MODE_LABELS,
+  timeToKill,
+  type MeterData,
+  type MeterPlayers,
+  type MeterStat,
+  type TargetMode,
+} from '@shared/meter.ts'
 import type { TrackerState } from '@shared/tracker.ts'
 
 const store = useApp()
@@ -22,16 +37,24 @@ const icons = import.meta.glob<string>('@/assets/classes/*.png', { eager: true, 
 const icon = (className: string | null): string | null =>
   className ? (icons[`/src/assets/classes/${className.toLowerCase()}.png`] ?? null) : null
 
-const rows = computed(() => meter.value.rows.slice(0, cfg.value.rows))
-const top = computed(() => Math.max(1, ...meter.value.rows.map((r) => r.damage)))
-const totalDps = computed(() => meter.value.rows.filter((r) => !r.others).reduce((n, r) => n + r.dps, 0))
+const all = computed(() => meterRows(meter.value, cfg.value.players, cfg.value.stat))
+const rows = computed(() => all.value.slice(0, cfg.value.rows))
+const top = computed(() => Math.max(1, ...all.value.map((r) => r.value)))
+const total = computed(() => all.value.reduce((n, r) => n + r.value, 0))
+const totalPerSecond = computed(() => all.value.reduce((n, r) => n + r.perSecond, 0))
+const ttk = computed(() => timeToKill(meter.value))
+const STAT_TITLE: Record<MeterStat, [string, string, string]> = {
+  damage: ['Damage Meter', 'Total damage', 'DPS'],
+  healing: ['Healing', 'Total healing', 'HPS'],
+  taken: ['Damage Taken', 'Total taken', 'per s'],
+}
 
-/** 1234 → 1.2k, 1234567 → 1.23M */
+/** 1234 → 1.2K, 1234567 → 1.23M */
 function short(n: number): string {
   const abs = Math.abs(n)
   if (abs >= 1e9) return `${(n / 1e9).toFixed(2)}B`
   if (abs >= 1e6) return `${(n / 1e6).toFixed(2)}M`
-  if (abs >= 1e4) return `${(n / 1e3).toFixed(1)}k`
+  if (abs >= 1e3) return `${(n / 1e3).toFixed(1)}K`
   return Math.round(n).toLocaleString('en-US')
 }
 const clock = (ms: number): string => {
@@ -59,6 +82,12 @@ const statusDot = computed(
       status.value.state
     ],
 )
+const empty = computed(() => {
+  if (status.value.state === 'error' || status.value.state === 'exited') return status.value.detail ?? STATUS_TEXT[status.value.state]
+  if (status.value.state === 'locked' && !meter.value.meKnown) return 'Detecting character… change zone or log in so the meter knows who you are.'
+  if (meter.value.rows.length) return cfg.value.players === 'me' ? 'None of your damage on this target.' : 'Nothing of this on the target yet.'
+  return STATUS_TEXT[status.value.state]
+})
 
 const drag = windowDrag({ move: 'meter:moveTo', end: 'meter:dragEnd' })
 const reset = (): void => void api.invoke('meter:reset')
@@ -72,10 +101,8 @@ const pingClass = computed(() => {
   const ms = meter.value.ping
   return ms === null ? '' : ms < 80 ? 'text-green' : ms < 150 ? 'text-yellow' : 'text-danger'
 })
-function setMode(e: Event): void {
-  const targetMode = (e.target as HTMLSelectElement).value as TargetMode
-  void api.invoke('settings:set', 'meter', { ...cfg.value, targetMode })
-}
+const set = (patch: Partial<typeof cfg.value>): void => void api.invoke('settings:set', 'meter', { ...cfg.value, ...patch })
+const moreModes = computed(() => !MAIN_TARGET_MODES.some((m) => m.id === cfg.value.targetMode))
 
 /** Tell main how big the window is. */
 let sent = ''
@@ -106,76 +133,118 @@ onBeforeUnmount(() => {
 <template>
   <div class="inline-block">
     <div ref="root" class="inline-block">
-      <div class="m-1.5 w-[300px] rounded-lg border border-card bg-darker shadow-card" :style="{ opacity: cfg.opacity }">
-        <header class="flex cursor-move items-center gap-2 border-b border-card px-2.5 py-1.5" title="Drag to move" @pointerdown="drag.onPointerDown">
-          <span :class="['size-1.5 shrink-0 rounded-full', statusDot]" :title="status.detail ?? STATUS_TEXT[status.state]" />
-          <span class="min-w-0 flex-1 truncate text-[12px] font-semibold text-dark">
-            {{ meter.target?.name || 'DPS' }}
-          </span>
-          <span v-if="meter.battleTime" class="shrink-0 text-[11px] tabular-nums text-darker">{{ clock(meter.battleTime) }}</span>
-          <select
-            class="shrink-0 rounded border border-light bg-dark px-1 py-0.5 text-[10px] text-darker"
-            title="Which target the meter follows"
-            :value="cfg.targetMode"
-            @pointerdown.stop
-            @change="setMode"
-          >
-            <option v-for="m in TARGET_MODES" :key="m" :value="m">{{ TARGET_MODE_LABELS[m] }}</option>
-          </select>
-          <button
-            type="button"
-            class="flex size-5 shrink-0 items-center justify-center rounded text-darker hover:bg-dark hover:text-default"
-            title="Reset the meter"
-            @pointerdown.stop
-            @click="reset"
-          >
-            <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.6">
-              <path d="M13 8a5 5 0 1 1-1.6-3.7M13 3v3h-3" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
+      <div class="group m-1.5 w-[340px] rounded-xl border border-card bg-darker/95 shadow-card" :style="{ opacity: cfg.opacity }">
+        <header class="cursor-move px-3 pb-1.5 pt-2.5" title="Drag to move" @pointerdown="drag.onPointerDown">
+          <div class="flex items-center gap-2">
+            <span :class="['size-1.5 shrink-0 rounded-full', statusDot]" :title="status.detail ?? STATUS_TEXT[status.state]" />
+            <span class="min-w-0 flex-1 truncate text-[13px] font-semibold text-default">
+              {{ STAT_TITLE[cfg.stat][0] }}<span v-if="meter.battleTime" class="font-normal text-darker"> ({{ clock(meter.battleTime) }})</span>
+            </span>
+            <span class="max-w-[120px] truncate text-[11px] text-darker" :title="meter.target?.name">{{ meter.target?.name }}</span>
+            <button
+              type="button"
+              class="flex size-5 shrink-0 items-center justify-center rounded text-darker hover:bg-dark hover:text-default"
+              title="Reset the meter"
+              @pointerdown.stop
+              @click="reset"
+            >
+              <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.6">
+                <path d="M13 8a5 5 0 1 1-1.6-3.7M13 3v3h-3" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+          <div v-if="all.length" class="mt-0.5 flex items-baseline justify-between">
+            <span class="text-[12px] text-darker">{{ STAT_TITLE[cfg.stat][1] }} <span class="font-medium text-dark">{{ short(total) }}</span></span>
+            <span class="text-xl font-bold tabular-nums text-accent">{{ short(totalPerSecond) }}<span class="ml-0.5 text-[11px] font-medium text-darker">{{ STAT_TITLE[cfg.stat][2] }}</span></span>
+          </div>
         </header>
 
-        <div v-if="hpShare !== null" class="px-2.5 pt-1.5">
-          <div class="relative h-3 overflow-hidden rounded bg-dark">
+        <!-- The switches, while the pointer is over the meter. -->
+        <div class="hidden flex-wrap gap-1 px-3 pb-1.5 text-[10px] group-hover:flex" @pointerdown.stop>
+          <div class="flex rounded-md bg-dark p-0.5">
+            <button
+              v-for="m in MAIN_TARGET_MODES"
+              :key="m.id"
+              type="button"
+              :class="['rounded px-1.5 py-0.5', cfg.targetMode === m.id ? 'bg-light text-default' : 'text-darker hover:text-default']"
+              @click="set({ targetMode: m.id })"
+            >{{ m.label }}</button>
+            <select
+              :class="['rounded bg-transparent px-1 py-0.5', moreModes ? 'bg-light text-default' : 'text-darker']"
+              title="More ways to pick the target"
+              :value="moreModes ? cfg.targetMode : ''"
+              @change="set({ targetMode: ($event.target as HTMLSelectElement).value as TargetMode })"
+            >
+              <option value="" disabled>More</option>
+              <option v-for="m in ['mostDamage', 'mostRecent', 'trainTargets'] as const" :key="m" :value="m">{{ TARGET_MODE_LABELS[m] }}</option>
+            </select>
+          </div>
+          <div class="flex rounded-md bg-dark p-0.5">
+            <button
+              v-for="p in METER_PLAYERS"
+              :key="p.id"
+              type="button"
+              :class="['rounded px-1.5 py-0.5', cfg.players === p.id ? 'bg-light text-default' : 'text-darker hover:text-default']"
+              @click="set({ players: p.id as MeterPlayers })"
+            >{{ p.label }}</button>
+          </div>
+          <div class="flex rounded-md bg-dark p-0.5">
+            <button
+              v-for="s in METER_STATS"
+              :key="s.id"
+              type="button"
+              :class="['rounded px-1.5 py-0.5', cfg.stat === s.id ? 'bg-light text-default' : 'text-darker hover:text-default']"
+              @click="set({ stat: s.id as MeterStat })"
+            >{{ s.label }}</button>
+          </div>
+        </div>
+
+        <div v-if="hpShare !== null" class="px-3 pb-1.5">
+          <div class="relative h-3.5 overflow-hidden rounded bg-dark">
             <div class="h-full bg-danger/70" :style="{ width: `${hpShare * 100}%` }" />
-            <span class="absolute inset-0 flex items-center justify-center text-[9px] font-semibold tabular-nums text-default">
-              {{ (hpShare * 100).toFixed(1) }}% · {{ short(meter.target!.hp!) }}
+            <span class="absolute inset-0 flex items-center justify-center gap-1.5 text-[9px] font-semibold tabular-nums text-default">
+              {{ (hpShare * 100).toFixed(1) }}% · {{ short(meter.target!.hp!) }}<template v-if="ttk !== null"> · dies in {{ clock(ttk) }}</template>
             </span>
           </div>
         </div>
 
-        <ul v-if="rows.length" class="space-y-0.5 px-1.5 py-1.5">
-          <li
-            v-for="(r, i) in rows"
-            :key="r.id"
-            class="relative cursor-pointer overflow-hidden rounded hover:ring-1 hover:ring-light"
-            :title="`${r.className ?? 'Unknown class'} · ${short(r.damage)} damage · click for skills`"
-            @click="showDetails(r.id)"
-          >
-            <div
-              class="absolute inset-y-0 left-0 opacity-30"
-              :style="{ width: `${(r.damage / top) * 100}%`, background: CLASS_COLORS[r.className ?? ''] ?? '#787b8a' }"
-            />
-            <div class="relative flex items-center gap-1.5 px-1 py-0.5 text-[12px]">
-              <span class="w-3 shrink-0 text-right text-[10px] tabular-nums text-darkest">{{ i + 1 }}</span>
-              <img v-if="icon(r.className)" :src="icon(r.className)!" class="size-4 shrink-0" alt="" />
-              <span v-else class="size-4 shrink-0" />
-              <span :class="['min-w-0 flex-1 truncate', r.you ? 'font-semibold text-yellow' : 'text-dark']">{{ r.name }}</span>
-              <span class="shrink-0 tabular-nums text-dark">{{ short(r.dps) }}</span>
-              <span class="w-10 shrink-0 text-right text-[10px] tabular-nums text-darker">{{ r.share.toFixed(1) }}%</span>
-            </div>
-          </li>
-        </ul>
-        <p v-else class="px-2.5 py-2 text-[11px] text-darker">
-          {{ status.state === 'error' || status.state === 'exited' ? status.detail : STATUS_TEXT[status.state] }}
-        </p>
+        <template v-if="rows.length">
+          <div class="flex items-center gap-1.5 px-3 pb-1 text-[10px] text-darkest">
+            <span class="min-w-0 flex-1 pl-6">Player</span>
+            <span class="w-12 text-right">{{ STAT_TITLE[cfg.stat][2] }}</span>
+            <span class="w-10 text-right">Share</span>
+            <span class="w-12 text-right">{{ cfg.stat === 'taken' ? 'Taken' : cfg.stat === 'healing' ? 'Healed' : 'Damage' }}</span>
+            <span v-if="cfg.stat === 'damage'" class="w-8 text-right">Crit</span>
+          </div>
+          <ul class="space-y-0.5 px-1.5 pb-1.5">
+            <li
+              v-for="r in rows"
+              :key="r.id"
+              :class="['relative cursor-pointer overflow-hidden rounded-md bg-dark', r.you ? 'ring-1 ring-accent' : 'hover:ring-1 hover:ring-light']"
+              :title="`${r.className ?? 'Unknown class'} · click for the details`"
+              @click="showDetails(r.id)"
+            >
+              <div class="absolute inset-y-0 left-0 opacity-50" :style="{ width: `${(r.value / top) * 100}%`, background: CLASS_COLORS[r.className ?? ''] ?? '#787b8a' }" />
+              <div class="relative flex items-center gap-1.5 px-1.5 py-1 text-[12px]">
+                <img v-if="icon(r.className)" :src="icon(r.className)!" class="size-4 shrink-0" alt="" />
+                <span v-else class="size-4 shrink-0" />
+                <span :class="['min-w-0 flex-1 truncate font-medium', r.you ? 'text-accent' : 'text-default']">{{ r.name }}</span>
+                <span class="w-12 text-right font-semibold tabular-nums text-default">{{ short(r.perSecond) }}</span>
+                <span class="w-10 text-right tabular-nums text-dark">{{ r.part.toFixed(1) }}%</span>
+                <span class="w-12 text-right tabular-nums text-dark">{{ short(r.value) }}</span>
+                <span v-if="cfg.stat === 'damage'" :class="['w-8 text-right tabular-nums', r.you ? 'text-green' : 'text-dark']">{{ Math.round(r.critRate * 100) }}%</span>
+              </div>
+            </li>
+          </ul>
+        </template>
+        <p v-else class="px-3 pb-2.5 text-[11px] text-darker">{{ empty }}</p>
 
-        <footer v-if="rows.length > 1 || meter.ping !== null" class="flex gap-2 border-t border-card px-2.5 py-1 text-[10px] tabular-nums text-darkest">
+        <footer v-if="meter.ping !== null || all.length > rows.length" class="flex gap-2 border-t border-card px-3 py-1 text-[10px] tabular-nums text-darkest">
           <span>{{ TARGET_MODE_LABELS[meter.mode] }}</span>
+          <span v-if="all.length > rows.length">+{{ all.length - rows.length }} more</span>
           <span v-if="meter.ping !== null" class="ml-auto" title="Your ping to the game server">
             <span :class="pingClass">{{ meter.ping }}</span> ms
           </span>
-          <span v-if="rows.length > 1" :class="meter.ping === null && 'ml-auto'">party {{ short(totalDps) }}/s</span>
         </footer>
       </div>
     </div>

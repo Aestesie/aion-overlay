@@ -12,6 +12,7 @@ import MapView from '@/components/dashboard/MapView.vue'
 import MeterView from '@/components/dashboard/MeterView.vue'
 import PetsView from '@/components/dashboard/PetsView.vue'
 import SettingsView from '@/components/dashboard/SettingsView.vue'
+import TrainingView from '@/components/dashboard/TrainingView.vue'
 import PetDetail from '@/components/panel/PetDetail.vue'
 import PvpLogTab from '@/components/panel/PvpLogTab.vue'
 import SessionTab from '@/components/panel/SessionTab.vue'
@@ -24,7 +25,7 @@ import { DISPLAY_NAME } from '@shared/app.ts'
 import { serverName } from '@shared/servers.ts'
 import { TIMERS, type TimerId } from '@shared/timers.ts'
 
-type PageId = 'home' | 'meter' | 'map' | 'pets' | 'pvp' | 'buffs' | 'events' | 'bosses' | 'history' | 'session' | 'settings'
+type PageId = 'home' | 'meter' | 'training' | 'map' | 'pets' | 'pvp' | 'buffs' | 'events' | 'bosses' | 'history' | 'session' | 'settings'
 interface Page {
   id: PageId
   label: string
@@ -35,6 +36,7 @@ interface Page {
 const PAGES: Record<PageId, Page> = {
   home: { id: 'home', label: 'Home', icon: 'M2.5 7 8 2.5 13.5 7v6.5h-3.5v-4H6v4H2.5z' },
   meter: { id: 'meter', label: 'Combat Meter', icon: 'M2.5 13.5h11M4.5 11V8M8 11V4.5M11.5 11V6.5' },
+  training: { id: 'training', label: 'Training Dummy', icon: 'M8 14.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8 8h.01' },
   map: { id: 'map', label: 'Map', icon: 'M1.5 4l4.5-2 4 2 4.5-2v10l-4.5 2-4-2-4.5 2zM6 2v10M10 4v10' },
   pets: { id: 'pets', label: 'Pets', icon: 'M5 6.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM11 6.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM3 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM13 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM8 9c-2 0-3.5 2-3.5 3.3 0 1 1 1.2 2.2 1.2.6 0 .9-.3 1.3-.3s.7.3 1.3.3c1.2 0 2.2-.2 2.2-1.2C11.5 11 10 9 8 9Z' },
   pvp: { id: 'pvp', label: 'PvP', icon: 'M3 13 13 3M9.5 3H13v3.5M3 3l4 4M13 13l-3-3' },
@@ -47,7 +49,7 @@ const PAGES: Record<PageId, Page> = {
 }
 const SECTIONS: { title: string | null; pages: PageId[] }[] = [
   { title: null, pages: ['home'] },
-  { title: 'In game', pages: ['meter', 'map', 'pets', 'pvp', 'buffs', 'events', 'bosses'] },
+  { title: 'In game', pages: ['meter', 'training', 'map', 'pets', 'pvp', 'buffs', 'events', 'bosses'] },
   { title: 'Records', pages: ['history', 'session'] },
 ]
 /** The pages kept as they were (their old tabs), with the title and text above them. */
@@ -188,7 +190,7 @@ onBeforeUnmount(() => {
           <svg v-if="!maximized" viewBox="0 0 16 16" class="size-4" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="3.5" y="3.5" width="9" height="9" rx="0.5" /></svg>
           <svg v-else viewBox="0 0 16 16" class="size-4" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M5.5 5.5V3.5h7v7h-2M3.5 5.5h7v7h-7z" /></svg>
         </button>
-        <button type="button" class="flex w-12 items-center justify-center text-darker hover:bg-[#e81123] hover:text-white" title="Close (the app keeps running in the tray)" @click="hide">
+        <button type="button" class="flex w-12 items-center justify-center text-darker hover:bg-[#e81123] hover:text-white" title="Close to the taskbar (quit from the tray icon)" @click="hide">
           <svg viewBox="0 0 16 16" class="size-4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
         </button>
       </div>
@@ -243,6 +245,7 @@ onBeforeUnmount(() => {
           <div v-if="!store.ready" class="py-6 text-center text-sm text-darker">Loading…</div>
           <HomeView v-else-if="page === 'home'" @go="go" />
           <MeterView v-else-if="page === 'meter'" />
+          <TrainingView v-else-if="page === 'training'" />
           <MapView v-else-if="page === 'map'" />
           <template v-else-if="page === 'pets'">
             <PetDetail v-if="store.openPetId !== null" :id="store.openPetId" class="-mx-3 h-[calc(100vh-7rem)]" />

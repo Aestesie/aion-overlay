@@ -62,6 +62,8 @@ const overlays = computed<Overlay[]>(() => {
     { id: 'meter', name: 'Damage meter', about: 'You and your party, live', page: 'meter', on: s.meter.enabled, set: flip('meter', 'enabled') },
     { id: 'skills', name: 'My skills', about: 'Your damage, skill by skill', page: 'meter', on: s.skills.enabled, set: flip('skills', 'enabled') },
     { id: 'buffs', name: 'Buffs', about: 'What is on you, and for how long', page: 'buffs', on: s.buffs.enabled, set: flip('buffs', 'enabled') },
+    { id: 'cc', name: 'CC / Debuffs', about: 'When you are stunned, rooted, feared…', page: 'buffs', on: s.buffs.cc, set: flip('buffs', 'cc') },
+    { id: 'training', name: 'Training', about: 'Training dummy runs: clock and DPS', page: 'training', on: s.dummy.overlay, set: flip('dummy', 'overlay') },
     { id: 'minimap', name: 'Map', about: 'Your zone, tracked pets, cubes', page: 'map', on: s.minimap.enabled, set: flip('minimap', 'enabled') },
     { id: 'timerBar', name: 'Countdown bar', about: 'Events with an alert on', page: 'events', on: s.timerBar.enabled, set: flip('timerBar', 'enabled') },
     {

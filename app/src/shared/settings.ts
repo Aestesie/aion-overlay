@@ -3,7 +3,8 @@
  * file or a renderer bug can never store something the app then trips over.
  */
 
-import { TARGET_MODES, type TargetMode } from './meter.ts'
+import { DUMMY_DAMAGE_GOALS, DUMMY_LIMITS, type DummyGoal } from './dummy.ts'
+import { TARGET_MODES, type MeterPlayers, type MeterStat, type TargetMode } from './meter.ts'
 import { defaultShown, leadChoices, REGIONS, TIMERS, type Region, type TimerId } from './timers.ts'
 
 export interface Point {
@@ -70,8 +71,27 @@ export interface Settings {
   /**
    * Your buffs and debuffs over the game: each one's icon, stacks and time left (A2Tools DPS
    * Meter's buff timeline). Icons `size` px, `perRow` to a row; debuffs on a row of their own.
+   * `cc`: the CC / Debuffs panel, a banner mid-screen while you are stunned, rooted, knocked down...
+   * (with the monsters' other debuffs on you under it, `ccDebuffs`); where it sits, `ccPosition`.
    */
-  buffs: { enabled: boolean; position: Point | null; opacity: number; size: number; perRow: number; debuffs: boolean; passives: boolean }
+  buffs: {
+    enabled: boolean
+    position: Point | null
+    opacity: number
+    size: number
+    perRow: number
+    debuffs: boolean
+    passives: boolean
+    cc: boolean
+    ccPosition: Point | null
+    ccDebuffs: boolean
+  }
+
+  /**
+   * Training dummy runs: their goal (a time limit, or damage), whether a run starts by itself with
+   * your first hit on a dummy (and its clock with it), and the Training overlay over the game.
+   */
+  dummy: { overlay: boolean; position: Point | null; autoStart: boolean; goal: DummyGoal; limitMs: number | null; damageGoal: number }
 
   /** Your own skills on the meter's target, as a window of their own. */
   skills: { enabled: boolean; position: Point | null; rows: number; opacity: number }
@@ -83,6 +103,9 @@ export interface Settings {
     position: Point | null
     /** Which target it follows. */
     targetMode: TargetMode
+    /** Which players it lists, and what it ranks them by. */
+    players: MeterPlayers
+    stat: MeterStat
     /** How many players it lists. */
     rows: number
     opacity: number
@@ -175,8 +198,9 @@ export const SETTINGS_DEFAULTS: Settings = {
   timerBar: { enabled: true, position: null, opacity: 0.92 },
   killFeed: { open: false, position: null },
   skills: { enabled: true, position: null, rows: 6, opacity: 0.92 },
-  buffs: { enabled: true, position: null, opacity: 0.92, size: 34, perRow: 10, debuffs: true, passives: false },
-  meter: { enabled: true, position: null, targetMode: 'bossTargets', rows: 8, opacity: 0.92 },
+  dummy: { overlay: true, position: null, autoStart: true, goal: 'time', limitMs: 60_000, damageGoal: 10e6 },
+  buffs: { enabled: true, position: null, opacity: 0.92, size: 34, perRow: 10, debuffs: true, passives: false, cc: true, ccPosition: null, ccDebuffs: false },
+  meter: { enabled: true, position: null, targetMode: 'bossTargets', players: 'party', stat: 'damage', rows: 8, opacity: 0.92 },
   hideFromCapture: false,
   faction: 'elyos',
   playerLevel: null,
@@ -309,6 +333,20 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         perRow: Math.round(num(v.perRow, 4, 20, d.buffs.perRow)),
         debuffs: bool(v.debuffs, d.buffs.debuffs),
         passives: bool(v.passives, d.buffs.passives),
+        cc: bool(v.cc, d.buffs.cc),
+        ccPosition: point(v.ccPosition),
+        ccDebuffs: bool(v.ccDebuffs, d.buffs.ccDebuffs),
+      } as Settings[K]
+    }
+    case 'dummy': {
+      const v = (value ?? {}) as Partial<Settings['dummy']>
+      return {
+        overlay: bool(v.overlay, d.dummy.overlay),
+        position: point(v.position),
+        autoStart: bool(v.autoStart, d.dummy.autoStart),
+        goal: v.goal === 'damage' ? 'damage' : 'time',
+        limitMs: v.limitMs === null || DUMMY_LIMITS.some((l) => l.id === v.limitMs) ? (v.limitMs ?? null) : d.dummy.limitMs,
+        damageGoal: DUMMY_DAMAGE_GOALS.includes(v.damageGoal as number) ? (v.damageGoal as number) : d.dummy.damageGoal,
       } as Settings[K]
     }
     case 'meter': {
@@ -317,6 +355,8 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         enabled: bool(v.enabled, d.meter.enabled),
         position: point(v.position),
         targetMode: (TARGET_MODES as readonly unknown[]).includes(v.targetMode) ? v.targetMode : d.meter.targetMode,
+        players: v.players === 'me' || v.players === 'all' ? v.players : 'party',
+        stat: v.stat === 'healing' || v.stat === 'taken' ? v.stat : 'damage',
         rows: Math.round(num(v.rows, 1, 24, d.meter.rows)),
         opacity: num(v.opacity, 0.3, 1, d.meter.opacity),
       } as Settings[K]

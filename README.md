@@ -34,10 +34,14 @@ to keep opening the Pets menu.
   you have not maxed, with where their soul monsters spawn.
 - **One collection per server:** as in the game, your characters on a server share one; one on
   another server has its own.
-- **DPS meter:** its own window while you play, from A2Tools DPS Meter's parser: everyone hitting
-  your target, the target's HP, the fight's time and your ping. Click a player for their skills
-  (damage, hits, crit rate, biggest hit, buffs); boss fights are saved, and the History page
-  opens them again.
+- **DPS meter:** its own window while you play, from A2Tools DPS Meter's parser: damage, healing or
+  damage taken; all targets, bosses or your target; only you, you and your party, or everyone. The
+  target's HP and time to kill, crit rates and your ping. Click a player for their details: skills,
+  hits (crits, back attacks, perfect, multi-hits), defense, rotation and buffs. Boss fights are
+  saved, and the History page opens them again.
+- **Training dummy:** runs against the clock or to a damage goal, saved, and compared two at a
+  time, skill by skill.
+- **Recordings:** the game's traffic during a fight, kept to replay it in the engine after a patch.
 - **Stays out of the way:** it sits in the tray and sleeps while Aion 2 is closed, waking when the
   game starts.
 - And whatever else I randomly find useful while I play Aion2. :D

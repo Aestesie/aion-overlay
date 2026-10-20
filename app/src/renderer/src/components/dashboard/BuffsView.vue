@@ -37,8 +37,8 @@ const pct = (v: number): string => `${Math.round(v * 100)}%`
     <PageHeader title="Buffs" about="The buffs and debuffs on your character, read from the game's traffic, with what is left of each. A fight's buffs, every player's and the target's, are in its Details window." />
 
     <Section title="On you now" icon="M8 1.5 9.8 6l4.7.4-3.6 3 1.1 4.6L8 11.6 4 14l1.1-4.6-3.6-3L6.2 6z" bare>
-      <div v-if="!cfg.enabled" class="rounded-xl border border-dashed border-card px-4 py-8 text-center text-sm text-darker">
-        Turn on the buffs overlay below: your buffs are only read while it is on.
+      <div v-if="!cfg.enabled && !cfg.cc" class="rounded-xl border border-dashed border-card px-4 py-8 text-center text-sm text-darker">
+        Turn on the buffs overlay or the CC panel below: your buffs are only read while one is on.
       </div>
       <div v-else-if="!live.length" class="rounded-xl border border-dashed border-card px-4 py-8 text-center text-sm text-darker">
         Nothing on you yet. Buffs show up as the game applies them (after a zone change, everything on you is listed).
@@ -79,6 +79,15 @@ const pct = (v: number): string => `${Math.round(v * 100)}%`
           </template>
         </table>
       </div>
+    </Section>
+
+    <Section title="CC / Debuffs" icon="M8 1.5v3M3.5 3.5l2 2M12.5 3.5l-2 2M5 9.5a3 3 0 1 0 6 0 3 3 0 0 0-6 0z">
+      <SettingRow label="Show when I lose control" hint="A banner mid-screen while you are stunned, knocked down, rooted, feared, silenced... with the seconds left. Clicks pass through it; while this window is open it shows a preview you can drag into place.">
+        <Toggle :model-value="cfg.cc" @update:model-value="set({ cc: $event })" />
+      </SettingRow>
+      <SettingRow v-if="cfg.cc" label="Monsters' other debuffs" hint="Under the banner: the other debuffs monsters put on you (poisons, slows...), with their time left.">
+        <Toggle :model-value="cfg.ccDebuffs" @update:model-value="set({ ccDebuffs: $event })" />
+      </SettingRow>
     </Section>
 
     <Section title="Buffs overlay" icon="M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z">

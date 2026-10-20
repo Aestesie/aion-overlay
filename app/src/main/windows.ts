@@ -2,13 +2,15 @@
  * The app's three windows, all loading the same renderer on different routes:
  *
  *   bubble  #/bubble  a small floating icon: drag it anywhere, click it to open the panel
- *   panel   #/panel   the dashboard: the app itself, a window of its own the bubble opens
+ *   panel   #/panel   the dashboard: the app itself, always in the taskbar; the bubble brings it up
  *   hud       #/hud       the in-game overlay: click-through, sized to its content
  *   merchant  #/merchant  the Black Cloud Merchant's pets worth buying: opened when a tab of the
  *                         shop is, always movable, closed with its X
  *   minimap   #/minimap   the map overlay: your zone around you, tracked pets' spawns, Hidden Cubes
  *   skills    #/skills    your own damage on the meter's target, skill by skill: with the meter
  *   buffs     #/buffs     your buffs and debuffs, with what is left of each
+ *   training  #/training  the Training overlay: a training dummy run's clock and DPS, start and stop
+ *   cc        #/cc        the CC / Debuffs banner: stunned, rooted... while it lasts; click-through
  *   details   #/details   a fight's breakdown by player and skill: opened from a meter row or a
  *                         saved fight in the History page, moved by its header, closed with its X
  *   timerbar  #/timerbar  the timers with an alert on, as a bar of countdowns: open while the game
@@ -64,8 +66,9 @@ export function onPanelVisible(fn: (visible: boolean) => void): () => void {
   return () => panelListeners.delete(fn)
 }
 
+/** The dashboard is up on screen: shown and not minimised to the taskbar. */
 export function panelVisible(): boolean {
-  return alive(panel) && panel.isVisible()
+  return alive(panel) && panel.isVisible() && !panel.isMinimized()
 }
 
 export function markQuitting(): void {
@@ -196,9 +199,10 @@ function dashboardBounds(): Rectangle {
 }
 
 /**
- * The dashboard: the app itself, a window of its own (not an overlay): resizable, in the taskbar,
- * with its own title bar (DashboardPage). Not transparent, as Windows will not resize a transparent
- * window. Its X hides it; only quitting closes it.
+ * The dashboard: the app itself, a window of its own (not an overlay): resizable, always in the
+ * taskbar, with its own title bar (DashboardPage). Opened when the app starts; its X (and Alt+F4)
+ * minimises it to the taskbar, and only quitting (the tray) closes it. Not transparent, as Windows
+ * will not resize a transparent window.
  */
 export function createPanel(): BrowserWindow {
   if (alive(panel)) return panel
@@ -223,6 +227,9 @@ export function createPanel(): BrowserWindow {
     event.preventDefault()
     hidePanel()
   })
+  // Minimised from the taskbar or its own button, and back.
+  win.on('minimize', () => panelShown(false))
+  win.on('restore', () => panelShown(true))
   win.on('closed', () => (panel = null))
   // Its size and place are remembered as they change (not maximised or minimised ones).
   let saveTimer: NodeJS.Timeout | null = null
@@ -249,10 +256,7 @@ export function showPanel(): void {
     if (win.isMinimized()) win.restore()
     win.show()
     win.focus()
-    broadcast('panel:visible', true)
-    for (const fn of panelListeners) fn(true)
-    // While the panel is open the HUD can be moved: it shows (even when empty) and takes the mouse.
-    setHudEditing(true, false)
+    panelShown(true)
   }
   if (win.webContents.isLoading()) win.once('ready-to-show', reveal)
   else reveal()
@@ -293,18 +297,26 @@ function sendToPanel<C extends 'panel:showPet' | 'panel:showTimers'>(channel: C,
   else send()
 }
 
+/** The dashboard's X: down to the taskbar, where it stays. */
 export function hidePanel(): void {
-  if (!alive(panel)) return
-  awayHidden.delete(panel)
-  panel.hide()
-  broadcast('panel:visible', false)
-  for (const fn of panelListeners) fn(false)
-  // Back to click-through, so the HUD never catches a click meant for the game.
-  setHudEditing(false)
+  if (alive(panel) && !panel.isMinimized()) panel.minimize()
+}
+
+/** The dashboard came up on screen, or went down to the taskbar. */
+let panelUp = false
+function panelShown(up: boolean): void {
+  if (up === panelUp) return
+  panelUp = up
+  broadcast('panel:visible', up)
+  for (const fn of panelListeners) fn(up)
+  // While the panel is up the HUD can be moved: it shows (even when empty) and takes the mouse.
+  // Down, back to click-through, so the HUD never catches a click meant for the game.
+  setHudEditing(up, false)
+  for (const m of MEASURED) m.panelUp(up)
 }
 
 export function togglePanel(): void {
-  if (alive(panel) && panel.isVisible()) hidePanel()
+  if (panelVisible()) hidePanel()
   else showPanel()
 }
 
@@ -508,7 +520,15 @@ export function meterDragEnded(): void {
  * An overlay that sizes itself to its page (which reports 0 x 0 with nothing to show, and is then
  * kept hidden), moved by its header, its position saved in its own setting.
  */
-function measuredOverlay(o: { route: string; enabled: () => boolean; saved: () => Point | null; fallback: () => Point; save: (p: Point) => void }) {
+function measuredOverlay(o: {
+  route: string
+  enabled: () => boolean
+  saved: () => Point | null
+  fallback: () => Point
+  save: (p: Point) => void
+  /** Clicks go through to the game, except while the dashboard is up (to move it). */
+  clickThrough?: boolean
+}) {
   let win: BrowserWindow | null = null
   let size = { width: 0, height: 0 }
   const position = (): Point => o.saved() ?? o.fallback()
@@ -528,7 +548,8 @@ function measuredOverlay(o: { route: string; enabled: () => boolean; saved: () =
     create(): void {
       if (!o.enabled() || alive(win)) return
       const p = position()
-      const w = overlayWindow({ x: p.x, y: p.y, width: 300, height: 120 })
+      const w = overlayWindow({ x: p.x, y: p.y, width: 300, height: 120, ...(o.clickThrough ? { focusable: false } : {}) })
+      if (o.clickThrough && !panelVisible()) w.setIgnoreMouseEvents(true)
       win = w
       size = { width: 0, height: 0 }
       w.on('closed', () => {
@@ -541,6 +562,10 @@ function measuredOverlay(o: { route: string; enabled: () => boolean; saved: () =
       win = null
     },
     refresh,
+    /** The dashboard came up (it can be moved) or went down (clicks pass through). */
+    panelUp(up: boolean): void {
+      if (o.clickThrough && alive(win)) win.setIgnoreMouseEvents(!up)
+    },
     resize(to: { width: number; height: number }): void {
       size = { width: Math.ceil(to.width), height: Math.ceil(to.height) }
       refresh()
@@ -605,13 +630,44 @@ export const resizeBuffs = buffsOverlay.resize
 export const moveBuffs = buffsOverlay.move
 export const buffsDragEnded = buffsOverlay.dragEnded
 
-const MEASURED = [skillsOverlay, miniMapOverlay, buffsOverlay]
+const ccOverlay = measuredOverlay({
+  route: 'cc',
+  enabled: () => settings.get('buffs').cc,
+  saved: () => settings.get('buffs').ccPosition,
+  fallback: () => {
+    const area = screen.getPrimaryDisplay().workArea
+    return { x: Math.round(area.x + area.width / 2 - 190), y: Math.round(area.y + area.height * 0.28) }
+  },
+  save: (ccPosition) => settings.set('buffs', { ...settings.get('buffs'), ccPosition }),
+  clickThrough: true,
+})
+export const createCc = ccOverlay.create
+export const resizeCc = ccOverlay.resize
+export const moveCc = ccOverlay.move
+export const ccDragEnded = ccOverlay.dragEnded
+
+const trainingOverlay = measuredOverlay({
+  route: 'training',
+  enabled: () => settings.get('dummy').overlay,
+  saved: () => settings.get('dummy').position,
+  fallback: () => {
+    const area = screen.getPrimaryDisplay().workArea
+    return { x: area.x + area.width - 300 - EDGE, y: Math.round(area.y + area.height * 0.3) }
+  },
+  save: (position) => settings.set('dummy', { ...settings.get('dummy'), position }),
+})
+export const createTraining = trainingOverlay.create
+export const resizeTraining = trainingOverlay.resize
+export const moveTraining = trainingOverlay.move
+export const trainingDragEnded = trainingOverlay.dragEnded
+
+const MEASURED = [skillsOverlay, miniMapOverlay, buffsOverlay, ccOverlay, trainingOverlay]
 /** The measured overlays that are open. */
 const measuredWins = (): BrowserWindow[] => MEASURED.map((m) => m.win()).filter((w): w is BrowserWindow => w !== null)
 
 // ---- details ----------------------------------------------------------------------------------
 
-const DETAILS_SIZE = { width: 520, height: 600 }
+const DETAILS_SIZE = { width: 600, height: 720 }
 
 function detailsPosition(): Point {
   const saved = settings.get('detailsWindow')
@@ -833,15 +889,18 @@ export function setForeground(game: boolean, app: boolean): void {
   if (away) {
     awayTimer = setTimeout(() => {
       gameAway = true
-      for (const win of [bubble, panel, hud, merchant, meter, killFeed, timerBar, details, ...measuredWins()]) {
+      for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, details, ...measuredWins()]) {
         if (!alive(win) || !win.isVisible()) continue
         awayHidden.add(win)
         win.hide()
       }
+      // The dashboard stays in the taskbar: it only stops sitting above the other program.
+      if (alive(panel)) panel.setAlwaysOnTop(false)
     }, AWAY_GRACE_MS)
     return
   }
   gameAway = false
+  if (alive(panel)) panel.setAlwaysOnTop(settings.get('panelOnTop'), 'screen-saver')
   restoreHidden()
 }
 
@@ -876,13 +935,17 @@ export function applyWindowSettings(): void {
   else if (alive(bubble)) createSkills()
   if (!settings.get('buffs').enabled) closeBuffs()
   else if (alive(bubble)) createBuffs()
+  if (!settings.get('buffs').cc) ccOverlay.close()
+  else if (alive(bubble)) createCc()
+  if (!settings.get('dummy').overlay) trainingOverlay.close()
+  else if (alive(bubble)) createTraining()
   // Turned on: with the other overlays, while they are up (the bubble is, awake).
   if (!settings.get('timerBar').enabled) closeTimerBar()
   else if (alive(bubble)) createTimerBar()
   if (!settings.get('hud').merchant) closeMerchant()
   if (!settings.get('meter').enabled) closeMeter()
   if (gameAway && !settings.get('hideWhenGameAway')) setForeground(true, false)
-  if (alive(panel)) {
+  if (alive(panel) && !gameAway) {
     const onTop = settings.get('panelOnTop')
     panel.setAlwaysOnTop(onTop, 'screen-saver')
   }
@@ -890,8 +953,8 @@ export function applyWindowSettings(): void {
 }
 
 /**
- * Close the bubble, the HUD, the merchant window and the meter, and the panel if it is hidden: a
- * window that is only hidden keeps its renderer process. An open panel stays open.
+ * Close the bubble, the HUD, the merchant window and the meter. The dashboard stays: it is the app,
+ * in the taskbar.
  */
 export function closeOverlays(): void {
   for (const win of [bubble, hud, merchant, meter, killFeed, timerBar]) if (alive(win)) win.destroy()
@@ -905,10 +968,7 @@ export function closeOverlays(): void {
   awayHidden.clear()
   hudEditing = false
   hudSize = { width: 0, height: 0 }
-  if (alive(panel) && !panel.isVisible()) {
-    panel.destroy()
-    panel = null
-  }
+
 }
 
 /**
@@ -938,7 +998,7 @@ export function rebuildWindow(win: BrowserWindow): string | null {
     showMerchant()
     return 'merchant'
   }
-  for (const [m, route] of [[skillsOverlay, 'skills'], [miniMapOverlay, 'minimap'], [buffsOverlay, 'buffs']] as const) {
+  for (const [m, route] of [[skillsOverlay, 'skills'], [miniMapOverlay, 'minimap'], [buffsOverlay, 'buffs'], [ccOverlay, 'cc'], [trainingOverlay, 'training']] as const) {
     if (win !== m.win()) continue
     m.close()
     m.create()
@@ -970,10 +1030,12 @@ export function rebuildWindow(win: BrowserWindow): string | null {
     return 'meter'
   }
   if (win === panel) {
-    const visible = win.isVisible()
+    const up = panelVisible()
     win.destroy()
     panel = null
-    if (visible) showPanel()
+    showPanel()
+    // It was down in the taskbar: back there.
+    if (!up) hidePanel()
     return 'panel'
   }
   return null

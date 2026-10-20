@@ -87,14 +87,81 @@ impl Meter {
         dispatcher
     }
 
-    /// The meter as the app shows it, as JSON (`DpsData`, camelCase).
+    /// The meter as the app shows it, as JSON (`DpsData`, camelCase), each row
+    /// with what upstream's own row leaves out: `critRate` (0..1 of its hits),
+    /// `taken` (damage it took from the targets on the meter), and `party`
+    /// (in your party's roster). And `train`: your own damage on training
+    /// dummies, whatever the meter follows, for timing training runs:
+    /// `{"damage", "target": the dummy you hit last, "lastHit": ms}` or null.
     pub fn dps(&self) -> serde_json::Value {
-        serde_json::to_value(self.calculator.lock().get_dps()).unwrap_or_default()
+        let data = self.calculator.lock().get_dps();
+        let mut out = serde_json::to_value(&data).unwrap_or_default();
+        let targets: Vec<i32> = if data.detail_target_ids.is_empty() { vec![data.target_id] } else { data.detail_target_ids.clone() };
+        let fights = self.storage.get_combat_snapshot_light();
+        let party = self.storage.get_party_members();
+        for (id, row) in &data.map {
+            let (crits, hits) = row.analyzed_data.values().fold((0i64, 0i64), |(c, h), s| (c + i64::from(s.crit_times), h + i64::from(s.times)));
+            let taken: i64 = targets.iter().filter_map(|t| fights.get(t)?.actors.get(id)).map(|a| a.damage_received).sum();
+            let entry = &mut out["map"][id.to_string()];
+            if entry.is_object() {
+                entry["critRate"] = serde_json::json!(if hits > 0 { crits as f64 / hits as f64 } else { 0.0 });
+                entry["taken"] = serde_json::json!(taken);
+                entry["party"] = serde_json::json!(party.contains_key(&row.nickname));
+            }
+        }
+        out["train"] = self.train(&fights);
+        out
     }
 
-    /// One target's breakdown by skill, for the given players (all when none).
+    /// Your damage (and your summons') on every training dummy fought since
+    /// the combat data was last cleared, and the dummy you hit last.
+    fn train(
+        &self,
+        fights: &std::collections::HashMap<i32, a2tools_dps_meter_lib::combat::data_storage::TargetCombatData>,
+    ) -> serde_json::Value {
+        let Some(me) = self.storage.local_player_id().and_then(|id| i32::try_from(id).ok()) else {
+            return serde_json::Value::Null;
+        };
+        let summons = self.storage.get_summon_data();
+        let mut damage = 0i64;
+        let mut last: Option<(i64, i32)> = None;
+        for (&tid, fight) in fights {
+            let dummy = match self.storage.mob_code(tid) {
+                Some(code) => self.npcs.is_training_dummy(code),
+                None => self.storage.is_hp_reset_dummy(tid),
+            };
+            if !dummy {
+                continue;
+            }
+            for (&actor, a) in &fight.actors {
+                if a2tools_dps_meter_lib::entity::summon_resolver::resolve(actor, &summons) != me || a.total_damage <= 0 {
+                    continue;
+                }
+                damage += a.total_damage;
+                if last.is_none_or(|(at, _)| a.last_damage_time > at) {
+                    last = Some((a.last_damage_time, tid));
+                }
+            }
+        }
+        match last {
+            Some((at, target)) => serde_json::json!({ "damage": damage, "target": target, "lastHit": at }),
+            None => serde_json::Value::Null,
+        }
+    }
+
+    /// One target's breakdown by skill, for the given players (all when none),
+    /// with each player's `defense` on it: damage and hits taken, and healing.
     pub fn details(&self, target: i32, actors: Option<&[i32]>) -> serde_json::Value {
-        serde_json::to_value(self.calculator.lock().get_target_details(target, actors)).unwrap_or_default()
+        let mut out = serde_json::to_value(self.calculator.lock().get_target_details(target, actors)).unwrap_or_default();
+        if let Some(fight) = self.storage.get_combat_snapshot_light().get(&target) {
+            let defense: serde_json::Map<String, serde_json::Value> = fight
+                .actors
+                .iter()
+                .map(|(id, a)| (id.to_string(), serde_json::json!({ "taken": a.damage_received, "hitsTaken": a.hits_received, "heal": a.party_heal })))
+                .collect();
+            out["defense"] = serde_json::Value::Object(defense);
+        }
+        out
     }
 
     /// The buffs and debuffs of the live fight on `target` so far (upstream's

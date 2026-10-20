@@ -1,9 +1,10 @@
 <script setup lang="ts">
-// A fight's breakdown: every player's damage (and healing), and the chosen player's skills, from
-// A2Tools DPS Meter's parser; and its Buffs (upstream's Details Buffs section, buffTimeline.js):
-// what was on the chosen player and on the target, each a bar of when it was on, with its uptime. Opened on the live target from a meter row (it follows the fight,
-// redrawn every second), or on a saved fight from the History page. Moved by its header; its X
-// closes it.
+// A fight's breakdown, questlog.gg's way: the players ranked, then the chosen one's card (rank,
+// class, combat power; DPS, damage, contribution, time active) and tabs: Skills, Hits (crits, back
+// attacks, perfect, double, multi-hits), Defense (damage taken, healing), Rotation (when each skill
+// landed), Buffs (A2Tools DPS Meter's buff timeline, as its Details does) and Healing. From A2Tools
+// DPS Meter's parser. Opened on the live target from a meter row (it follows the fight, redrawn
+// every second), or on a saved fight from the History page. Moved by its header; its X closes it.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import BuffIcon from '@/components/BuffIcon.vue'
 import SkillIcon from '@/components/SkillIcon.vue'
@@ -14,13 +15,22 @@ import { CLASS_COLORS, type DetailsSkill, type DetailsView } from '@shared/meter
 import { trackSegments, type BuffTrack } from '@shared/buffs.ts'
 
 const LIVE_EVERY_MS = 1000
+type Tab = 'skills' | 'hits' | 'defense' | 'rotation' | 'buffs' | 'healing'
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'skills', label: 'Skills' },
+  { id: 'hits', label: 'Hits' },
+  { id: 'defense', label: 'Defense' },
+  { id: 'rotation', label: 'Rotation' },
+  { id: 'buffs', label: 'Buffs' },
+  { id: 'healing', label: 'Healing' },
+]
 
 const api = bridge()
 const view = ref<DetailsView | null>(null)
 const loading = ref(true)
-/** The player whose skills are listed; the one asked for, else the top one. */
+/** The player whose card is shown; the one asked for, else the top one. */
 const chosen = ref<number | null>(null)
-const tab = ref<'damage' | 'healing' | 'buffs'>('damage')
+const tab = ref<Tab>('skills')
 
 const icons = import.meta.glob<string>('@/assets/classes/*.png', { eager: true, import: 'default' })
 const icon = (className: string | null): string | null =>
@@ -30,20 +40,81 @@ function short(n: number): string {
   const abs = Math.abs(n)
   if (abs >= 1e9) return `${(n / 1e9).toFixed(2)}B`
   if (abs >= 1e6) return `${(n / 1e6).toFixed(2)}M`
-  if (abs >= 1e4) return `${(n / 1e3).toFixed(1)}k`
+  if (abs >= 1e3) return `${(n / 1e3).toFixed(1)}K`
   return Math.round(n).toLocaleString('en-US')
 }
 const clock = (ms: number): string => {
   const s = Math.floor(ms / 1000)
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
-const pct = (n: number, of: number): string => (of > 0 ? `${((n / of) * 100).toFixed(1)}%` : '-')
+const pct = (n: number, of: number): string => (of > 0 ? `${((n / of) * 100).toFixed(0)}%` : '-')
 
 const live = computed(() => view.value?.source.kind === 'live')
-const actor = computed(() => view.value?.actors.find((a) => a.id === chosen.value) ?? view.value?.actors[0] ?? null)
-const top = computed(() => Math.max(1, ...(view.value?.actors.map((a) => (tab.value === 'healing' ? a.heal : a.damage)) ?? [])))
-const listed = computed(() => (view.value?.actors ?? []).filter((a) => (tab.value === 'healing' ? a.heal : a.damage) > 0 || (tab.value === 'buffs' && a.heal > 0)))
+const seconds = computed(() => Math.max(1, (view.value?.battleTime ?? 0) / 1000))
+const ranked = computed(() => (view.value?.actors ?? []).filter((a) => a.damage > 0 || a.heal > 0))
+const actor = computed(() => view.value?.actors.find((a) => a.id === chosen.value) ?? ranked.value[0] ?? null)
+const rank = computed(() => (actor.value ? ranked.value.findIndex((a) => a.id === actor.value!.id) + 1 : 0))
+const top = computed(() => Math.max(1, ...ranked.value.map((a) => a.damage)))
+const color = (className: string | null): string => CLASS_COLORS[className ?? ''] ?? '#787b8a'
 
+const skills = computed<DetailsSkill[]>(() => (view.value?.skills ?? []).filter((s) => s.actor === actor.value?.id))
+const heals = computed<DetailsSkill[]>(() => (view.value?.heals ?? []).filter((s) => s.actor === actor.value?.id))
+const skillTop = computed(() => Math.max(1, ...skills.value.map((s) => s.damage)))
+const healTop = computed(() => Math.max(1, ...heals.value.map((s) => s.damage)))
+/** When the player first and last hit: their time active. */
+const active = computed(() => {
+  const at = skills.value.flatMap((s) => s.at)
+  return at.length ? Math.max(...at) - Math.min(...at) : null
+})
+
+// ---- Hits -----------------------------------------------------------------------------------
+const hits = computed(() => {
+  const sum = (k: keyof DetailsSkill): number => skills.value.reduce((n, s) => n + (s[k] as number), 0)
+  return { hits: sum('hits'), crits: sum('crits'), back: sum('back'), perfect: sum('perfect'), double: sum('double'), parry: sum('parry'), multi: sum('multi') }
+})
+const HIT_CARDS = [
+  { key: 'crits', label: 'Critical' },
+  { key: 'back', label: 'Back attack' },
+  { key: 'perfect', label: 'Perfect' },
+  { key: 'double', label: 'Double' },
+  { key: 'multi', label: 'Multi-hit' },
+  { key: 'parry', label: 'Parried' },
+] as const
+
+// ---- Defense --------------------------------------------------------------------------------
+const defense = computed(() => (actor.value && view.value?.defense ? (view.value.defense[actor.value.id] ?? null) : null))
+const takenRanked = computed(() =>
+  ranked.value
+    .map((a) => ({ a, taken: view.value?.defense?.[a.id]?.taken ?? 0 }))
+    .filter((r) => r.taken > 0)
+    .sort((x, y) => y.taken - x.taken),
+)
+const takenTop = computed(() => Math.max(1, ...takenRanked.value.map((r) => r.taken)))
+
+// ---- Rotation -------------------------------------------------------------------------------
+/** Every hit in order, for the cast sequence: one per skill per 300 ms (a multi-hit is one cast). */
+const sequence = computed(() => {
+  const hitsAt = skills.value.filter((s) => !s.dot).flatMap((s) => s.at.map((t) => ({ t, code: s.code, name: s.name })))
+  hitsAt.sort((a, b) => a.t - b.t)
+  const out: typeof hitsAt = []
+  const lastOf = new Map<number, number>()
+  for (const h of hitsAt) {
+    const last = lastOf.get(h.code)
+    lastOf.set(h.code, h.t)
+    if (last === undefined || h.t - last > 300) out.push(h)
+  }
+  return out
+})
+const lanes = computed(() => {
+  const d = Math.max(1, view.value?.battleTime ?? 1)
+  return [...skills.value]
+    .filter((s) => s.at.length && !s.dot)
+    .sort((a, b) => b.damage - a.damage)
+    .slice(0, 10)
+    .map((s) => ({ s, marks: s.at.map((t) => Math.min(100, Math.max(0, (t / d) * 100))) }))
+})
+
+// ---- Buffs ----------------------------------------------------------------------------------
 /** One buff row: a track, its name, who cast it, its bars (percent of the fight) and uptime. */
 interface BuffRow {
   key: string
@@ -72,11 +143,6 @@ function buffRows(tracks: BuffTrack[], showBy: boolean): BuffRow[] {
 const onActor = computed(() => buffRows((view.value?.buffs?.tracks ?? []).filter((t) => t.on === actor.value?.id && (showPassives.value || !t.passive)), true))
 const onTarget = computed(() => buffRows((view.value?.buffs?.tracks ?? []).filter((t) => t.on === view.value?.buffs?.targetId && (showPassives.value || !t.passive)), true))
 const showPassives = ref(false)
-const skills = computed<DetailsSkill[]>(() => {
-  const all = tab.value === 'damage' ? view.value?.skills : view.value?.heals
-  return (all ?? []).filter((s) => s.actor === actor.value?.id)
-})
-const skillTotal = computed(() => skills.value.reduce((n, s) => n + s.damage, 0))
 const started = computed(() =>
   view.value?.startedAt ? new Date(view.value.startedAt).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : null,
 )
@@ -112,72 +178,197 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex h-screen flex-col overflow-hidden rounded-lg border border-card bg-darker shadow-card">
+  <div class="flex h-screen flex-col overflow-hidden rounded-xl border border-card bg-darker shadow-card">
     <header class="flex cursor-move items-center gap-2 border-b border-card px-3 py-2" title="Drag to move" @pointerdown="drag.onPointerDown">
       <span v-if="live" class="size-1.5 shrink-0 rounded-full bg-green" title="Live: follows the fight" />
       <div class="min-w-0 flex-1">
-        <div class="truncate text-sm font-semibold text-dark">{{ view?.title ?? 'Details' }}</div>
+        <div class="truncate text-sm font-semibold text-default">{{ view?.title ?? 'Details' }}</div>
         <div v-if="view" class="text-[11px] tabular-nums text-darker">
           {{ clock(view.battleTime) }} · {{ short(view.totalDamage) }} damage<template v-if="view.maxHp"> of {{ short(view.maxHp) }} HP</template
           ><template v-if="started"> · {{ started }}</template>
         </div>
       </div>
-      <button
-        type="button"
-        class="flex size-6 shrink-0 items-center justify-center rounded text-darker hover:bg-dark hover:text-default"
-        title="Close"
-        @pointerdown.stop
-        @click="close"
-      >
-        <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.6">
-          <path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round" />
-        </svg>
+      <button type="button" class="flex size-6 shrink-0 items-center justify-center rounded text-darker hover:bg-dark hover:text-default" title="Close" @pointerdown.stop @click="close">
+        <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round" /></svg>
       </button>
     </header>
 
     <p v-if="!view" class="px-3 py-4 text-xs text-darker">{{ loading ? 'Loading…' : 'Nothing to show: the fight is gone, or the engine is not running.' }}</p>
 
     <template v-else>
-      <div class="flex gap-1 px-3 pt-2 text-[11px]">
-        <button
-          v-for="t in ['damage', 'healing', 'buffs'] as const"
-          :key="t"
-          type="button"
-          :class="['rounded-full border px-2.5 py-0.5 capitalize', tab === t ? 'border-accent bg-accent/15 text-default' : 'border-light text-darker hover:text-dark']"
-          @click="tab = t"
-        >
-          {{ t }}
-        </button>
-      </div>
-
-      <ul class="space-y-0.5 px-2 py-2">
+      <!-- The players: click one for their card. -->
+      <ul class="max-h-36 shrink-0 space-y-0.5 overflow-y-auto px-2 py-2">
         <li
-          v-for="a in listed"
+          v-for="(a, i) in ranked"
           :key="a.id"
-          :class="['relative cursor-pointer overflow-hidden rounded', a.id === actor?.id ? 'ring-1 ring-accent' : 'hover:bg-dark']"
+          :class="['relative cursor-pointer overflow-hidden rounded-md bg-dark', a.id === actor?.id ? 'ring-1 ring-accent' : 'hover:ring-1 hover:ring-light']"
           @click="chosen = a.id"
         >
-          <div
-            class="absolute inset-y-0 left-0 opacity-30"
-            :style="{ width: `${((tab === 'healing' ? a.heal : a.damage) / top) * 100}%`, background: CLASS_COLORS[a.className ?? ''] ?? '#787b8a' }"
-          />
+          <div class="absolute inset-y-0 left-0 opacity-40" :style="{ width: `${(a.damage / top) * 100}%`, background: color(a.className) }" />
           <div class="relative flex items-center gap-1.5 px-1.5 py-0.5 text-xs">
+            <span class="w-4 text-right text-[10px] tabular-nums text-darker">{{ i + 1 }}</span>
             <img v-if="icon(a.className)" :src="icon(a.className)!" class="size-4 shrink-0" alt="" />
             <span v-else class="size-4 shrink-0" />
-            <span class="min-w-0 flex-1 truncate text-dark">{{ a.name }}</span>
-            <template v-if="tab !== 'healing'">
-              <span class="shrink-0 tabular-nums text-dark">{{ short(a.dps) }}/s</span>
-              <span class="w-14 shrink-0 text-right tabular-nums text-darker">{{ short(a.damage) }}</span>
-              <span class="w-11 shrink-0 text-right text-[10px] tabular-nums text-darker">{{ a.share.toFixed(1) }}%</span>
-            </template>
-            <span v-else class="shrink-0 tabular-nums text-dark">{{ short(a.heal) }}</span>
+            <span :class="['min-w-0 flex-1 truncate font-medium', a.you ? 'text-accent' : 'text-default']">{{ a.name }}</span>
+            <span class="w-14 text-right font-semibold tabular-nums">{{ short(a.dps) }}</span>
+            <span class="w-11 text-right tabular-nums text-dark">{{ a.share.toFixed(1) }}%</span>
+            <span class="w-14 text-right tabular-nums text-dark">{{ short(a.damage) }}</span>
           </div>
         </li>
       </ul>
 
-      <div v-if="tab === 'buffs'" class="min-h-0 flex-1 overflow-y-auto border-t border-card px-3 py-2 text-[11px]">
-        <p v-if="!view.buffs" class="py-2 text-darker">No buffs recorded for this fight (fights saved before buffs were recorded have none).</p>
-        <template v-else>
+      <!-- The chosen player's card. -->
+      <div v-if="actor" class="shrink-0 border-t border-card px-3 pt-3">
+        <div class="flex items-center gap-3">
+          <img v-if="icon(actor.className)" :src="icon(actor.className)!" class="size-9 shrink-0" alt="" />
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <span :class="['truncate text-lg font-semibold', actor.you ? 'text-accent' : 'text-default']">{{ actor.name }}</span>
+              <span v-if="actor.you" class="rounded bg-accent/20 px-1.5 text-[10px] font-bold text-accent">ME</span>
+            </div>
+            <div class="text-xs text-darker">
+              #{{ rank }} · {{ actor.className ?? 'Unknown class' }}<template v-if="actor.combatPower"> · {{ short(actor.combatPower) }}</template>
+            </div>
+          </div>
+        </div>
+        <div class="mt-3 grid grid-cols-4 gap-2">
+          <div class="rounded-lg bg-dark px-2.5 py-2">
+            <div class="text-[10px] text-darker">DPS</div>
+            <div class="text-base font-semibold tabular-nums">{{ short(actor.dps) }}</div>
+          </div>
+          <div class="rounded-lg bg-dark px-2.5 py-2">
+            <div class="text-[10px] text-darker">Damage</div>
+            <div class="text-base font-semibold tabular-nums">{{ short(actor.damage) }}</div>
+          </div>
+          <div class="rounded-lg bg-dark px-2.5 py-2">
+            <div class="text-[10px] text-darker">Contribution</div>
+            <div class="text-base font-semibold tabular-nums">{{ actor.share.toFixed(1) }}%</div>
+          </div>
+          <div class="rounded-lg bg-dark px-2.5 py-2">
+            <div class="text-[10px] text-darker">Active</div>
+            <div class="text-base font-semibold tabular-nums">{{ active !== null ? clock(active) : '-' }}<span class="text-xs font-normal text-darker"> / {{ clock(view.battleTime) }}</span></div>
+          </div>
+        </div>
+        <nav class="mt-2 flex gap-4 border-b border-card text-sm">
+          <button
+            v-for="t in TABS"
+            :key="t.id"
+            type="button"
+            :class="['-mb-px border-b-2 pb-1.5 pt-1', tab === t.id ? 'border-accent font-medium text-default' : 'border-transparent text-darker hover:text-default']"
+            @click="tab = t.id"
+          >{{ t.label }}</button>
+        </nav>
+      </div>
+
+      <div class="min-h-0 flex-1 overflow-y-auto px-2 py-2 text-xs">
+        <!-- Skills -->
+        <template v-if="tab === 'skills'">
+          <div class="flex items-center gap-2 px-1.5 pb-1 text-[10px] text-darkest">
+            <span class="flex-1 pl-7">Skill</span><span class="w-14 text-right">Damage</span><span class="w-12 text-right">DPS</span><span class="w-10 text-right">Crit</span><span class="w-10 text-right">Hits</span><span class="w-12 text-right">Max</span>
+          </div>
+          <div v-for="s in skills" :key="`${s.code}-${s.dot}`" class="relative mb-0.5 overflow-hidden rounded-md bg-dark" :title="s.name">
+            <div class="absolute inset-y-0 left-0 bg-danger/35" :style="{ width: `${(s.damage / skillTop) * 100}%` }" />
+            <div class="relative flex items-center gap-2 px-1.5 py-1 tabular-nums">
+              <SkillIcon :code="s.code" :size="20" />
+              <span class="min-w-0 flex-1 truncate font-medium text-default">{{ s.name }}<span v-if="s.dot" class="ml-1 text-[10px] text-darker">DoT</span></span>
+              <span class="w-14 text-right font-semibold">{{ short(s.damage) }}</span>
+              <span class="w-12 text-right text-dark">{{ short(s.damage / seconds) }}</span>
+              <span class="w-10 text-right text-dark">{{ pct(s.crits, s.hits) }}</span>
+              <span class="w-10 text-right text-dark">{{ s.hits }}</span>
+              <span class="w-12 text-right text-dark">{{ s.maxHit ? short(s.maxHit) : '-' }}</span>
+            </div>
+          </div>
+          <p v-if="!skills.length" class="px-1.5 py-2 text-darker">No damage by this player in this fight.</p>
+        </template>
+
+        <!-- Hits -->
+        <template v-else-if="tab === 'hits'">
+          <div class="mb-3 grid grid-cols-3 gap-2 px-1">
+            <div v-for="c in HIT_CARDS" :key="c.key" class="rounded-lg bg-dark px-2.5 py-2">
+              <div class="text-[10px] text-darker">{{ c.label }}</div>
+              <div class="text-base font-semibold tabular-nums">{{ pct(hits[c.key], hits.hits) }}</div>
+              <div class="text-[10px] tabular-nums text-darkest">{{ hits[c.key] }} of {{ hits.hits }} hits</div>
+            </div>
+          </div>
+          <table class="w-full tabular-nums">
+            <thead class="text-[10px] text-darkest">
+              <tr><th class="px-1.5 pb-1 text-left font-normal">Skill</th><th class="w-10 text-right font-normal">Hits</th><th class="w-10 text-right font-normal">Crit</th><th class="w-10 text-right font-normal">Back</th><th class="w-12 text-right font-normal">Perfect</th><th class="w-12 text-right font-normal">Double</th><th class="w-10 pr-1.5 text-right font-normal">Multi</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="s in skills" :key="`${s.code}-${s.dot}`" class="border-t border-card/60">
+                <td class="max-w-0 px-1.5 py-1"><span class="flex min-w-0 items-center gap-1.5"><SkillIcon :code="s.code" :size="16" /><span class="truncate text-dark">{{ s.name }}</span></span></td>
+                <td class="text-right text-dark">{{ s.hits }}</td>
+                <td class="text-right text-darker">{{ pct(s.crits, s.hits) }}</td>
+                <td class="text-right text-darker">{{ pct(s.back, s.hits) }}</td>
+                <td class="text-right text-darker">{{ pct(s.perfect, s.hits) }}</td>
+                <td class="text-right text-darker">{{ pct(s.double, s.hits) }}</td>
+                <td class="pr-1.5 text-right text-darker">{{ pct(s.multi, s.hits) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </template>
+
+        <!-- Defense -->
+        <template v-else-if="tab === 'defense'">
+          <p v-if="!view.defense" class="px-1.5 py-2 text-darker">Not recorded for this fight.</p>
+          <template v-else>
+            <div class="mb-3 grid grid-cols-3 gap-2 px-1">
+              <div class="rounded-lg bg-dark px-2.5 py-2">
+                <div class="text-[10px] text-darker">Damage taken</div>
+                <div class="text-base font-semibold tabular-nums">{{ short(defense?.taken ?? 0) }}</div>
+                <div class="text-[10px] tabular-nums text-darkest">{{ short((defense?.taken ?? 0) / seconds) }} per second</div>
+              </div>
+              <div class="rounded-lg bg-dark px-2.5 py-2">
+                <div class="text-[10px] text-darker">Hits taken</div>
+                <div class="text-base font-semibold tabular-nums">{{ defense?.hitsTaken ?? 0 }}</div>
+                <div class="text-[10px] tabular-nums text-darkest">{{ defense?.hitsTaken ? short((defense.taken ?? 0) / defense.hitsTaken) : '-' }} a hit</div>
+              </div>
+              <div class="rounded-lg bg-dark px-2.5 py-2">
+                <div class="text-[10px] text-darker">Healing done</div>
+                <div class="text-base font-semibold tabular-nums">{{ short(defense?.heal ?? actor?.heal ?? 0) }}</div>
+                <div class="text-[10px] tabular-nums text-darkest">{{ short((defense?.heal ?? actor?.heal ?? 0) / seconds) }} per second</div>
+              </div>
+            </div>
+            <div class="px-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-darkest">Damage taken by player</div>
+            <div v-for="r in takenRanked" :key="r.a.id" class="relative mb-0.5 overflow-hidden rounded-md bg-dark">
+              <div class="absolute inset-y-0 left-0 opacity-40" :style="{ width: `${(r.taken / takenTop) * 100}%`, background: color(r.a.className) }" />
+              <div class="relative flex items-center gap-1.5 px-1.5 py-0.5">
+                <img v-if="icon(r.a.className)" :src="icon(r.a.className)!" class="size-4 shrink-0" alt="" />
+                <span :class="['min-w-0 flex-1 truncate', r.a.id === actor?.id ? 'font-semibold text-accent' : 'text-default']">{{ r.a.name }}</span>
+                <span class="tabular-nums">{{ short(r.taken) }}</span>
+              </div>
+            </div>
+            <p v-if="!takenRanked.length" class="px-1.5 text-darker">Nobody took damage from this target.</p>
+          </template>
+        </template>
+
+        <!-- Rotation -->
+        <template v-else-if="tab === 'rotation'">
+          <p v-if="!sequence.length" class="px-1.5 py-2 text-darker">No hit times for this player in this fight.</p>
+          <template v-else>
+            <div class="px-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-darkest">Opening: the first {{ Math.min(24, sequence.length) }} casts</div>
+            <div class="mb-3 flex flex-wrap items-center gap-1 px-1.5">
+              <template v-for="(h, i) in sequence.slice(0, 24)" :key="i">
+                <span v-if="i" class="text-[9px] text-darkest">›</span>
+                <span :title="`${h.name} at ${clock(h.t)}`"><SkillIcon :code="h.code" :size="22" /></span>
+              </template>
+            </div>
+            <div class="px-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-darkest">Over the fight: each hit a mark</div>
+            <div v-for="l in lanes" :key="l.s.code" class="flex items-center gap-2 px-1.5 py-0.5" :title="`${l.s.name}: ${l.s.hits} hits`">
+              <SkillIcon :code="l.s.code" :size="16" />
+              <span class="w-28 shrink-0 truncate text-dark">{{ l.s.name }}</span>
+              <div class="relative h-3 min-w-0 flex-1 rounded-sm bg-dark">
+                <span v-for="(m, i) in l.marks" :key="i" class="absolute inset-y-0 w-px bg-accent" :style="{ left: `${m}%` }" />
+              </div>
+            </div>
+            <div class="mt-1 flex justify-between pl-[9.5rem] pr-1.5 text-[10px] tabular-nums text-darkest"><span>0:00</span><span>{{ clock(view.battleTime) }}</span></div>
+          </template>
+        </template>
+
+        <!-- Buffs -->
+        <div v-else-if="tab === 'buffs'" class="px-1.5">
+          <p v-if="!view.buffs" class="py-2 text-darker">No buffs recorded for this fight (fights saved before buffs were recorded have none).</p>
+          <template v-else>
           <label class="mb-1.5 flex items-center gap-1.5 text-darker">
             <input v-model="showPassives" type="checkbox" class="accent-[color:var(--accent)]" />
             Passives (on all fight)
@@ -201,36 +392,22 @@ onBeforeUnmount(() => {
           </section>
           <p class="text-darkest">Blue: cast by {{ actor?.name ?? 'the player' }}. Green: by others. Red: on the target from others.</p>
         </template>
-      </div>
-      <div v-else class="min-h-0 flex-1 overflow-y-auto border-t border-card">
-        <table class="w-full text-[11px] tabular-nums">
-          <thead class="sticky top-0 bg-darker text-darkest">
-            <tr>
-              <th class="px-3 py-1 text-left font-medium">{{ actor?.name ?? '' }}: skill</th>
-              <th class="px-1 py-1 text-right font-medium">{{ tab === 'damage' ? 'Damage' : 'Healed' }}</th>
-              <th class="px-1 py-1 text-right font-medium">%</th>
-              <th class="px-1 py-1 text-right font-medium">Hits</th>
-              <th v-if="tab === 'damage'" class="px-1 py-1 text-right font-medium">Crit</th>
-              <th v-if="tab === 'damage'" class="py-1 pl-1 pr-3 text-right font-medium">Max</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="s in skills" :key="`${s.code}-${s.dot}`" class="border-t border-card/60">
-              <td class="max-w-0 px-3 py-1 text-dark" :title="s.name">
-                <span class="flex min-w-0 items-center gap-1.5">
-                  <SkillIcon :code="s.code" :size="16" />
-                  <span class="truncate">{{ s.name }}</span><span v-if="s.dot" class="text-darkest">DoT</span>
-                </span>
-              </td>
-              <td class="px-1 py-1 text-right text-default">{{ short(s.damage) }}</td>
-              <td class="px-1 py-1 text-right text-darker">{{ pct(s.damage, skillTotal) }}</td>
-              <td class="px-1 py-1 text-right text-darker">{{ s.hits }}</td>
-              <td v-if="tab === 'damage'" class="px-1 py-1 text-right text-darker">{{ pct(s.crits, s.hits) }}</td>
-              <td v-if="tab === 'damage'" class="py-1 pl-1 pr-3 text-right text-darker">{{ s.maxHit ? short(s.maxHit) : '-' }}</td>
-            </tr>
-          </tbody>
-        </table>
-        <p v-if="!skills.length" class="px-3 py-3 text-xs text-darker">No {{ tab }} by this player in this fight.</p>
+        </div>
+
+        <!-- Healing -->
+        <template v-else>
+          <div v-for="s in heals" :key="`${s.code}-${s.dot}`" class="relative mb-0.5 overflow-hidden rounded-md bg-dark" :title="s.name">
+            <div class="absolute inset-y-0 left-0 bg-green/30" :style="{ width: `${(s.damage / healTop) * 100}%` }" />
+            <div class="relative flex items-center gap-2 px-1.5 py-1 tabular-nums">
+              <SkillIcon :code="s.code" :size="20" />
+              <span class="min-w-0 flex-1 truncate font-medium text-default">{{ s.name }}<span v-if="s.dot" class="ml-1 text-[10px] text-darker">HoT</span></span>
+              <span class="w-14 text-right font-semibold">{{ short(s.damage) }}</span>
+              <span class="w-12 text-right text-dark">{{ short(s.damage / seconds) }}/s</span>
+              <span class="w-10 text-right text-dark">{{ s.hits }}</span>
+            </div>
+          </div>
+          <p v-if="!heals.length" class="px-1.5 py-2 text-darker">No healing by this player in this fight.</p>
+        </template>
       </div>
     </template>
   </div>

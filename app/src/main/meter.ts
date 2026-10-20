@@ -22,6 +22,8 @@ import {
   type PersonalView,
   type TargetDetails,
   NO_PERSONAL,
+  NO_RECORDINGS,
+  type Recordings,
 } from '../shared/meter.ts'
 
 const ASK_TIMEOUT_MS = 5000
@@ -29,6 +31,13 @@ const ASK_TIMEOUT_MS = 5000
 let meter: MeterData = NO_METER
 let ping: number | null = null
 let buffs: Buff[] = []
+let recordings: Recordings = NO_RECORDINGS
+const meterListeners = new Set<(m: MeterData) => void>()
+
+/** Told of every meter update (training dummy runs). */
+export function onMeter(fn: (m: MeterData) => void): void {
+  meterListeners.add(fn)
+}
 
 /** Requests waiting for the engine's answer, by the answer's type; answered in order. */
 const waiting: { type: string; match: (ev: Record<string, unknown>) => boolean; done: (ev: Record<string, unknown> | null) => void }[] = []
@@ -57,7 +66,7 @@ function applySettings(): void {
   const cfg = settings.get('meter')
   command({ cmd: 'meter', on: cfg.enabled })
   command({ cmd: 'targetMode', mode: cfg.targetMode })
-  command({ cmd: 'buffs', on: settings.get('buffs').enabled })
+  command({ cmd: 'buffs', on: settings.get('buffs').enabled || settings.get('buffs').cc })
 }
 
 export function startMeter(): void {
@@ -70,6 +79,7 @@ export function startMeter(): void {
   tracker.onEvent('dps', (ev) => {
     meter = meterData(ev as unknown as DpsEvent, Date.now(), ping)
     broadcast('meter:dps', meter)
+    for (const fn of meterListeners) fn(meter)
   })
   tracker.onEvent('ping', (ev) => {
     ping = (ev['ms'] as number | null) ?? null
@@ -81,10 +91,12 @@ export function startMeter(): void {
     broadcast('buffs:list', buffs)
   })
   tracker.onEvent('historyChanged', () => broadcast('history:changed', Date.now()))
-  for (const type of ['details', 'history', 'fight']) tracker.onEvent(type, answer)
-  let last = JSON.stringify([settings.get('meter').enabled, settings.get('meter').targetMode, settings.get('buffs').enabled])
+  for (const type of ['details', 'history', 'fight', 'recordings']) tracker.onEvent(type, answer)
+  // A recording started or stopped: the list again, with it.
+  tracker.onEvent('recording', () => void meterState.recordings().then((r) => broadcast('recordings:changed', r)))
+  let last = JSON.stringify([settings.get('meter').enabled, settings.get('meter').targetMode, settings.get('buffs').enabled, settings.get('buffs').cc])
   settings.onChanged((all) => {
-    const now = JSON.stringify([all.meter.enabled, all.meter.targetMode, all.buffs.enabled])
+    const now = JSON.stringify([all.meter.enabled, all.meter.targetMode, all.buffs.enabled, all.buffs.cc])
     if (now === last) return
     last = now
     applySettings()
@@ -92,8 +104,8 @@ export function startMeter(): void {
 }
 
 /** Names and classes for a live fight: the meter's rows. */
-function liveNames(): Map<number, { name: string; className: string | null }> {
-  return new Map(meter.rows.map((r) => [r.id, { name: r.name, className: r.className }]))
+function liveNames(): Map<number, { name: string; className: string | null; combatPower: number; you: boolean }> {
+  return new Map(meter.rows.map((r) => [r.id, { name: r.name, className: r.className, combatPower: r.combatPower, you: r.you }]))
 }
 
 export const meterState = {
@@ -116,8 +128,11 @@ export const meterState = {
     const fight = ev?.['fight'] as FightRecord | undefined
     if (!fight) return null
     const names = new Map(fight.actors.map((a) => [a.actorId, { name: a.nickname || `#${a.actorId}`, className: CLASS_NAMES[a.job] ?? null }]))
+    const defense = Object.fromEntries(
+      fight.actors.map((a) => [a.actorId, { taken: a.damageReceived ?? 0, hitsTaken: a.hitsReceived ?? 0, heal: a.partyHeal ?? 0 }]),
+    )
     const fightBuffs: FightBuffs | null = fight.buffs ? { targetId: fight.targetId, durationMs: fight.durationMs, tracks: fight.buffs } : null
-    return { ...detailsView(source, fight.bossName, fight.details, names), startedAt: fight.startTimeMs, buffs: fightBuffs }
+    return { ...detailsView(source, fight.bossName, fight.details, names), startedAt: fight.startTimeMs, buffs: fightBuffs, defense }
   },
   /** Your own damage on the meter's target, skill by skill (the skills window). */
   async personal(): Promise<PersonalView> {
@@ -138,6 +153,17 @@ export const meterState = {
       skills: mine.map((s) => ({ code: s.code, name: s.name, damage: s.damage, dps: s.damage / seconds, share: (s.damage / total) * 100, dot: s.dot })),
     }
   },
+  /** The recordings kept, and the one being written. */
+  async recordings(): Promise<Recordings> {
+    const ev = await ask({ cmd: 'recordings' }, 'recordings')
+    if (ev) recordings = { dir: (ev['dir'] as string) ?? null, recording: (ev['recording'] as string | null) ?? null, files: (ev['files'] as Recordings['files']) ?? [] }
+    return recordings
+  },
+  record(on: boolean): void {
+    command({ cmd: 'record', on })
+  },
+  /** The recordings' folder, once the engine named it: the only folder the app opens. */
+  recordingsDir: (): string | null => recordings.dir,
   /** What is on your character now. */
   buffs: (): Buff[] => buffs,
   /** The saved fights, newest first. */

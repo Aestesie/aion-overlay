@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // Combat Meter: the fight as the meter overlay sees it, larger, from A2Tools DPS Meter's parser.
-// Which target it follows, each player's DPS and share (a click opens their skills in the Details
-// window), and the settings of the meter and My skills overlays.
+// Which targets and players it counts and what it ranks by (shared with the overlay), each player's
+// numbers (a click opens their details), the meter and My skills overlays' settings, and recordings
+// of the game's traffic.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Button from '@/components/Button.vue'
 import SettingRow from '@/components/SettingRow.vue'
@@ -12,7 +13,21 @@ import Section from '@/components/ui/Section.vue'
 import Segmented from '@/components/ui/Segmented.vue'
 import { bridge } from '@/lib/bridge.ts'
 import { useApp } from '@/stores/app.ts'
-import { CLASS_COLORS, NO_METER, TARGET_MODE_LABELS, TARGET_MODES, type MeterData, type TargetMode } from '@shared/meter.ts'
+import SelectBox from '@/components/ui/SelectBox.vue'
+import {
+  CLASS_COLORS,
+  MAIN_TARGET_MODES,
+  METER_PLAYERS,
+  METER_STATS,
+  meterRows,
+  NO_METER,
+  NO_RECORDINGS,
+  TARGET_MODE_LABELS,
+  timeToKill,
+  type MeterData,
+  type Recordings,
+  type TargetMode,
+} from '@shared/meter.ts'
 
 const store = useApp()
 const api = bridge()
@@ -34,8 +49,12 @@ const clock = (ms: number): string => {
   const s = Math.floor(ms / 1000)
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
-const top = computed(() => Math.max(1, ...meter.value.rows.map((r) => r.damage)))
-const party = computed(() => meter.value.rows.filter((r) => !r.others).reduce((n, r) => n + r.dps, 0))
+const rows = computed(() => meterRows(meter.value, cfg.value.players, cfg.value.stat))
+const top = computed(() => Math.max(1, ...rows.value.map((r) => r.value)))
+const perSecond = computed(() => rows.value.reduce((n, r) => n + r.perSecond, 0))
+const total = computed(() => rows.value.reduce((n, r) => n + r.value, 0))
+const ttk = computed(() => timeToKill(meter.value))
+const UNIT = { damage: ['DPS', 'Damage'], healing: ['HPS', 'Healed'], taken: ['Per second', 'Taken'] } as const
 const hp = computed(() => {
   const t = meter.value.target
   return t && t.maxHp > 0 && t.hp !== null ? Math.min(1, Math.max(0, t.hp / t.maxHp)) : null
@@ -45,7 +64,20 @@ const pingClass = computed(() => {
   return ms === null ? 'text-darker' : ms < 80 ? 'text-green' : ms < 150 ? 'text-yellow' : 'text-danger'
 })
 
-const MODES = TARGET_MODES.map((id) => ({ id, label: TARGET_MODE_LABELS[id] }))
+const MORE = (['mostDamage', 'mostRecent', 'trainTargets'] as const).map((id) => ({ id, label: TARGET_MODE_LABELS[id] }))
+const isMore = computed(() => MORE.some((m) => m.id === cfg.value.targetMode))
+const empty = computed(() => {
+  const st = store.status?.state
+  if (st !== 'locked') return ['Waiting for the game', 'The meter fills in once the game is running.']
+  if (!meter.value.meKnown) return ['Detecting character…', 'Change zone or log in so the meter knows who you are.']
+  if (meter.value.rows.length) return ['Nothing to show', cfg.value.players === 'me' ? 'None of yours on this target.' : 'Nothing of this on the target yet.']
+  return ['Waiting for a fight', 'The meter fills in as soon as you or your party hit something.']
+})
+
+// Recordings of the game's traffic: replayed with the engine's --replay after a game patch.
+const rec = ref<Recordings>(NO_RECORDINGS)
+const size = (b: number): string => (b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1e3))} KB`)
+const when = (ms: number): string => new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 const setMeter = (patch: Partial<typeof cfg.value>): void => void store.set('meter', { ...cfg.value, ...patch })
 const setSkills = (patch: Partial<typeof skills.value>): void => void store.set('skills', { ...skills.value, ...patch })
 const pct = (v: number): string => `${Math.round(v * 100)}%`
@@ -54,12 +86,14 @@ function details(actor: number): void {
   if (target) void api.invoke('details:open', { kind: 'live', target, actor })
 }
 
-let off: (() => void) | null = null
+const offs: (() => void)[] = []
 onMounted(async () => {
-  off = api.on('meter:dps', (m) => (meter.value = m))
+  offs.push(api.on('meter:dps', (m) => (meter.value = m)))
+  offs.push(api.on('recordings:changed', (r) => (rec.value = r)))
   meter.value = await api.invoke('meter:get')
+  rec.value = await api.invoke('recordings:get')
 })
-onBeforeUnmount(() => off?.())
+onBeforeUnmount(() => offs.forEach((off) => off()))
 </script>
 
 <template>
@@ -71,9 +105,25 @@ onBeforeUnmount(() => off?.())
       </Button>
     </PageHeader>
 
-    <div class="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-card bg-card px-4 py-3">
-      <span class="text-xs font-medium uppercase tracking-wide text-darker">Targets</span>
-      <Segmented :model-value="cfg.targetMode" :options="MODES" size="sm" @update:model-value="setMeter({ targetMode: $event as TargetMode })" />
+    <div class="mb-4 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-xl border border-card bg-card px-4 py-3">
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-medium uppercase tracking-wide text-darker">Targets</span>
+        <Segmented :model-value="isMore ? null : cfg.targetMode" :options="MAIN_TARGET_MODES" size="sm" @update:model-value="$event && setMeter({ targetMode: $event })" />
+        <SelectBox
+          size="sm"
+          :model-value="isMore ? cfg.targetMode : ('' as TargetMode)"
+          :options="[{ id: '' as TargetMode, label: 'More…' }, ...MORE]"
+          @update:model-value="$event && setMeter({ targetMode: $event })"
+        />
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-medium uppercase tracking-wide text-darker">Players</span>
+        <Segmented :model-value="cfg.players" :options="METER_PLAYERS" size="sm" @update:model-value="setMeter({ players: $event })" />
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-medium uppercase tracking-wide text-darker">Show</span>
+        <Segmented :model-value="cfg.stat" :options="METER_STATS" size="sm" @update:model-value="setMeter({ stat: $event })" />
+      </div>
     </div>
 
     <Section bare>
@@ -82,13 +132,13 @@ onBeforeUnmount(() => off?.())
           <div class="min-w-0 flex-1">
             <div class="truncate text-base font-semibold">{{ meter.target?.name || 'No target yet' }}</div>
             <div class="text-xs tabular-nums text-darker">
-              <template v-if="meter.battleTime">{{ clock(meter.battleTime) }} · party {{ short(party) }}/s</template>
+              <template v-if="meter.battleTime">{{ clock(meter.battleTime) }} · {{ short(total) }} {{ UNIT[cfg.stat][1].toLowerCase() }} · {{ short(perSecond) }} {{ UNIT[cfg.stat][0] === 'Per second' ? 'per second' : UNIT[cfg.stat][0] }}</template>
               <template v-else>Hit something and the fight shows here.</template>
             </div>
           </div>
           <div v-if="hp !== null" class="w-56">
             <div class="mb-0.5 flex justify-between text-[11px] tabular-nums text-darker">
-              <span>HP</span><span>{{ (hp * 100).toFixed(1) }}% · {{ short(meter.target!.hp!) }}</span>
+              <span>HP<template v-if="ttk !== null"> · dies in {{ clock(ttk) }}</template></span><span>{{ (hp * 100).toFixed(1) }}% · {{ short(meter.target!.hp!) }}</span>
             </div>
             <div class="h-1.5 overflow-hidden rounded-full bg-dark"><div class="h-full bg-danger" :style="{ width: `${hp * 100}%` }" /></div>
           </div>
@@ -97,19 +147,20 @@ onBeforeUnmount(() => off?.())
             ping
           </div>
         </div>
-        <table v-if="meter.rows.length" class="w-full text-sm">
+        <table v-if="rows.length" class="w-full text-sm">
           <thead class="text-xs uppercase tracking-wide text-darker">
             <tr class="border-b border-card">
               <th class="w-10 py-2 pl-4 text-left font-medium">#</th>
               <th class="text-left font-medium">Player</th>
-              <th class="w-28 px-3 text-right font-medium">DPS</th>
-              <th class="w-28 px-3 text-right font-medium">Damage</th>
-              <th class="w-20 pr-4 text-right font-medium">Share</th>
+              <th class="w-28 px-3 text-right font-medium">{{ UNIT[cfg.stat][0] }}</th>
+              <th class="w-28 px-3 text-right font-medium">{{ UNIT[cfg.stat][1] }}</th>
+              <th class="w-20 px-3 text-right font-medium">Share</th>
+              <th class="w-20 pr-4 text-right font-medium">{{ cfg.stat === 'damage' ? 'Crit' : '' }}</th>
             </tr>
           </thead>
           <tbody>
             <tr
-              v-for="(r, i) in meter.rows"
+              v-for="(r, i) in rows"
               :key="r.id"
               class="relative cursor-pointer border-b border-card/60 last:border-0 hover:bg-card"
               :title="`${r.className ?? 'Unknown class'}: click for skills`"
@@ -123,18 +174,19 @@ onBeforeUnmount(() => off?.())
                   <span :class="['truncate', r.you ? 'font-semibold text-yellow' : '']">{{ r.name }}</span>
                 </div>
                 <div class="mt-1 h-1 overflow-hidden rounded-full bg-dark">
-                  <div class="h-full" :style="{ width: `${(r.damage / top) * 100}%`, background: CLASS_COLORS[r.className ?? ''] ?? '#787b8a' }" />
+                  <div class="h-full" :style="{ width: `${(r.value / top) * 100}%`, background: CLASS_COLORS[r.className ?? ''] ?? '#787b8a' }" />
                 </div>
               </td>
-              <td class="px-3 text-right font-medium tabular-nums">{{ short(r.dps) }}</td>
-              <td class="px-3 text-right tabular-nums text-darker">{{ short(r.damage) }}</td>
-              <td class="pr-4 text-right tabular-nums text-darker">{{ r.share.toFixed(1) }}%</td>
+              <td class="px-3 text-right font-medium tabular-nums">{{ short(r.perSecond) }}</td>
+              <td class="px-3 text-right tabular-nums text-darker">{{ short(r.value) }}</td>
+              <td class="px-3 text-right tabular-nums text-darker">{{ r.part.toFixed(1) }}%</td>
+              <td class="pr-4 text-right tabular-nums text-darker">{{ cfg.stat === 'damage' ? `${Math.round(r.critRate * 100)}%` : '' }}</td>
             </tr>
           </tbody>
         </table>
         <div v-else class="flex flex-col items-center gap-1 px-4 py-10 text-center">
-          <div class="text-sm font-medium">{{ store.status?.state === 'locked' ? 'Waiting for a fight' : 'Waiting for the game' }}</div>
-          <div class="text-xs text-darker">The meter fills in as soon as you or your party hit something.</div>
+          <div class="text-sm font-medium">{{ empty[0] }}</div>
+          <div class="text-xs text-darker">{{ empty[1] }}</div>
         </div>
       </div>
     </Section>
@@ -149,6 +201,26 @@ onBeforeUnmount(() => off?.())
       <SettingRow v-if="cfg.enabled" label="Opacity">
         <Slider :model-value="cfg.opacity" :min="0.3" :max="1" :step="0.05" :format="pct" @update:model-value="setMeter({ opacity: $event })" />
       </SettingRow>
+    </Section>
+
+    <Section title="Recordings" icon="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z">
+      <template #actions>
+        <Button size="sm" :disabled="!rec.dir" @click="api.invoke('recordings:open')">Open folder</Button>
+        <Button size="sm" :intent="rec.recording ? 'danger' : 'default'" :disabled="store.status?.state !== 'locked' && !rec.recording" @click="api.invoke('recordings:set', !rec.recording)">
+          <span :class="['size-2 rounded-full', rec.recording ? 'animate-pulse bg-danger' : 'bg-danger/70']" />
+          {{ rec.recording ? 'Stop recording' : 'Start recording' }}
+        </Button>
+      </template>
+      <p class="py-3 text-sm text-darker">
+        A recording keeps the game's traffic during a fight, so the meter can be checked and fixed against it after a game patch. They stay on this computer.
+      </p>
+      <div v-for="f in rec.files.slice(0, 8)" :key="f.path" class="flex items-center gap-3 py-2 text-sm">
+        <span v-if="f.path === rec.recording" class="size-2 animate-pulse rounded-full bg-danger" />
+        <span class="min-w-0 flex-1 truncate font-mono text-xs">{{ f.name }}</span>
+        <span class="text-xs tabular-nums text-darker">{{ size(f.bytes) }}</span>
+        <span class="w-32 text-right text-xs text-darker">{{ when(f.modified) }}</span>
+      </div>
+      <p v-if="!rec.files.length" class="py-3 text-sm text-darkest">No recordings yet.</p>
     </Section>
 
     <Section title="My skills overlay" icon="M8 1.5 9.8 6l4.7.4-3.6 3 1.1 4.6L8 11.6 4 14l1.1-4.6-3.6-3L6.2 6z">
