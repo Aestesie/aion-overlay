@@ -1,6 +1,6 @@
 /**
  * Put the app icon in place: Lokthar's logo, kept in branding/ (icon.ico at 16-256 px for the exe
- * and installer, icon.png at 256 px), made from the site's lokthar_logo.png, trimmed and padded
+ * and installer, icon.png at 256 px), made from the site's public/icon.svg, trimmed and padded
  * square.
  *
  *   node scripts/make-icon.mjs
