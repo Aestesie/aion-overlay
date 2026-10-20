@@ -69,6 +69,8 @@ jobs:
           path: |
             app/dist/${{ steps.sum.outputs.exe }}
             app/dist/${{ steps.sum.outputs.exe }}.sha256
+            app/dist/${{ steps.sum.outputs.exe }}.blockmap
+            app/dist/latest.yml
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -79,9 +81,10 @@ jobs:
           EXE: ${{ steps.sum.outputs.exe }}
           HASH: ${{ steps.sum.outputs.hash }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "$EXE" "$EXE.sha256" \
+          # latest.yml (and the blockmap) are what the app's updater reads: Settings → Updates.
+          gh release create "$GITHUB_REF_NAME" "$EXE" "$EXE.sha256" "$EXE.blockmap" latest.yml \
             --title "Lokthar overlay $GITHUB_REF_NAME" \
-            --notes "Lokthar overlay from commit $GITHUB_SHA: no updater, no shared timers, no machine id. Its only network request is the optional Lokthar field boss sync (off by default).
+            --notes "Lokthar overlay from commit $GITHUB_SHA. No shared timers, no machine id. It goes online only for the optional Lokthar field boss sync (off by default) and when you check for updates (Settings → Updates).
 
           Needs [Npcap](https://npcap.com) installed first. The installer is not code-signed: Windows may say \"Windows protected your PC\", choose More info → Run anyway.
 

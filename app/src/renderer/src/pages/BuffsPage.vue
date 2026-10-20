@@ -25,7 +25,7 @@ const live = computed(() =>
       (cfg.value.passives || !b.passive) &&
       (cfg.value.consumables || !consumable(b.id)) &&
       (b.endsAt === null || b.endsAt > now.value - 500) &&
-      !hiddenBuff(b.id, b.skill, b.endsAt !== null),
+      !hiddenBuff(b.id, b.skill, b.endsAt !== null, (b.endsAt ?? 0) - b.startedAt),
   ),
 )
 const buffs = computed(() => live.value.filter((b) => !b.debuff || !cfg.value.debuffs).sort(order))

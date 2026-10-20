@@ -153,7 +153,7 @@ export interface Settings {
 
   /**
    * Sync the field bosses to the Lokthar site's timers (main/lokthar.ts): off until turned on with
-   * a token. The only network request the app makes, to `url` alone.
+   * a token. Besides the update check (Settings → Updates, by hand), the only requests the app makes: to `url` alone.
    */
   lokthar: {
     sync: boolean

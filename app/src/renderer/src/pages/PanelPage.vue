@@ -24,6 +24,7 @@ import { useApp } from '@/stores/app.ts'
 import { DISPLAY_NAME } from '@shared/app.ts'
 import { serverName } from '@shared/servers.ts'
 import { TIMERS, type TimerId } from '@shared/timers.ts'
+import type { UpdateState } from '@shared/update.ts'
 
 type PageId = 'home' | 'meter' | 'training' | 'map' | 'pets' | 'pvp' | 'buffs' | 'events' | 'bosses' | 'history' | 'session' | 'settings'
 interface Page {
@@ -98,6 +99,8 @@ const main = ref<HTMLElement | null>(null)
 watch(page, () => main.value?.scrollTo({ top: 0 }))
 
 const maximized = ref(false)
+/** An update found by a check: a pill in the title bar until it is installed. */
+const update = ref<UpdateState | null>(null)
 const version = ref<string | null>(null)
 const minimize = (): void => void api.invoke('panel:minimize')
 const maximize = (): void => void api.invoke('panel:maximize')
@@ -153,6 +156,8 @@ onMounted(() => {
     }),
   )
   offs.push(api.on('panel:maximized', (m) => (maximized.value = m)))
+  offs.push(api.on('update:state', (s) => (update.value = s)))
+  void api.invoke('update:get').then((s) => (update.value = s))
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey)
@@ -181,6 +186,14 @@ onBeforeUnmount(() => {
           <span v-if="who" class="truncate text-dark">· {{ who }}</span>
         </span>
         <span v-if="store.sessionSouls" class="rounded-full border border-card bg-dark px-2.5 py-0.5 text-xs text-green">+{{ store.sessionSouls }} souls this session</span>
+        <button
+          v-if="update && ['available', 'downloading', 'ready'].includes(update.status)"
+          type="button"
+          class="no-drag ml-auto rounded-full border border-accent/50 bg-accent/15 px-2.5 py-0.5 text-xs font-medium text-accent hover:bg-accent/25"
+          @click="go('settings')"
+        >
+          {{ update.status === 'ready' ? `Restart to update to ${update.latest}` : update.status === 'downloading' ? `Downloading ${update.latest}… ${update.percent}%` : `Update ${update.latest} available` }}
+        </button>
       </div>
       <div class="no-drag flex h-full">
         <button type="button" class="flex w-12 items-center justify-center text-darker hover:bg-dark hover:text-default" title="Minimize" @click="minimize">

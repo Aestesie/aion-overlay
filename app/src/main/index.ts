@@ -15,6 +15,7 @@ import { join } from 'node:path'
 import { moveDataFolder, OLD_NAMES } from './migrate.ts'
 import { startHotkeys, stopHotkeys } from './hotkeys.ts'
 import { startDummy } from './dummy.ts'
+import { startUpdater } from './updater.ts'
 import { startMeter } from './meter.ts'
 import { startTimers } from './timers.ts'
 import { killTrackerNow, log, stopTracker, tracker } from './tracker.ts'
@@ -54,6 +55,7 @@ if (!app.requestSingleInstanceLock()) {
     })
     startMeter()
     startDummy()
+    startUpdater()
     // An alt-tab away from the game hides the overlays; back to it shows them.
     tracker.onEvent('focus', (ev) => setForeground(ev['game'] === true, ev['app'] === true))
     // A tab of the Black Cloud Merchant was opened: its pets worth buying, in their own window.

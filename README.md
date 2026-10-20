@@ -82,8 +82,9 @@ bin/rails 'overlay:token[<user id, Discord username or email>]'   # bin/rails 'o
    PC": choose **More info → Run anyway**.
 3. Start the tracker **before you log in** to your character, so it picks up your collection.
 
-The overlay draws over **borderless or windowed** mode, not exclusive fullscreen. There are no
-automatic updates: to update, pull the new upstream version, review it, and rebuild.
+The overlay draws over **borderless or windowed** mode, not exclusive fullscreen. To update,
+use **Settings → Updates → Check for updates**: it installs the latest release over your copy,
+only when you ask. How it works and how to publish a release: [updates.md](updates.md).
 
 ## Build from source
 
@@ -116,7 +117,9 @@ plays a recording (`.pcap`, `.pcapng` or an A2Tools packet log) instead of the g
   buff tables are in `engine/data/`, and the meter's class icons are its too.
 - Hidden Cubes are found as [dr89mh/aion2-cube-radar](https://github.com/dr89mh/aion2-cube-radar)
   (GPL-3.0) found them: the object records and the cube templates from its `ObjectMessages.cs`
-  and `docs/FINDINGS.md`.
+  and `docs/FINDINGS.md`. The full list of cube templates (26, with the game's asset names) is
+  [benhighlanderr/Aion2-Hidden-Cube-Radar](https://github.com/benhighlanderr/Aion2-Hidden-Cube-Radar)'s
+  `HIDDEN_CUBE_IDS`.
 - Pet record layouts and soul counting rules follow the pet-souls plugin of
   [taengu/A2Tools-Plugins](https://github.com/taengu/A2Tools-Plugins) (GPL-3.0).
 - Skill icons are the game's own (its asset CDN), matched to skills by A2Tools DPS Meter's

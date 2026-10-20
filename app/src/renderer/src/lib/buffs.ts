@@ -23,18 +23,23 @@ export function buffIcon(id: number, skill?: number | null): string | null {
   return null
 }
 
+/** Longer than this, an effect is an account's, not a fight's (Abyss Tier Rewards runs for weeks). */
+const ACCOUNT_BUFF_MS = 24 * 3_600_000
+
 /**
- * One the game does not show you: not in its buff table, or in it with no name or no icon, or an
- * untimed one with the generic regen icons (ICON_Abnormal_DotHp/DotMp: "Divine Heal", rest regen).
- * What is left untimed is your real passives and toggles.
+ * One not worth showing: not in the game's buff table, or in it with no name or no icon; an untimed
+ * one with the generic regen icons (ICON_Abnormal_DotHp/DotMp: "Divine Heal", rest regen); and the
+ * account's own (ranking rewards, PC café and mentee benefits, anything lasting over a day). What is
+ * left untimed is your real passives and toggles.
  */
-export function hiddenBuff(id: number, skill: number | null, timed: boolean): boolean {
+export function hiddenBuff(id: number, skill: number | null, timed: boolean, lengthMs = 0): boolean {
   const entry = ABNORMALS[String(id)]
   if (!entry) return true
   const [name, icon] = entry
   if (buffIcon(id, skill) === null) return true
   if (!timed && (!name || /^ICON_Abnormal_Dot(Hp|Mp)$/i.test(icon ?? ''))) return true
-  return false
+  if (/^ICON_Abnormal_(RankingReward|PC_Room_Benefit|Mentee_Benefit)/i.test(icon ?? '')) return true
+  return lengthMs > ACCOUNT_BUFF_MS
 }
 
 /** A buff from an item you used: a scroll, food or a drink (their icons are the items'). */

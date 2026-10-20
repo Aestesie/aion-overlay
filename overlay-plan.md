@@ -198,7 +198,7 @@ Done 2026-10-19 (after the cubes): buffs (upstream's buff timeline: your buffs l
 
 Done 2026-10-19 (questlog.gg's meter): the meter's Players filter (only me, me and party, everyone) and Damage / Healing / Taken (rows now carry `critRate`, `taken`, `party` from the engine); questlog's three target choices with the rest under More; time to kill; "Detecting character"; the Details window as questlog's player card with Skills, Hits, Defense (engine `details` adds `defense`; saved fights from their actors), Rotation (`hitTimestamps`), Buffs, Healing; a Training Dummy page and overlay (main/dummy.ts, runs in `<userData>/dummy-runs.json`; timed from the engine's `train`, your damage on dummies whatever the meter follows, with auto-start on your first hit); recordings (`engine/src/capture/recorder.rs`, A2Tools' packet log format, `<data folder>/recordings`).
 
-Added 2026-10-19 (from dr89mh/aion2-cube-radar, GPL-3.0): Hidden Cubes from the object records (`34 36` spawn by template, `35 36` removal; templates 1200039 and 1200041 in Verteron seen opened there, 1301199 Altgard unconfirmed; Eltnen and Morheim unknown). The HUD shows cubes in view with distance and direction and chimes; a map overlay (`#/minimap`) follows you with tracked pets' spawns and the cubes.
+Added 2026-10-19 (from dr89mh/aion2-cube-radar, GPL-3.0): Hidden Cubes from the object records (`34 36` spawn by template, `35 36` removal; templates 1200039 and 1200041 in Verteron seen opened there; since 2026-10-20 all 26 of benhighlanderr/Aion2-Hidden-Cube-Radar's list, every zone and cube version). The HUD shows cubes in view with distance and direction and chimes; a map overlay (`#/minimap`) follows you with tracked pets' spawns and the cubes.
 
 ### Risks
 

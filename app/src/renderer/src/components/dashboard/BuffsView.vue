@@ -22,8 +22,8 @@ onBeforeUnmount(() => clearInterval(ticker))
 const current = computed(() => store.buffs.filter((b) => b.endsAt === null || b.endsAt > now.value - 500))
 /** What the game shows you; the rest (internal effects) only counted, unless asked for. */
 const showHidden = ref(false)
-const hiddenCount = computed(() => current.value.filter((b) => hiddenBuff(b.id, b.skill, b.endsAt !== null)).length)
-const live = computed(() => current.value.filter((b) => showHidden.value || !hiddenBuff(b.id, b.skill, b.endsAt !== null)))
+const hiddenCount = computed(() => current.value.filter((b) => hiddenBuff(b.id, b.skill, b.endsAt !== null, (b.endsAt ?? 0) - b.startedAt)).length)
+const live = computed(() => current.value.filter((b) => showHidden.value || !hiddenBuff(b.id, b.skill, b.endsAt !== null, (b.endsAt ?? 0) - b.startedAt)))
 const order = (a: Buff, b: Buff): number => (a.endsAt ?? Infinity) - (b.endsAt ?? Infinity) || buffName(a.id).localeCompare(buffName(b.id))
 const groups = computed(() => [
   { title: 'Debuffs', rows: live.value.filter((b) => b.debuff).sort(order) },
@@ -83,7 +83,7 @@ const pct = (v: number): string => `${Math.round(v * 100)}%`
           </template>
         </table>
         <button v-if="hiddenCount" type="button" class="w-full border-t border-card px-4 py-2 text-left text-xs text-darker hover:bg-card" @click="showHidden = !showHidden">
-          {{ showHidden ? 'Hide' : 'Show' }} {{ hiddenCount }} internal effect{{ hiddenCount === 1 ? '' : 's' }} the game does not show (no name or icon, system regen)
+          {{ showHidden ? 'Hide' : 'Show' }} {{ hiddenCount }} hidden effect{{ hiddenCount === 1 ? '' : 's' }} (internal ones with no name or icon, system regen, account rewards)
         </button>
       </div>
     </Section>

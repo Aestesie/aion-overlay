@@ -22,7 +22,8 @@
     "pack": "npm run build && electron-builder --win --dir"
   },
   "dependencies": {
-    "electron-store": "^11.0.2"
+    "electron-store": "^11.0.2",
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

@@ -2,6 +2,7 @@
 import { app, ipcMain, shell } from 'electron'
 import { mkdir } from 'node:fs/promises'
 import { dummy } from './dummy.ts'
+import { updater } from './updater.ts'
 import { meterState } from './meter.ts'
 import { lokthar } from './lokthar.ts'
 import { settings } from './settings.ts'
@@ -176,6 +177,10 @@ export function registerIpc(): void {
   handle('skills:resize', (size) => {
     if (isPoint({ x: size?.width, y: size?.height })) resizeSkills(size)
   })
+  handle('update:get', () => updater.get())
+  handle('update:check', () => updater.check())
+  handle('update:download', () => updater.download())
+  handle('update:install', () => updater.install())
   handle('dummy:get', () => dummy.get())
   handle('dummy:start', (name) => dummy.start(typeof name === 'string' ? name : undefined))
   handle('dummy:stop', (save) => dummy.stop(save === true))

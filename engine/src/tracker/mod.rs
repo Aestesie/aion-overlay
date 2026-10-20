@@ -38,10 +38,39 @@ const CAST_RANGE: f32 = 2500.0;
 /// not you (5,400/s mounted or dashing, in Nyerk's captures).
 const MAX_SPEED: f32 = 10_000.0;
 const MAX_JUMP_MS: i64 = 2000;
-/// The object templates that are Hidden Cubes: Verteron's two, seen opened in
-/// dr89mh/aion2-cube-radar's captures (FINDINGS B5, B9), and Altgard's, from
-/// another tool (Cube Watch) and not yet seen there. Each zone has its own.
-const CUBE_TEMPLATES: [u32; 3] = [1_200_039, 1_200_041, 1_301_199];
+/// The object templates that are Hidden Cubes, with the game's asset name of
+/// each, from benhighlanderr/Aion2-Hidden-Cube-Radar (`HIDDEN_CUBE_IDS` in
+/// aion2_radar.py). 1200039 and 1200041 (Verteron) were also seen opened in
+/// dr89mh/aion2-cube-radar's captures (FINDINGS B5, B9); the rest are that
+/// list's alone. Each zone and version of a cube has its own.
+const CUBE_TEMPLATES: [u32; 26] = [
+    1_000_295, // Basic_HiddenCube_01
+    1_000_548, // Basic_HiddenCube_01_V01
+    1_000_556, // Basic_HiddenCube_01_V02
+    1_000_568, // Basic_HiddenCube_01_V03
+    1_000_566, // Basic_HiddenCube_01_V04
+    1_000_567, // Basic_HiddenCube_01_V05
+    1_100_056, // E_FE_TB_HiddenCube_01
+    1_100_094, // E_FE_SpecterEvasion_HiddenCube_01
+    1_200_018, // E_HiddenCube_01_001
+    1_200_036, // E_HiddenCube_01_001
+    1_200_037, // E_HiddenCube_01_002
+    1_200_039, // E_HiddenCube_01_V04_001 (Verteron)
+    1_200_040, // E_HiddenCube_01_V04_002
+    1_200_041, // E_HiddenCube_01_V04_003 (Verteron)
+    1_200_667, // E_HiddenCube_01_003
+    1_200_707, // E_L1_FE_SpecterEvasion_HiddenCube_01
+    1_201_054, // E_HiddenCube_01_004
+    1_201_055, // E_HiddenCube_01_005
+    1_300_081, // E_D1_TreasureBoxRare_001 (Asmodian)
+    1_300_082, // E_D1_TreasureBoxLegend_001 (Asmodian)
+    1_300_754, // E_D1_HiddenCube_01 (Asmodian)
+    1_301_199, // E_D1_TreasureBoxRare_002 (Asmodian, V04)
+    1_301_200, // E_D1_HiddenCube_02 (Asmodian, V04)
+    1_401_335, // E_HiddenCube_01_006
+    1_401_336, // E_HiddenCube_01_007
+    3_682_560, // Special_HiddenCube
+];
 
 pub type Emit = Box<dyn Fn(Value) + Send + Sync>;
 
