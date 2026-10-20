@@ -1,43 +1,62 @@
 <script setup lang="ts">
 // The dashboard the bubble opens: a window of its own, with its title bar (dragged to move, and the
-// window's buttons), a sidebar of pages, and the page. The pages are the old panel's tabs for now;
-// they get their own layouts one by one (overlay-plan.md, the dashboard).
+// window's buttons), a sidebar of pages in sections (questlog.gg's layout: Home, In game, Records,
+// Settings at the bottom), and the page. Each page says what it is, and holds its overlay's settings.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import FightsTab from '@/components/panel/FightsTab.vue'
-import CollectionTab from '@/components/panel/CollectionTab.vue'
+import BossesView from '@/components/dashboard/BossesView.vue'
+import BuffsView from '@/components/dashboard/BuffsView.vue'
+import EventsView from '@/components/dashboard/EventsView.vue'
+import HistoryView from '@/components/dashboard/HistoryView.vue'
+import HomeView from '@/components/dashboard/HomeView.vue'
+import MapView from '@/components/dashboard/MapView.vue'
+import MeterView from '@/components/dashboard/MeterView.vue'
+import PetsView from '@/components/dashboard/PetsView.vue'
+import SettingsView from '@/components/dashboard/SettingsView.vue'
 import PetDetail from '@/components/panel/PetDetail.vue'
 import PvpLogTab from '@/components/panel/PvpLogTab.vue'
 import SessionTab from '@/components/panel/SessionTab.vue'
-import SettingsTab from '@/components/panel/SettingsTab.vue'
-import TimersTab from '@/components/panel/TimersTab.vue'
 import StatusDot, { statusText } from '@/components/StatusDot.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { timerNext } from '@/lib/timerView.ts'
 import { useApp } from '@/stores/app.ts'
 import { DISPLAY_NAME } from '@shared/app.ts'
 import { serverName } from '@shared/servers.ts'
+import { TIMERS, type TimerId } from '@shared/timers.ts'
 
-type PageId = 'pets' | 'timers' | 'pvp' | 'fights' | 'session' | 'settings'
+type PageId = 'home' | 'meter' | 'map' | 'pets' | 'pvp' | 'buffs' | 'events' | 'bosses' | 'history' | 'session' | 'settings'
 interface Page {
   id: PageId
   label: string
-  /** What the page is, under its title. */
-  about: string
   /** An SVG path, 16x16, stroked. */
   icon: string
 }
 
 const PAGES: Record<PageId, Page> = {
-  pets: { id: 'pets', label: 'Pets', about: 'Every pet with its level and souls, and where the ones you still need drop.', icon: 'M5 6.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM11 6.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM3 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM13 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM8 9c-2 0-3.5 2-3.5 3.3 0 1 1 1.2 2.2 1.2.6 0 .9-.3 1.3-.3s.7.3 1.3.3c1.2 0 2.2-.2 2.2-1.2C11.5 11 10 9 8 9Z' },
-  timers: { id: 'timers', label: 'Timers', about: 'The game’s events and field bosses: when each starts, and which ones alert.', icon: 'M8 14.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11ZM8 6v3l2 1.5M6.5 1.5h3' },
-  pvp: { id: 'pvp', label: 'PvP', about: 'Every player killed around you, as the game credits it.', icon: 'M3 13 13 3M9.5 3H13v3.5M3 3l4 4M13 13l-3-3' },
-  fights: { id: 'fights', label: 'Fights', about: 'Boss fights saved as you play: each player’s damage and skills.', icon: 'M2.5 13.5h11M4.5 11V8M8 11V4.5M11.5 11V6.5' },
-  session: { id: 'session', label: 'Session', about: 'This session: souls, crystals and Kina.', icon: 'M2.5 11.5 6 8l2.5 2.5 5-5M10 5.5h3.5V9' },
-  settings: { id: 'settings', label: 'Settings', about: 'The overlays, the app and the Lokthar sync.', icon: 'M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM13 8a5 5 0 0 0-.1-.9l1.4-1.1-1.4-2.4-1.7.6a5 5 0 0 0-1.5-.9L9.4 1.5H6.6l-.3 1.8a5 5 0 0 0-1.5.9l-1.7-.6-1.4 2.4 1.4 1.1a5 5 0 0 0 0 1.8l-1.4 1.1 1.4 2.4 1.7-.6a5 5 0 0 0 1.5.9l.3 1.8h2.8l.3-1.8a5 5 0 0 0 1.5-.9l1.7.6 1.4-2.4-1.4-1.1c.1-.3.1-.6.1-.9Z' },
+  home: { id: 'home', label: 'Home', icon: 'M2.5 7 8 2.5 13.5 7v6.5h-3.5v-4H6v4H2.5z' },
+  meter: { id: 'meter', label: 'Combat Meter', icon: 'M2.5 13.5h11M4.5 11V8M8 11V4.5M11.5 11V6.5' },
+  map: { id: 'map', label: 'Map', icon: 'M1.5 4l4.5-2 4 2 4.5-2v10l-4.5 2-4-2-4.5 2zM6 2v10M10 4v10' },
+  pets: { id: 'pets', label: 'Pets', icon: 'M5 6.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM11 6.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM3 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM13 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM8 9c-2 0-3.5 2-3.5 3.3 0 1 1 1.2 2.2 1.2.6 0 .9-.3 1.3-.3s.7.3 1.3.3c1.2 0 2.2-.2 2.2-1.2C11.5 11 10 9 8 9Z' },
+  pvp: { id: 'pvp', label: 'PvP', icon: 'M3 13 13 3M9.5 3H13v3.5M3 3l4 4M13 13l-3-3' },
+  buffs: { id: 'buffs', label: 'Buffs', icon: 'M8 1.5 9.8 6l4.7.4-3.6 3 1.1 4.6L8 11.6 4 14l1.1-4.6-3.6-3L6.2 6z' },
+  events: { id: 'events', label: 'Event Alerts', icon: 'M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11zM6.5 14h3' },
+  bosses: { id: 'bosses', label: 'Field Bosses', icon: 'M8 2a5 5 0 0 0-3.5 8.5V13h7v-2.5A5 5 0 0 0 8 2zM6 8.5h.01M10 8.5h.01M7 13v-1.5M9 13v-1.5' },
+  history: { id: 'history', label: 'History', icon: 'M2 8a6 6 0 1 0 1.8-4.3M2 2.5v3h3M8 5v3l2 1.5' },
+  session: { id: 'session', label: 'Session', icon: 'M2.5 11.5 6 8l2.5 2.5 5-5M10 5.5h3.5V9' },
+  settings: { id: 'settings', label: 'Settings', icon: 'M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM13 8a5 5 0 0 0-.1-.9l1.4-1.1-1.4-2.4-1.7.6a5 5 0 0 0-1.5-.9L9.4 1.5H6.6l-.3 1.8a5 5 0 0 0-1.5.9l-1.7-.6-1.4 2.4 1.4 1.1a5 5 0 0 0 0 1.8l-1.4 1.1 1.4 2.4 1.7-.6a5 5 0 0 0 1.5.9l.3 1.8h2.8l.3-1.8a5 5 0 0 0 1.5-.9l1.7.6 1.4-2.4-1.4-1.1c.1-.3.1-.6.1-.9Z' },
 }
 const SECTIONS: { title: string | null; pages: PageId[] }[] = [
-  { title: 'In game', pages: ['pets', 'timers', 'pvp'] },
-  { title: 'Records', pages: ['fights', 'session'] },
+  { title: null, pages: ['home'] },
+  { title: 'In game', pages: ['meter', 'map', 'pets', 'pvp', 'buffs', 'events', 'bosses'] },
+  { title: 'Records', pages: ['history', 'session'] },
 ]
+/** The pages kept as they were (their old tabs), with the title and text above them. */
+const ABOUT: Partial<Record<PageId, string>> = {
+  pvp: 'Every player killed around you, as the game credits it. The kill feed shows them over the game.',
+  session: 'This session: souls, crystals and Kina.',
+}
+/** Pages renamed since: a remembered old one opens its new one. */
+const RENAMED: Record<string, PageId> = { timers: 'events', fights: 'history' }
 
 const store = useApp()
 const api = bridge()
@@ -46,10 +65,11 @@ const api = bridge()
 const STORE_KEY = 'lokthar.page'
 function savedPage(): PageId {
   try {
-    const p = localStorage.getItem(STORE_KEY) as PageId | null
-    return p && p in PAGES ? p : 'pets'
+    const p = localStorage.getItem(STORE_KEY) ?? ''
+    const id = RENAMED[p] ?? p
+    return id in PAGES ? (id as PageId) : 'home'
   } catch {
-    return 'pets'
+    return 'home'
   }
 }
 const page = ref<PageId>(savedPage())
@@ -57,14 +77,23 @@ watch(page, (p) => {
   try {
     localStorage.setItem(STORE_KEY, p)
   } catch {
-    // Not kept: it opens on Pets next time.
+    // Not kept: it opens on Home next time.
   }
 })
-function go(p: PageId): void {
-  if (p !== 'pets') store.openPet(null)
-  page.value = p
+function go(p: string): void {
+  const id = (p in PAGES ? p : 'home') as PageId
+  if (id !== 'pets') store.openPet(null)
+  page.value = id
 }
-const current = computed(() => PAGES[page.value])
+// A pet opened from another page (Session's list): its drop locations are on Pets.
+watch(
+  () => store.openPetId,
+  (id) => {
+    if (id !== null) page.value = 'pets'
+  },
+)
+const main = ref<HTMLElement | null>(null)
+watch(page, () => main.value?.scrollTo({ top: 0 }))
 
 const maximized = ref(false)
 const version = ref<string | null>(null)
@@ -76,6 +105,26 @@ const hide = (): void => void api.invoke('panel:hide')
 const who = computed(() => {
   const s = store.status
   return [s?.character, s?.server ? serverName(s.server) : null].filter(Boolean).join(' · ')
+})
+
+// The sidebar's badges: the next event with an alert on, how long until it; the bosses alive.
+const now = ref(Date.now())
+const ticker = setInterval(() => (now.value = Date.now()), 30_000)
+const nextAlert = computed(() => {
+  const t = store.settings.timers
+  const at = TIMERS.filter((d) => t.enabled[d.id] && t.shown[d.id] && d.schedule.kind !== 'boss').map((d) => timerNext(d, now.value))
+  const soonest = Math.min(...at)
+  if (!Number.isFinite(soonest)) return null
+  const min = Math.max(0, Math.round((soonest - now.value) / 60_000))
+  return min < 60 ? `${min}m` : min < 24 * 60 ? `${Math.floor(min / 60)}h` : `${Math.floor(min / 1440)}d`
+})
+const badge = computed<Partial<Record<PageId, string>>>(() => {
+  const up = Object.values(store.fieldBosses).filter((b) => b.up).length
+  return {
+    events: nextAlert.value ?? undefined,
+    bosses: up ? String(up) : undefined,
+    pets: store.sessionSouls ? `+${store.sessionSouls}` : undefined,
+  }
 })
 
 // Escape backs out of a pet's map.
@@ -93,11 +142,11 @@ onMounted(() => {
       store.openPet(pet)
     }),
   )
-  // The bubble clicked during an alert: the Timers page, on the timers that alerted.
+  // The bubble clicked during an alert: the page of the timers that alerted, on them.
   offs.push(
-    api.on('panel:showTimers', (ids) => {
+    api.on('panel:showTimers', (ids: TimerId[]) => {
       store.openPet(null)
-      page.value = 'timers'
+      page.value = ids.every((id) => TIMERS.find((d) => d.id === id)?.schedule.kind === 'boss') ? 'bosses' : 'events'
       store.timerFocus = { ids, at: Date.now() }
     }),
   )
@@ -105,6 +154,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey)
+  clearInterval(ticker)
   for (const off of offs) off()
 })
 </script>
@@ -162,7 +212,11 @@ onBeforeUnmount(() => {
             <svg viewBox="0 0 16 16" :class="['size-4 shrink-0', page === id ? 'text-accent' : 'text-darker']" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
               <path :d="PAGES[id].icon" />
             </svg>
-            {{ PAGES[id].label }}
+            <span class="min-w-0 flex-1 truncate">{{ PAGES[id].label }}</span>
+            <span
+              v-if="badge[id]"
+              :class="['shrink-0 rounded-full px-1.5 text-[10px] font-semibold tabular-nums', page === id ? 'bg-accent/20 text-accent' : 'bg-dark text-darker']"
+            >{{ badge[id] }}</span>
           </button>
         </div>
         <div class="mt-auto border-t border-card pt-3">
@@ -184,22 +238,26 @@ onBeforeUnmount(() => {
         </div>
       </nav>
 
-      <main class="min-w-0 flex-1 overflow-y-auto">
-        <div :class="['mx-auto px-8 py-6', page === 'pets' && store.openPetId !== null ? 'max-w-6xl' : 'max-w-4xl']">
-          <div class="mb-5">
-            <h1 class="text-2xl font-bold tracking-tight">{{ current.label }}</h1>
-            <p class="mt-0.5 text-sm text-darker">{{ current.about }}</p>
-          </div>
+      <main ref="main" class="min-w-0 flex-1 overflow-y-auto">
+        <div :class="['mx-auto px-8 py-7', page === 'settings' ? 'max-w-4xl' : 'max-w-6xl']">
           <div v-if="!store.ready" class="py-6 text-center text-sm text-darker">Loading…</div>
+          <HomeView v-else-if="page === 'home'" @go="go" />
+          <MeterView v-else-if="page === 'meter'" />
+          <MapView v-else-if="page === 'map'" />
           <template v-else-if="page === 'pets'">
-            <PetDetail v-if="store.openPetId !== null" :id="store.openPetId" class="-mx-3 h-[calc(100vh-13rem)]" />
-            <CollectionTab v-else class="-mx-3" />
+            <PetDetail v-if="store.openPetId !== null" :id="store.openPetId" class="-mx-3 h-[calc(100vh-7rem)]" />
+            <PetsView v-else />
           </template>
-          <TimersTab v-else-if="page === 'timers'" class="-mx-3" />
-          <PvpLogTab v-else-if="page === 'pvp'" class="-mx-3" />
-          <FightsTab v-else-if="page === 'fights'" class="-mx-3" />
-          <SessionTab v-else-if="page === 'session'" class="-mx-3" />
-          <SettingsTab v-else class="-mx-3" />
+          <BuffsView v-else-if="page === 'buffs'" />
+          <EventsView v-else-if="page === 'events'" />
+          <BossesView v-else-if="page === 'bosses'" />
+          <HistoryView v-else-if="page === 'history'" />
+          <SettingsView v-else-if="page === 'settings'" @go="go" />
+          <template v-else>
+            <PageHeader :title="PAGES[page].label" :about="ABOUT[page]" />
+            <PvpLogTab v-if="page === 'pvp'" class="-mx-3" />
+            <SessionTab v-else class="-mx-3" />
+          </template>
         </div>
       </main>
     </div>

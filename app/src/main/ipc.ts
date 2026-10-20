@@ -7,6 +7,9 @@ import { timers } from './timers.ts'
 import { logPath, tracker } from './tracker.ts'
 import {
   bubbleDragEnded,
+  buffsDragEnded,
+  moveBuffs,
+  resizeBuffs,
   closeDetails,
   detailsDragEnded,
   detailsSource,
@@ -44,6 +47,8 @@ import {
   showTimersInPanel,
   timerBarDragEnded,
   togglePanel,
+  toggleOverlays,
+  overlaysHidden,
 } from './windows.ts'
 import type { InvokeArgs, InvokeChannel, InvokeResult } from '../shared/ipc.ts'
 import type { SettingKey } from '../shared/settings.ts'
@@ -162,6 +167,16 @@ export function registerIpc(): void {
   handle('skills:dragEnd', () => skillsDragEnded())
   handle('skills:resize', (size) => {
     if (isPoint({ x: size?.width, y: size?.height })) resizeSkills(size)
+  })
+  handle('overlays:toggle', () => toggleOverlays())
+  handle('overlays:hidden', () => overlaysHidden())
+  handle('buffs:get', () => meterState.buffs())
+  handle('buffs:moveTo', (to) => {
+    if (isPoint(to)) moveBuffs(to)
+  })
+  handle('buffs:dragEnd', () => buffsDragEnded())
+  handle('buffs:resize', (size) => {
+    if (isPoint({ x: size?.width, y: size?.height })) resizeBuffs(size)
   })
   handle('details:open', (source) => {
     const ok = source?.kind === 'live' ? Number.isInteger(source.target) : source?.kind === 'saved' && isPlainId(source.id)

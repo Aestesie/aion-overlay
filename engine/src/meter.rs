@@ -97,6 +97,47 @@ impl Meter {
         serde_json::to_value(self.calculator.lock().get_target_details(target, actors)).unwrap_or_default()
     }
 
+    /// The buffs and debuffs of the live fight on `target` so far (upstream's
+    /// `get_fight_buffs`), as JSON: `{"startTimeMs", "durationMs", "buffs": [BuffTrack]}`.
+    pub fn fight_buffs(&self, target: i32) -> serde_json::Value {
+        serde_json::to_value(self.calculator.lock().live_fight_buffs(target)).unwrap_or_default()
+    }
+
+    /// What is on your character now, one entry per buff (its stacks counted):
+    /// `[{"id", "stacks", "endsAt": ms | null, "startedAt", "by", "skill", "mine", "debuff"}]`, the
+    /// game's ids (`SkillAbnormal`). A debuff is one cast by someone who is not a
+    /// player (a monster); players' are buffs, yours or your party's.
+    pub fn my_buffs(&self) -> serde_json::Value {
+        let Some(me) = self.storage.local_player_id().and_then(|id| i32::try_from(id).ok()) else {
+            return serde_json::json!([]);
+        };
+        let now = a2tools_dps_meter_lib::clock::now_ms();
+        let players = self.storage.get_nicknames();
+        let mut by_id: std::collections::BTreeMap<(u32, i32), serde_json::Value> = std::collections::BTreeMap::new();
+        for i in self.storage.abnormal_instances(now, now).into_iter().filter(|i| i.entity == me && i.end_ms.is_none()) {
+            // Ran out on the server's clock and nothing said so yet.
+            if i.server_end_ms.is_some_and(|e| e < now - 1_000) {
+                continue;
+            }
+            let entry = by_id.entry((i.abnormal, i.caster)).or_insert_with(|| {
+                serde_json::json!({
+                    "id": i.abnormal, "stacks": 0, "endsAt": i.server_end_ms, "startedAt": i.start_ms,
+                    "by": i.caster, "skill": i.skill, "mine": i.caster == me,
+                    "debuff": i.caster != me && i.caster != 0 && !players.contains_key(&i.caster),
+                    "passive": i.endless,
+                })
+            });
+            entry["stacks"] = serde_json::json!(entry["stacks"].as_u64().unwrap_or(0) + 1);
+            // The stack that runs longest says when it ends.
+            if let (Some(end), Some(prev)) = (i.server_end_ms, entry["endsAt"].as_i64())
+                && end > prev
+            {
+                entry["endsAt"] = serde_json::json!(end);
+            }
+        }
+        serde_json::Value::Array(by_id.into_values().collect())
+    }
+
     pub fn set_target_mode(&self, mode: &str) -> bool {
         if !TARGET_MODES.contains(&mode) {
             return false;

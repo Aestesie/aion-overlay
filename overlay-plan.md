@@ -194,6 +194,8 @@ Status (2026-10-19), built, not yet run against the game:
 - Fight history: upstream's `FightHistoryManager` copied to `engine/src/history.rs`; boss fights saved to `<userData>/history` every 30 s while they go on and before the combat data is cleared (`DataStorage::set_before_reset`, and the meter's reset); the last 500 kept. The panel's Fights tab lists them; a click opens the saved breakdown.
 - Not yet: buffs (upstream's `fight_buffs`, in `FightRecord.buffs`), Linux.
 
+Done 2026-10-19 (after the cubes): buffs (upstream's buff timeline: your buffs live in a buffs overlay, `buffs` events; each fight's tracks in the Details window's Buffs tab, from `FightRecord.buffs` or `live_fight_buffs`); an error status when Npcap loads but no device opens; the dashboard in questlog.gg's sections (Home with every overlay's switch, Combat Meter, Map, Pets, PvP, Buffs, Event Alerts, Field Bosses, History, Session, Settings), each overlay's settings on its page. Linux and Nyerk's addons are dropped: not needed.
+
 Added 2026-10-19 (from dr89mh/aion2-cube-radar, GPL-3.0): Hidden Cubes from the object records (`34 36` spawn by template, `35 36` removal; templates 1200039 and 1200041 in Verteron seen opened there, 1301199 Altgard unconfirmed; Eltnen and Morheim unknown). The HUD shows cubes in view with distance and direction and chimes; a map overlay (`#/minimap`) follows you with tracked pets' spawns and the cubes.
 
 ### Risks

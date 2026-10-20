@@ -29,12 +29,14 @@
 //!                                                     the Hidden Cubes in view (within ~100 m), when they change
 //!   {"type": "dps", ...DpsData}                       the meter, when it changes (else every 5 s)
 //!   {"type": "ping", "ms": 42 | null}                 your ping to the game server, when it changes
+//!   {"type": "buffs", "buffs": [{"id", "stacks", "endsAt", "startedAt", "by", "skill", "mine", "debuff", "passive"}]}
+//!                                                     what is on your character, when it changes (while "buffs" is on)
 //!   {"type": "historyChanged", "count": 1}            boss fights were saved (every 30 s, and before a reset)
 //!   {"type": "history", "fights": [FightSummary]}     answer to "history"
 //!   {"type": "fight", "id", "fight": FightRecord}     answer to "fight"
 //!   {"type": "focus", "game": true, "app": false}     what is in front, when it changes (Windows):
 //!                                                     the game, the app's own window (--app-pid), or neither
-//!   {"type": "details", "target": 123, ...TargetDetailsResponse}
+//!   {"type": "details", "target": 123, ...TargetDetailsResponse, "fightBuffs": {"startTimeMs", "durationMs", "buffs"} | null}
 //!   {"type": "error", "detail": "..."}
 //!
 //! stdin, one JSON object per line:
@@ -43,6 +45,7 @@
 //!   {"cmd": "resetSession"}            the session's soul counts start again (answered with a snapshot)
 //!   {"cmd": "capture", "on": false}    stop capturing (the game closed) or start again
 //!   {"cmd": "meter", "on": false}      stop sending the meter (it is turned off) or start again
+//!   {"cmd": "buffs", "on": true}       send your buffs (the buffs overlay is on) or stop
 //!   {"cmd": "dpsReset"} · {"cmd": "targetMode", "mode": "bossTargets"} · {"cmd": "details", "target": 123, "actors"?: [..]}
 //!   {"cmd": "history"} · {"cmd": "fight", "id": "..."} · {"cmd": "deleteFight", "id": "..."}
 //!                                      the saved boss fights (in <data folder>/history)
@@ -72,6 +75,12 @@ use crate::{emit, event};
 const DPS_EVERY: Duration = Duration::from_millis(200);
 const DPS_RESEND: Duration = Duration::from_secs(5);
 const HEARTBEAT: Duration = Duration::from_secs(2);
+/// The capture's devices have all been tried by then (physical ones wait 1.5 s).
+const DEVICES_OPEN_WITHIN: Duration = Duration::from_secs(5);
+const NO_DEVICE_OPENED: &str =
+    "No network device could be opened for capture. Reinstall Npcap without \"Restrict Npcap driver's access to Administrators only\", or run the app as administrator.";
+/// Your buffs are read this often (ticks of DPS_EVERY: 0.4 s).
+const BUFFS_EVERY: u32 = 2;
 /// Boss fights are saved this often while they go on, as upstream does.
 const SAVE_FIGHTS_EVERY: u32 = 150; // ticks of DPS_EVERY: 30 s
 
@@ -112,7 +121,7 @@ fn announce_saved(n: usize) {
 
 /// What is capturing now: live capture, or a recording played back in time.
 enum Source {
-    Live(PcapCapturer),
+    Live(Arc<PcapCapturer>),
     Replay(Arc<AtomicBool>),
 }
 
@@ -124,6 +133,7 @@ struct Sidecar {
     source: Mutex<Option<Source>>,
     capturing: Arc<AtomicBool>,
     meter_on: Arc<AtomicBool>,
+    buffs_on: Arc<AtomicBool>,
     last_frame: Arc<Mutex<Option<Instant>>>,
 }
 
@@ -163,6 +173,7 @@ pub fn run(opts: Options) -> Result<(), String> {
         source: Mutex::new(None),
         capturing: Arc::new(AtomicBool::new(false)),
         meter_on: Arc::new(AtomicBool::new(true)),
+        buffs_on: Arc::new(AtomicBool::new(false)),
         last_frame: Arc::new(Mutex::new(None)),
     });
 
@@ -243,12 +254,25 @@ impl Sidecar {
         *source = Some(match &self.replay {
             Some((path, speed)) => Source::Replay(self.start_replay(path.clone(), *speed, tx)),
             None => {
-                let capturer = PcapCapturer::new(tx, self.meter.port_detector.clone());
+                let capturer = Arc::new(PcapCapturer::new(tx, self.meter.port_detector.clone()));
                 capturer.start();
                 if !capturer.is_running() {
-                    emit(&event("status", json!({ "state": "error", "detail": "Packet capture did not start (is Npcap installed?)" })));
+                    let why = capturer.start_error().unwrap_or_else(|| "Packet capture did not start (is Npcap installed?)".into());
+                    emit(&event("status", json!({ "state": "error", "detail": why })));
                     return;
                 }
+                // Every device may still fail to open (Npcap installed without the right to
+                // capture, or restricted to administrators): say so once they all had their go.
+                let watched = Arc::downgrade(&capturer);
+                std::thread::spawn(move || {
+                    std::thread::sleep(DEVICES_OPEN_WITHIN);
+                    if let Some(c) = watched.upgrade()
+                        && c.is_running()
+                        && c.opened() == 0
+                    {
+                        emit(&event("status", json!({ "state": "error", "detail": NO_DEVICE_OPENED })));
+                    }
+                });
                 Source::Live(capturer)
             }
         });
@@ -301,6 +325,7 @@ impl Sidecar {
             let mut last: Option<(Value, Instant)> = None;
             let mut port = None;
             let mut ping = None;
+            let mut buffs: Option<Value> = None;
             let mut ticks: u32 = 0;
             loop {
                 tick.tick().await;
@@ -327,6 +352,15 @@ impl Sidecar {
                     if let Some(port) = port {
                         let host = me.meter.storage.game_host().map_or_else(|| "?".to_string(), |ip| ip.to_string());
                         emit(&event("status", json!({ "state": "locked", "server": format!("{host}:{port}") })));
+                    }
+                }
+                if ticks % BUFFS_EVERY == 0 && me.buffs_on.load(Ordering::SeqCst) {
+                    let meter = me.meter.clone();
+                    if let Ok(now) = tokio::task::spawn_blocking(move || meter.my_buffs()).await
+                        && buffs.as_ref() != Some(&now)
+                    {
+                        emit(&event("buffs", json!({ "buffs": now })));
+                        buffs = Some(now);
                     }
                 }
                 if !me.meter_on.load(Ordering::SeqCst) {
@@ -399,6 +433,7 @@ impl Sidecar {
                 }
                 "capture" => self.set_capture(msg["on"].as_bool().ok_or("no on")?),
                 "meter" => self.meter_on.store(msg["on"].as_bool().ok_or("no on")?, Ordering::SeqCst),
+                "buffs" => self.buffs_on.store(msg["on"].as_bool().ok_or("no on")?, Ordering::SeqCst),
                 "dpsReset" => self.meter.reset(),
                 "history" => {
                     let fights = self.meter.history.get().map(|h| h.list_fights()).unwrap_or_default();
@@ -425,6 +460,7 @@ impl Sidecar {
                         msg["actors"].as_array().map(|a| a.iter().filter_map(|v| v.as_i64()).map(|v| v as i32).collect());
                     let mut details = self.meter.details(target, actors.as_deref());
                     details["target"] = json!(target);
+                    details["fightBuffs"] = self.meter.fight_buffs(target);
                     emit(&event("details", details));
                 }
                 _ => return Err("unknown command"),

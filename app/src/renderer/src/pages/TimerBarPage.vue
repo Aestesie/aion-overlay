@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The timers as a bar over the game: each timer with its alert on (the Timers tab) that starts
+// The timers as a bar over the game: each timer with its alert on (the Event Alerts and Field Bosses pages) that starts
 // within the next 13 hours, soonest first, as its icon and a countdown. Events have their own icon
 // (the rift's stands for the invasion and the siege too), field bosses their portrait, the rest a
 // short name. Moved by dragging; sized to what it shows, and hidden with nothing to show.

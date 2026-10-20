@@ -64,8 +64,14 @@ export interface Settings {
   /** The timers' countdown bar over the game: on, where (null = top centre), how opaque. */
   timerBar: { enabled: boolean; position: Point | null; opacity: number }
 
-  /** The kill feed over the game: open (from the PvP Log tab), and where (null = top right). */
+  /** The kill feed over the game: open (from the PvP page), and where (null = top right). */
   killFeed: { open: boolean; position: Point | null }
+
+  /**
+   * Your buffs and debuffs over the game: each one's icon, stacks and time left (A2Tools DPS
+   * Meter's buff timeline). Icons `size` px, `perRow` to a row; debuffs on a row of their own.
+   */
+  buffs: { enabled: boolean; position: Point | null; opacity: number; size: number; perRow: number; debuffs: boolean; passives: boolean }
 
   /** Your own skills on the meter's target, as a window of their own. */
   skills: { enabled: boolean; position: Point | null; rows: number; opacity: number }
@@ -90,7 +96,7 @@ export interface Settings {
   /** Your level, to point out monsters close enough to it for souls to drop well; null = unset. */
   playerLevel: number | null
 
-  /** The Timers tab: which events alert, and how (a chime; the bubble shaking). */
+  /** Event Alerts and Field Bosses: which events alert, and how (a chime; the bubble shaking). */
   timers: {
     /** The server region: weekly events are at its own local time. */
     region: Region
@@ -101,7 +107,7 @@ export interface Settings {
     /** 0..1 */
     volume: number
     shake: boolean
-    /** Listed in the Timers tab; only these alert. */
+    /** Listed in the Event Alerts and Field Bosses pages; only these alert. */
     shown: Record<TimerId, boolean>
   }
 
@@ -169,6 +175,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   timerBar: { enabled: true, position: null, opacity: 0.92 },
   killFeed: { open: false, position: null },
   skills: { enabled: true, position: null, rows: 6, opacity: 0.92 },
+  buffs: { enabled: true, position: null, opacity: 0.92, size: 34, perRow: 10, debuffs: true, passives: false },
   meter: { enabled: true, position: null, targetMode: 'bossTargets', rows: 8, opacity: 0.92 },
   hideFromCapture: false,
   faction: 'elyos',
@@ -290,6 +297,18 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         position: point(v.position),
         rows: Math.round(num(v.rows, 1, 20, d.skills.rows)),
         opacity: num(v.opacity, 0.3, 1, d.skills.opacity),
+      } as Settings[K]
+    }
+    case 'buffs': {
+      const v = (value ?? {}) as Partial<Settings['buffs']>
+      return {
+        enabled: bool(v.enabled, d.buffs.enabled),
+        position: point(v.position),
+        opacity: num(v.opacity, 0.3, 1, d.buffs.opacity),
+        size: Math.round(num(v.size, 22, 56, d.buffs.size)),
+        perRow: Math.round(num(v.perRow, 4, 20, d.buffs.perRow)),
+        debuffs: bool(v.debuffs, d.buffs.debuffs),
+        passives: bool(v.passives, d.buffs.passives),
       } as Settings[K]
     }
     case 'meter': {

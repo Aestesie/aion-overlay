@@ -378,6 +378,10 @@ struct Shared {
     /// Set by the safety net (`SafetyNet`): every device captures without a
     /// filter for the rest of the session.
     unfiltered: AtomicBool,
+    /// Lokthar: devices opened, and why the capture could not start, for the
+    /// app's status.
+    opened: AtomicU64,
+    start_error: Mutex<Option<String>>,
 }
 
 /// How often to look for network devices that appeared after the start: a
@@ -402,6 +406,8 @@ impl PcapCapturer {
                 dropped: AtomicU64::new(0),
                 port_detector,
                 unfiltered: AtomicBool::new(false),
+                opened: AtomicU64::new(0),
+                start_error: Mutex::default(),
             }),
         }
     }
@@ -415,7 +421,7 @@ impl PcapCapturer {
             Ok(p) => Arc::new(p),
             Err(e) => {
                 error!("{}", e);
-                self.running.store(false, Ordering::SeqCst);
+                self.fail(format!("Npcap could not be loaded ({e}). Install Npcap from npcap.com and restart the app."));
                 return;
             }
         };
@@ -424,7 +430,7 @@ impl PcapCapturer {
             Ok(d) => d,
             Err(e) => {
                 error!("Failed to list devices: {}", e);
-                self.running.store(false, Ordering::SeqCst);
+                self.fail(format!("Npcap could not list the network devices ({e})."));
                 return;
             }
         };
@@ -438,7 +444,7 @@ impl PcapCapturer {
 
         if devices.is_empty() {
             error!("No capture devices found with addresses");
-            self.running.store(false, Ordering::SeqCst);
+            self.fail("No network device to capture on: is the network connected?".into());
             return;
         }
 
@@ -551,6 +557,22 @@ impl PcapCapturer {
     pub fn is_running(&self) -> bool {
         self.running.load(Ordering::SeqCst)
     }
+
+    /// Lokthar: the capture could not start, and why.
+    fn fail(&self, why: String) {
+        *self.shared.start_error.lock().unwrap_or_else(|p| p.into_inner()) = Some(why);
+        self.running.store(false, Ordering::SeqCst);
+    }
+
+    /// Lokthar: why the capture did not start, if it did not.
+    pub fn start_error(&self) -> Option<String> {
+        self.shared.start_error.lock().unwrap_or_else(|p| p.into_inner()).clone()
+    }
+
+    /// Lokthar: how many network devices are capturing (or have been).
+    pub fn opened(&self) -> u64 {
+        self.shared.opened.load(Ordering::Relaxed)
+    }
 }
 
 /// List available capture device labels (for the settings UI dropdown).
@@ -592,6 +614,7 @@ fn start_capture_thread(
 
         let link_type = unsafe { (pcap.datalink)(handle) };
         info!("Capture active on {} (link type {})", label, link_type);
+        shared.opened.fetch_add(1, Ordering::Relaxed);
 
         // The filter in place: the port it is for (None: not locked yet), or
         // nothing tried yet. Checked before every read, so a lock narrows it

@@ -11,27 +11,32 @@ to keep opening the Pets menu.
   counts always match the Pets menu.
 - **In-game HUD:** a small click-through overlay with nearby soul monsters, this fight's pets and
   a feed of drops. It clears itself between fights.
-- **Collection panel:** every pet with its genus, level and progress; search, filter, pin pets to
-  the HUD, and see where each soul drops on a map.
+- **Dashboard:** Alt+E (or the bubble) opens it: a Home page with every overlay's switch and a
+  summary of each page, then Combat Meter, Map, Pets, PvP, Buffs, Event Alerts, Field Bosses,
+  History and Session. Each overlay's settings are on its page.
+- **Pets:** every pet with its genus, level and progress; search, filter, pin pets to the HUD and
+  the maps, and see where each soul drops on a map.
 - **Kina per hour:** this session's Kina rate with a timeline, in the panel and on the HUD.
-- **Timers:** the game's events (Shugo Festival, the Black Cloud Merchant, rifts, the siege…) and
-  Verteron's field bosses, read from the map's field boss list, with optional alerts. Field boss
-  times come only from your own map.
+- **Event Alerts and Field Bosses:** the game's events (Shugo Festival, the Black Cloud Merchant,
+  rifts, the siege…) with countdowns, and Verteron's field bosses read from the map's field boss
+  list, each with an optional alert.
 - **Countdown bar:** the timers whose alert you turned on, starting within 13 hours, as a small
   bar of icons and countdowns over the game.
 - **Hidden Cubes:** a cube in view (within about 100 m) shows at the top of the HUD with how far
   and which way, with a chime, and as a golden cube on the maps.
-- **Map overlay:** your zone around you, following you, with your tracked pets' spawns and the
-  Hidden Cubes.
-- **PvP log and kill feed:** every player kill around you, as the game credits it, in the panel's
-  PvP tab and in a small kill feed over the game; yours and your legion's marked.
+- **Map:** your zone around you in a small overlay that follows you, and any zone on the Map page,
+  with your tracked pets' spawns (or every pet you still need) and the Hidden Cubes.
+- **Buffs:** your buffs and debuffs over the game with their stacks and time left, and each
+  fight's buffs (every player's and the target's, with uptimes) in its Details window.
+- **PvP log and kill feed:** every player kill around you, as the game credits it, on the PvP
+  page and in a small kill feed over the game; yours and your legion's marked.
 - **Black Cloud Merchant:** when you open one of its tabs, a window lists the pets it sells that
   you have not maxed, with where their soul monsters spawn.
 - **One collection per server:** as in the game, your characters on a server share one; one on
   another server has its own.
 - **DPS meter:** its own window while you play, from A2Tools DPS Meter's parser: everyone hitting
   your target, the target's HP, the fight's time and your ping. Click a player for their skills
-  (damage, hits, crit rate, biggest hit); boss fights are saved, and the panel's Fights tab
+  (damage, hits, crit rate, biggest hit, buffs); boss fights are saved, and the History page
   opens them again.
 - **Stays out of the way:** it sits in the tray and sleeps while Aion 2 is closed, waking when the
   game starts.
@@ -113,6 +118,12 @@ plays a recording (`.pcap`, `.pcapng` or an A2Tools packet log) instead of the g
 - Skill icons are the game's own (its asset CDN), matched to skills by A2Tools DPS Meter's
   `skill_icons.json`; bundled in `app/src/renderer/public/skills/` by
   `app/scripts/fetch-skill-icons.mjs`.
+- Buffs come from A2Tools DPS Meter's buff timeline (`capture/abnormal.rs`, ported there from
+  Seralth's Daevalog, GPL-3.0, and `combat/fight_buffs.rs`); their names and icons from its
+  `abnormals.json` and `i18n/abnormals/en.json` (merged into `app/src/shared/abnormals.json`), the
+  icons bundled in `app/src/renderer/public/buffs/` by `app/scripts/fetch-buff-icons.mjs`. The
+  Details window's Buffs tab follows its `buffTimeline.js`.
+- The dashboard's layout follows [questlog.gg](https://questlog.gg)'s overlay app.
 - The Shugo Festival and Spacetime Rift icons of the timer bar come from
   [guildmanager.app](https://guildmanager.app), kept in `app/src/renderer/public/events/`.
 - Pet names, genus, portraits, spawn locations and zone maps come from

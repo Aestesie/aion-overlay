@@ -241,7 +241,7 @@ onBeforeUnmount(() => {
         <p v-if="store.hudEditing && !nearRows.length && !rows.length" class="text-xs text-darker">
           {{
             hud.mode === 'pinned'
-              ? 'Nothing nearby, and no pinned pets: pin some in the panel.'
+              ? 'Nothing nearby, and no pinned pets: pin some on the Pets page.'
               : 'Soul monsters around you, and pets you gain souls for, show up here.'
           }}
         </p>

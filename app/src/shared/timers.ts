@@ -92,7 +92,7 @@ export interface TimerDef {
 }
 
 /**
- * Listed in the Timers tab (and so able to alert) until the player chooses otherwise: the events
+ * Listed in the Event Alerts and Field Bosses pages (and so able to alert) until the player chooses otherwise: the events
  * and Gartua; the other field bosses are picked in "Choose timers".
  */
 export const defaultShown = (def: TimerDef): boolean => def.schedule.kind !== 'boss' || def.id === 'gartua'

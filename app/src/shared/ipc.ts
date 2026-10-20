@@ -3,6 +3,7 @@
  * handlers against it, preload builds the bridge from it, the renderer calls the bridge. The
  * pattern is marnis-app's (shared/ipc-contract.ts), with this app's channels.
  */
+import type { Buff } from './buffs.ts'
 import type { KinaSession } from './kina.ts'
 import type { DetailsSource, DetailsView, FightSummary, MeterData, PersonalView } from './meter.ts'
 import type { SyncResult } from './lokthar.ts'
@@ -48,7 +49,7 @@ export interface InvokeChannels {
   'timerbar:moveTo': { args: [to: Point]; result: void }
   'timerbar:dragEnd': { args: []; result: void }
   'timerbar:resize': { args: [size: { width: number; height: number }]; result: void }
-  /** The kill feed over the game: opened from the PvP Log tab, closed there or with its X. */
+  /** The kill feed over the game: opened from the PvP page, closed there or with its X. */
   'killfeed:open': { args: []; result: void }
   'killfeed:close': { args: []; result: void }
   'killfeed:moveTo': { args: [to: Point]; result: void }
@@ -75,6 +76,14 @@ export interface InvokeChannels {
   'skills:moveTo': { args: [to: Point]; result: void }
   'skills:dragEnd': { args: []; result: void }
   'skills:resize': { args: [size: { width: number; height: number }]; result: void }
+  /** Every overlay off, or back on (Alt+Shift+E): true when off; and whether they are off now. */
+  'overlays:toggle': { args: []; result: boolean }
+  'overlays:hidden': { args: []; result: boolean }
+  /** Your buffs and debuffs (the buffs overlay). */
+  'buffs:get': { args: []; result: Buff[] }
+  'buffs:moveTo': { args: [to: Point]; result: void }
+  'buffs:dragEnd': { args: []; result: void }
+  'buffs:resize': { args: [size: { width: number; height: number }]; result: void }
   /** Open the Details window on a fight (a meter row, a saved fight), or what it shows now. */
   'details:open': { args: [source: DetailsSource]; result: void }
   'details:get': { args: []; result: DetailsView | null }
@@ -119,7 +128,7 @@ export interface EventChannels {
   'timers:alerting': TimerAlert[]
   /** To the panel: show this pet's drop locations. */
   'panel:showPet': number
-  /** To the panel: show the Timers tab and highlight these timers (the ones that alerted). */
+  /** To the panel: show the Event Alerts and Field Bosses pages and highlight these timers (the ones that alerted). */
   'panel:showTimers': TimerId[]
   'hud:editing': boolean
   'panel:visible': boolean
@@ -131,6 +140,10 @@ export interface EventChannels {
   'details:source': DetailsSource
   /** Boss fights were saved or deleted. */
   'history:changed': number
+  /** What is on your character, whenever it changes (while the buffs overlay is on). */
+  'buffs:list': Buff[]
+  /** The overlays were hidden by hand (true) or shown again. */
+  'overlays:hidden': boolean
 }
 
 export type InvokeChannel = keyof InvokeChannels
@@ -158,9 +171,10 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'meter:get', 'meter:reset', 'meter:moveTo', 'meter:dragEnd', 'meter:resize',
   'minimap:moveTo', 'minimap:dragEnd', 'minimap:resize',
   'skills:get', 'skills:moveTo', 'skills:dragEnd', 'skills:resize',
+  'buffs:get', 'buffs:moveTo', 'buffs:dragEnd', 'buffs:resize', 'overlays:toggle', 'overlays:hidden',
   'details:open', 'details:get', 'details:close', 'details:moveTo', 'details:dragEnd', 'history:list', 'history:delete',
 ]
 
 export const EVENT_CHANNELS: readonly EventChannel[] = [
-  'settings:changed', 'tracker:status', 'tracker:pets', 'tracker:pet', 'tracker:soul', 'tracker:nearby', 'tracker:cubes', 'tracker:combat', 'tracker:shop', 'tracker:kina', 'tracker:fieldBosses', 'tracker:pvp', 'tracker:pvpKill', 'panel:showPet', 'panel:showTimers', 'timers:alert', 'timers:alerting', 'hud:editing', 'panel:visible', 'panel:maximized', 'meter:dps', 'details:source', 'history:changed',
+  'settings:changed', 'tracker:status', 'tracker:pets', 'tracker:pet', 'tracker:soul', 'tracker:nearby', 'tracker:cubes', 'tracker:combat', 'tracker:shop', 'tracker:kina', 'tracker:fieldBosses', 'tracker:pvp', 'tracker:pvpKill', 'panel:showPet', 'panel:showTimers', 'timers:alert', 'timers:alerting', 'hud:editing', 'panel:visible', 'panel:maximized', 'meter:dps', 'details:source', 'history:changed', 'buffs:list', 'overlays:hidden',
 ]

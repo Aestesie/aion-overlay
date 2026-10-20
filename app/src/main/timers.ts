@@ -1,5 +1,5 @@
 /**
- * The Timers tab's alerts: every 15 s, while the game runs, which enabled timers are inside their
+ * The Event Alerts and Field Bosses pages' alerts: every 15 s, while the game runs, which enabled timers are inside their
  * alert window (from a few minutes before a start until 2 minutes after; shared/timers.ts). A new
  * one is announced once (the bubble chimes), and the bubble shakes while any are up. A click on the
  * bubble dismisses them until their next start.
@@ -25,7 +25,7 @@ function check(): void {
   const next: TimerAlert[] = []
   if (live) {
     for (const def of TIMERS) {
-      // Only the timers listed in the Timers tab alert: a hidden one would ring unseen.
+      // Only the timers listed in the Event Alerts and Field Bosses pages alert: a hidden one would ring unseen.
       if (!cfg.enabled[def.id] || !cfg.shown[def.id]) continue
       const at = alertingStart(def, now, cfg.region, cfg.lead[def.id], tracker.fieldBosses())
       if (at !== null && !done.has(`${def.id}@${at}`)) next.push({ id: def.id, at })

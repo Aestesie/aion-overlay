@@ -8,6 +8,7 @@ import { SETTINGS_DEFAULTS, type SettingKey, type Settings } from '@shared/setti
 import { MAX_LEVEL, NO_NEARBY, type Cube, type Nearby, type Pet, type PvpKill, type ShopStock, type SoulToast, type TrackerStatus } from '@shared/tracker.ts'
 import { kinaPerHour, kinaSeries, NO_KINA, type KinaSession } from '@shared/kina.ts'
 import type { FieldBosses, TimerAlert, TimerId } from '@shared/timers.ts'
+import type { Buff } from '@shared/buffs.ts'
 import { bridge } from '@/lib/bridge.ts'
 import type { Genus } from '@/lib/petDb.ts'
 import type { Continent } from '@/lib/spawns.ts'
@@ -27,7 +28,7 @@ export const useApp = defineStore('app', () => {
   const alerting = ref<TimerAlert[]>([])
   /** The field bosses as the map last listed them (the Gartua timer). */
   const fieldBosses = ref<FieldBosses>({})
-  /** Timers to scroll to and highlight in the Timers tab (the bubble was clicked on their alert). */
+  /** Timers to scroll to and highlight in the Event Alerts and Field Bosses pages (the bubble was clicked on their alert). */
   const timerFocus = ref<{ ids: TimerId[]; at: number } | null>(null)
   /** The Black Cloud Merchant's stock: the tabs opened, until their restock. */
   const shop = ref<ShopStock[]>([])
@@ -35,6 +36,8 @@ export const useApp = defineStore('app', () => {
   const pvp = ref<PvpKill[]>([])
   /** The Hidden Cubes in view (within about 100 m). */
   const cubes = ref<Cube[]>([])
+  /** What is on your character (while the buffs overlay is on). */
+  const buffs = ref<Buff[]>([])
   /** This session's Kina; the rate is redrawn every few seconds as active time runs on. */
   const kina = ref<KinaSession>(NO_KINA)
   const now = ref(Date.now())
@@ -124,6 +127,7 @@ export const useApp = defineStore('app', () => {
     api.on('tracker:fieldBosses', (b) => (fieldBosses.value = b))
     api.on('tracker:pvp', (k) => (pvp.value = k))
     api.on('tracker:cubes', (c) => (cubes.value = c))
+    api.on('buffs:list', (b) => (buffs.value = b))
     api.on('tracker:pvpKill', (k) => (pvp.value = [...pvp.value, k]))
     api.on('tracker:kina', (k) => {
       kina.value = k
@@ -143,6 +147,7 @@ export const useApp = defineStore('app', () => {
     kina.value = t.kina
     fieldBosses.value = t.fieldBosses
     alerting.value = await api.invoke('timers:get')
+    buffs.value = await api.invoke('buffs:get')
     ready.value = true
   }
 
@@ -172,7 +177,7 @@ export const useApp = defineStore('app', () => {
   }
 
   return {
-    settings, status, pets, toasts, fighting, collectionView, shop, kina, kinaRate, kinaTimeline, alerting, timerFocus, fieldBosses, pvp, cubes, hudEditing, panelVisible, ready, sessionSouls, recentPets, openPetId, nearby,
+    settings, status, pets, toasts, fighting, collectionView, shop, kina, kinaRate, kinaTimeline, alerting, timerFocus, fieldBosses, pvp, cubes, buffs, hudEditing, panelVisible, ready, sessionSouls, recentPets, openPetId, nearby,
     init, set, setHud, togglePin, openPet, hiddenPet,
   }
 })

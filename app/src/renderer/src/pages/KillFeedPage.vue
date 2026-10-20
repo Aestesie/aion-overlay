@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Copied from Nyerk (GPL-3.0), https://github.com/xCROv/aion2-nyerk
 // app/src/renderer/src/pages/KillFeedPage.vue at ddcdc48 (0.2.17).
-// The kill feed over the game: a small window opened from the PvP Log tab. Its title bar holds
+// The kill feed over the game: a small window opened from the PvP page. Its title bar holds
 // this session's kills and deaths (all it shows between kills), moves the window and closes it;
 // each player kill around you slides in under it and falls off after a few seconds, as the HUD's
 // soul lines do.
@@ -86,7 +86,7 @@ onBeforeUnmount(() => observer?.disconnect())
           <button
             type="button"
             class="ml-auto flex size-5 items-center justify-center rounded text-darker hover:bg-dark hover:text-default"
-            title="Close (the PvP Log tab opens it again)"
+            title="Close (the PvP page or Home opens it again)"
             @pointerdown.stop
             @click="close"
           >

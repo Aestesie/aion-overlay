@@ -3,6 +3,7 @@
  * what the meter window shows of it. The wire format is documented in engine/src/sidecar.rs; the
  * fields are A2Tools DPS Meter's `DpsData`.
  */
+import type { BuffTrack, FightBuffs } from './buffs.ts'
 
 /** One row of the meter: a player (or the Others row on an open-world boss). */
 export interface MeterRow {
@@ -173,6 +174,8 @@ export interface DetailsActor {
 
 export interface DetailsView {
   source: DetailsSource
+  /** The buffs and debuffs on its players and its target; null when the fight has none recorded. */
+  buffs: FightBuffs | null
   title: string
   /** When the fight began (ms since epoch); 0 when unknown. */
   startedAt: number
@@ -210,6 +213,9 @@ interface SkillEntry {
 export interface FightRecord {
   id: string
   bossName: string
+  targetId: number
+  /** Saved since the meter recorded buffs. */
+  buffs?: BuffTrack[]
   startTimeMs: number
   durationMs: number
   details: TargetDetails
@@ -280,6 +286,7 @@ export function detailsView(
     .sort((a, b) => b.damage - a.damage || b.heal - a.heal)
   return {
     source,
+    buffs: null,
     title,
     startedAt: d.startTime ?? 0,
     battleTime: d.battleTime,

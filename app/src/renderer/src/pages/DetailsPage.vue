@@ -1,13 +1,17 @@
 <script setup lang="ts">
 // A fight's breakdown: every player's damage (and healing), and the chosen player's skills, from
-// A2Tools DPS Meter's parser. Opened on the live target from a meter row (it follows the fight,
-// redrawn every second), or on a saved fight from the History tab. Moved by its header; its X
+// A2Tools DPS Meter's parser; and its Buffs (upstream's Details Buffs section, buffTimeline.js):
+// what was on the chosen player and on the target, each a bar of when it was on, with its uptime. Opened on the live target from a meter row (it follows the fight,
+// redrawn every second), or on a saved fight from the History page. Moved by its header; its X
 // closes it.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import BuffIcon from '@/components/BuffIcon.vue'
 import SkillIcon from '@/components/SkillIcon.vue'
+import { buffName } from '@/lib/buffs.ts'
 import { bridge } from '@/lib/bridge.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { CLASS_COLORS, type DetailsSkill, type DetailsView } from '@shared/meter.ts'
+import { trackSegments, type BuffTrack } from '@shared/buffs.ts'
 
 const LIVE_EVERY_MS = 1000
 
@@ -16,7 +20,7 @@ const view = ref<DetailsView | null>(null)
 const loading = ref(true)
 /** The player whose skills are listed; the one asked for, else the top one. */
 const chosen = ref<number | null>(null)
-const tab = ref<'damage' | 'healing'>('damage')
+const tab = ref<'damage' | 'healing' | 'buffs'>('damage')
 
 const icons = import.meta.glob<string>('@/assets/classes/*.png', { eager: true, import: 'default' })
 const icon = (className: string | null): string | null =>
@@ -37,8 +41,37 @@ const pct = (n: number, of: number): string => (of > 0 ? `${((n / of) * 100).toF
 
 const live = computed(() => view.value?.source.kind === 'live')
 const actor = computed(() => view.value?.actors.find((a) => a.id === chosen.value) ?? view.value?.actors[0] ?? null)
-const top = computed(() => Math.max(1, ...(view.value?.actors.map((a) => (tab.value === 'damage' ? a.damage : a.heal)) ?? [])))
-const listed = computed(() => (view.value?.actors ?? []).filter((a) => (tab.value === 'damage' ? a.damage : a.heal) > 0))
+const top = computed(() => Math.max(1, ...(view.value?.actors.map((a) => (tab.value === 'healing' ? a.heal : a.damage)) ?? [])))
+const listed = computed(() => (view.value?.actors ?? []).filter((a) => (tab.value === 'healing' ? a.heal : a.damage) > 0 || (tab.value === 'buffs' && a.heal > 0)))
+
+/** One buff row: a track, its name, who cast it, its bars (percent of the fight) and uptime. */
+interface BuffRow {
+  key: string
+  track: BuffTrack
+  name: string
+  by: string | null
+  bars: { left: number; width: number }[]
+  uptime: number
+}
+const nameOf = (id: number): string | null => view.value?.actors.find((a) => a.id === id)?.name ?? null
+function buffRows(tracks: BuffTrack[], showBy: boolean): BuffRow[] {
+  const d = view.value?.buffs?.durationMs ?? 0
+  if (d <= 0) return []
+  return tracks
+    .map((t, i) => ({
+      key: `${t.on}-${t.id}-${t.by}-${i}`,
+      track: t,
+      name: buffName(t.id),
+      by: showBy && t.by ? (t.by === view.value?.buffs?.targetId ? view.value.title : (nameOf(t.by) ?? null)) : null,
+      bars: trackSegments(t, d).map(([a, b]) => ({ left: (a / d) * 100, width: Math.max(0.4, ((b - a) / d) * 100) })),
+      uptime: Math.min(100, (t.up / d) * 100),
+    }))
+    .sort((a, b) => Number(a.track.passive ?? false) - Number(b.track.passive ?? false) || b.uptime - a.uptime)
+}
+/** On the chosen player (their summons' too), and on the target from anyone. */
+const onActor = computed(() => buffRows((view.value?.buffs?.tracks ?? []).filter((t) => t.on === actor.value?.id && (showPassives.value || !t.passive)), true))
+const onTarget = computed(() => buffRows((view.value?.buffs?.tracks ?? []).filter((t) => t.on === view.value?.buffs?.targetId && (showPassives.value || !t.passive)), true))
+const showPassives = ref(false)
 const skills = computed<DetailsSkill[]>(() => {
   const all = tab.value === 'damage' ? view.value?.skills : view.value?.heals
   return (all ?? []).filter((s) => s.actor === actor.value?.id)
@@ -107,7 +140,7 @@ onBeforeUnmount(() => {
     <template v-else>
       <div class="flex gap-1 px-3 pt-2 text-[11px]">
         <button
-          v-for="t in ['damage', 'healing'] as const"
+          v-for="t in ['damage', 'healing', 'buffs'] as const"
           :key="t"
           type="button"
           :class="['rounded-full border px-2.5 py-0.5 capitalize', tab === t ? 'border-accent bg-accent/15 text-default' : 'border-light text-darker hover:text-dark']"
@@ -126,13 +159,13 @@ onBeforeUnmount(() => {
         >
           <div
             class="absolute inset-y-0 left-0 opacity-30"
-            :style="{ width: `${((tab === 'damage' ? a.damage : a.heal) / top) * 100}%`, background: CLASS_COLORS[a.className ?? ''] ?? '#787b8a' }"
+            :style="{ width: `${((tab === 'healing' ? a.heal : a.damage) / top) * 100}%`, background: CLASS_COLORS[a.className ?? ''] ?? '#787b8a' }"
           />
           <div class="relative flex items-center gap-1.5 px-1.5 py-0.5 text-xs">
             <img v-if="icon(a.className)" :src="icon(a.className)!" class="size-4 shrink-0" alt="" />
             <span v-else class="size-4 shrink-0" />
             <span class="min-w-0 flex-1 truncate text-dark">{{ a.name }}</span>
-            <template v-if="tab === 'damage'">
+            <template v-if="tab !== 'healing'">
               <span class="shrink-0 tabular-nums text-dark">{{ short(a.dps) }}/s</span>
               <span class="w-14 shrink-0 text-right tabular-nums text-darker">{{ short(a.damage) }}</span>
               <span class="w-11 shrink-0 text-right text-[10px] tabular-nums text-darker">{{ a.share.toFixed(1) }}%</span>
@@ -142,7 +175,34 @@ onBeforeUnmount(() => {
         </li>
       </ul>
 
-      <div class="min-h-0 flex-1 overflow-y-auto border-t border-card">
+      <div v-if="tab === 'buffs'" class="min-h-0 flex-1 overflow-y-auto border-t border-card px-3 py-2 text-[11px]">
+        <p v-if="!view.buffs" class="py-2 text-darker">No buffs recorded for this fight (fights saved before buffs were recorded have none).</p>
+        <template v-else>
+          <label class="mb-1.5 flex items-center gap-1.5 text-darker">
+            <input v-model="showPassives" type="checkbox" class="accent-[color:var(--accent)]" />
+            Passives (on all fight)
+          </label>
+          <section v-for="group in [{ title: `On ${actor?.name ?? 'the player'}`, rows: onActor }, { title: `On ${view.title}`, rows: onTarget }]" :key="group.title" class="mb-3">
+            <h3 class="mb-1 font-semibold uppercase tracking-wide text-darkest">{{ group.title }}</h3>
+            <p v-if="!group.rows.length" class="text-darker">Nothing.</p>
+            <div v-for="r in group.rows" :key="r.key" class="flex items-center gap-2 py-0.5" :title="r.by ? `${r.name} · from ${r.by}` : r.name">
+              <BuffIcon :id="r.track.id" :skill="r.track.skill" :size="16" />
+              <span class="w-36 shrink-0 truncate text-dark">{{ r.name }}<span v-if="r.by && group.rows === onTarget" class="text-darkest"> · {{ r.by }}</span></span>
+              <div class="relative h-2.5 min-w-0 flex-1 overflow-hidden rounded-sm bg-dark">
+                <div
+                  v-for="(b, i) in r.bars"
+                  :key="i"
+                  :class="['absolute inset-y-0', r.track.by === actor?.id ? 'bg-accent' : group.rows === onTarget ? 'bg-danger/70' : 'bg-green/70']"
+                  :style="{ left: `${b.left}%`, width: `${b.width}%` }"
+                />
+              </div>
+              <span class="w-10 shrink-0 text-right tabular-nums text-darker">{{ r.uptime.toFixed(0) }}%</span>
+            </div>
+          </section>
+          <p class="text-darkest">Blue: cast by {{ actor?.name ?? 'the player' }}. Green: by others. Red: on the target from others.</p>
+        </template>
+      </div>
+      <div v-else class="min-h-0 flex-1 overflow-y-auto border-t border-card">
         <table class="w-full text-[11px] tabular-nums">
           <thead class="sticky top-0 bg-darker text-darkest">
             <tr>

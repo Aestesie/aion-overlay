@@ -8,11 +8,12 @@
  *                         shop is, always movable, closed with its X
  *   minimap   #/minimap   the map overlay: your zone around you, tracked pets' spawns, Hidden Cubes
  *   skills    #/skills    your own damage on the meter's target, skill by skill: with the meter
+ *   buffs     #/buffs     your buffs and debuffs, with what is left of each
  *   details   #/details   a fight's breakdown by player and skill: opened from a meter row or a
- *                         saved fight in the History tab, moved by its header, closed with its X
+ *                         saved fight in the History page, moved by its header, closed with its X
  *   timerbar  #/timerbar  the timers with an alert on, as a bar of countdowns: open while the game
  *                         is, sized to what it shows (hidden with nothing within 13 hours)
- *   killfeed  #/killfeed  player kills around you, as they happen: opened from the PvP Log tab
+ *   killfeed  #/killfeed  player kills around you, as they happen: opened from the PvP page
  *   meter     #/meter     the DPS meter: open while the game is (and the meter is on), movable by
  *                         its header, sized to its rows
  *
@@ -49,10 +50,6 @@ let killFeed: BrowserWindow | null = null
 let killFeedSize = { width: 0, height: 0 }
 let timerBar: BrowserWindow | null = null
 let details: BrowserWindow | null = null
-let skills: BrowserWindow | null = null
-let miniMap: BrowserWindow | null = null
-let miniMapSize = { width: 0, height: 0 }
-let skillsSize = { width: 0, height: 0 }
 let detailsShowing: DetailsSource | null = null
 let timerBarSize = { width: 0, height: 0 }
 let meterSize = { width: 0, height: 0 }
@@ -279,7 +276,7 @@ export function showPetInPanel(pet: number): void {
   sendToPanel('panel:showPet', pet)
 }
 
-/** The panel on its Timers tab, these timers highlighted: a click on the bubble during an alert. */
+/** The dashboard on these timers' page, them highlighted: a click on the bubble during an alert. */
 export function showTimersInPanel(ids: TimerId[]): void {
   sendToPanel('panel:showTimers', ids)
 }
@@ -505,111 +502,112 @@ export function meterDragEnded(): void {
   settings.set('meter', { ...settings.get('meter'), position: { x, y } })
 }
 
-// ---- skills ---------------------------------------------------------------------------------
+// ---- measured overlays: your skills, the map, your buffs --------------------------------------
 
-function skillsPosition(): Point {
-  const saved = settings.get('skills').position
-  if (saved) return saved
-  const area = screen.getPrimaryDisplay().workArea
-  return { x: area.x + EDGE, y: area.y + 480 }
-}
-
-/** Open your skills' window, unless it is turned off. It shows once its page has measured itself. */
-export function createSkills(): void {
-  if (!settings.get('skills').enabled || alive(skills)) return
-  const p = skillsPosition()
-  const win = overlayWindow({ x: p.x, y: p.y, width: 300, height: 120 })
-  skills = win
-  skillsSize = { width: 0, height: 0 }
-  win.on('closed', () => (skills = null))
-  load(win, 'skills')
-}
-
-export function closeSkills(): void {
-  if (alive(skills)) skills.destroy()
-  skills = null
-}
-
-function refreshSkills(): void {
-  if (!alive(skills)) return
-  const { width, height } = skillsSize
-  if (width > 0 && height > 0) {
-    const p = skillsPosition()
-    skills.setBounds(clampToDisplay({ x: p.x, y: p.y, width, height }))
-    if (!skills.isVisible()) reveal(skills)
-  } else if (skills.isVisible()) {
-    skills.hide()
+/**
+ * An overlay that sizes itself to its page (which reports 0 x 0 with nothing to show, and is then
+ * kept hidden), moved by its header, its position saved in its own setting.
+ */
+function measuredOverlay(o: { route: string; enabled: () => boolean; saved: () => Point | null; fallback: () => Point; save: (p: Point) => void }) {
+  let win: BrowserWindow | null = null
+  let size = { width: 0, height: 0 }
+  const position = (): Point => o.saved() ?? o.fallback()
+  const refresh = (): void => {
+    if (!alive(win)) return
+    if (size.width > 0 && size.height > 0) {
+      const p = position()
+      win.setBounds(clampToDisplay({ x: p.x, y: p.y, ...size }))
+      if (!win.isVisible()) reveal(win)
+    } else if (win.isVisible()) {
+      win.hide()
+    }
+  }
+  return {
+    win: (): BrowserWindow | null => (alive(win) ? win : null),
+    /** Open it, unless it is turned off. It shows once its page has measured itself. */
+    create(): void {
+      if (!o.enabled() || alive(win)) return
+      const p = position()
+      const w = overlayWindow({ x: p.x, y: p.y, width: 300, height: 120 })
+      win = w
+      size = { width: 0, height: 0 }
+      w.on('closed', () => {
+        if (win === w) win = null
+      })
+      load(w, o.route)
+    },
+    close(): void {
+      if (alive(win)) win.destroy()
+      win = null
+    },
+    refresh,
+    resize(to: { width: number; height: number }): void {
+      size = { width: Math.ceil(to.width), height: Math.ceil(to.height) }
+      refresh()
+    },
+    move(to: Point): void {
+      if (alive(win)) win.setBounds(clampToDisplay({ x: to.x, y: to.y, ...measured(win, size) }))
+    },
+    dragEnded(): void {
+      if (!alive(win)) return
+      const { x, y } = win.getBounds()
+      o.save({ x, y })
+    },
   }
 }
 
-export function resizeSkills(size: { width: number; height: number }): void {
-  skillsSize = { width: Math.ceil(size.width), height: Math.ceil(size.height) }
-  refreshSkills()
-}
+const skillsOverlay = measuredOverlay({
+  route: 'skills',
+  enabled: () => settings.get('skills').enabled,
+  saved: () => settings.get('skills').position,
+  fallback: () => {
+    const area = screen.getPrimaryDisplay().workArea
+    return { x: area.x + EDGE, y: area.y + 480 }
+  },
+  save: (position) => settings.set('skills', { ...settings.get('skills'), position }),
+})
+export const createSkills = skillsOverlay.create
+export const closeSkills = skillsOverlay.close
+export const resizeSkills = skillsOverlay.resize
+export const moveSkills = skillsOverlay.move
+export const skillsDragEnded = skillsOverlay.dragEnded
 
-export function moveSkills(to: Point): void {
-  if (!alive(skills)) return
-  skills.setBounds(clampToDisplay({ x: to.x, y: to.y, ...measured(skills, skillsSize) }))
-}
+const miniMapOverlay = measuredOverlay({
+  route: 'minimap',
+  enabled: () => settings.get('minimap').enabled,
+  saved: () => settings.get('minimap').position,
+  fallback: () => {
+    const area = screen.getPrimaryDisplay().workArea
+    const size = settings.get('minimap').size
+    return { x: area.x + area.width - size - 2 * EDGE, y: area.y + area.height - size - 4 * EDGE }
+  },
+  save: (position) => settings.set('minimap', { ...settings.get('minimap'), position }),
+})
+export const createMiniMap = miniMapOverlay.create
+export const closeMiniMap = miniMapOverlay.close
+export const resizeMiniMap = miniMapOverlay.resize
+export const moveMiniMap = miniMapOverlay.move
+export const miniMapDragEnded = miniMapOverlay.dragEnded
 
-export function skillsDragEnded(): void {
-  if (!alive(skills)) return
-  const { x, y } = skills.getBounds()
-  settings.set('skills', { ...settings.get('skills'), position: { x, y } })
-}
+const buffsOverlay = measuredOverlay({
+  route: 'buffs',
+  enabled: () => settings.get('buffs').enabled,
+  saved: () => settings.get('buffs').position,
+  fallback: () => {
+    const area = screen.getPrimaryDisplay().workArea
+    return { x: Math.round(area.x + area.width / 2 - 200), y: area.y + area.height - 260 }
+  },
+  save: (position) => settings.set('buffs', { ...settings.get('buffs'), position }),
+})
+export const createBuffs = buffsOverlay.create
+export const closeBuffs = buffsOverlay.close
+export const resizeBuffs = buffsOverlay.resize
+export const moveBuffs = buffsOverlay.move
+export const buffsDragEnded = buffsOverlay.dragEnded
 
-// ---- map overlay ------------------------------------------------------------------------------
-
-function miniMapPosition(): Point {
-  const saved = settings.get('minimap').position
-  if (saved) return saved
-  const area = screen.getPrimaryDisplay().workArea
-  return { x: area.x + area.width - settings.get('minimap').size - 2 * EDGE, y: area.y + area.height - settings.get('minimap').size - 4 * EDGE }
-}
-
-/** Open the map overlay, unless it is turned off. It shows once its page has measured itself. */
-export function createMiniMap(): void {
-  if (!settings.get('minimap').enabled || alive(miniMap)) return
-  const p = miniMapPosition()
-  const win = overlayWindow({ x: p.x, y: p.y, width: 280, height: 300 })
-  miniMap = win
-  miniMapSize = { width: 0, height: 0 }
-  win.on('closed', () => (miniMap = null))
-  load(win, 'minimap')
-}
-
-export function closeMiniMap(): void {
-  if (alive(miniMap)) miniMap.destroy()
-  miniMap = null
-}
-
-function refreshMiniMap(): void {
-  if (!alive(miniMap)) return
-  const { width, height } = miniMapSize
-  if (width > 0 && height > 0) {
-    const p = miniMapPosition()
-    miniMap.setBounds(clampToDisplay({ x: p.x, y: p.y, width, height }))
-    if (!miniMap.isVisible()) reveal(miniMap)
-  } else if (miniMap.isVisible()) {
-    miniMap.hide()
-  }
-}
-
-export function resizeMiniMap(size: { width: number; height: number }): void {
-  miniMapSize = { width: Math.ceil(size.width), height: Math.ceil(size.height) }
-  refreshMiniMap()
-}
-
-export function moveMiniMap(to: Point): void {
-  if (!alive(miniMap)) return
-  miniMap.setBounds(clampToDisplay({ x: to.x, y: to.y, ...measured(miniMap, miniMapSize) }))
-}
-
-export function miniMapDragEnded(): void {
-  if (!alive(miniMap)) return
-  const { x, y } = miniMap.getBounds()
-  settings.set('minimap', { ...settings.get('minimap'), position: { x, y } })
-}
+const MEASURED = [skillsOverlay, miniMapOverlay, buffsOverlay]
+/** The measured overlays that are open. */
+const measuredWins = (): BrowserWindow[] => MEASURED.map((m) => m.win()).filter((w): w is BrowserWindow => w !== null)
 
 // ---- details ----------------------------------------------------------------------------------
 
@@ -799,21 +797,20 @@ function restoreHidden(): void {
     if (alive(win) && held(win)) continue
     awayHidden.delete(win)
     // These decide below whether they have anything to show.
-    if (alive(win) && win !== hud && win !== merchant && win !== meter && win !== timerBar && win !== skills && win !== miniMap) win.showInactive()
+    if (alive(win) && win !== hud && win !== merchant && win !== meter && win !== timerBar && !measuredWins().includes(win)) win.showInactive()
   }
   refreshHud()
   refreshMerchant()
   refreshMeter()
   refreshTimerBar()
-  refreshSkills()
-  refreshMiniMap()
+  for (const m of MEASURED) m.refresh()
 }
 
 /** Alt+Shift+E: every overlay off, or back on. The dashboard is left as it is. True when off. */
 export function toggleOverlays(): boolean {
   overlaysOff = !overlaysOff
   if (overlaysOff) {
-    for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, details, skills, miniMap]) {
+    for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, details, ...measuredWins()]) {
       if (!alive(win) || !win.isVisible()) continue
       awayHidden.add(win)
       win.hide()
@@ -821,6 +818,7 @@ export function toggleOverlays(): boolean {
   } else {
     restoreHidden()
   }
+  broadcast('overlays:hidden', overlaysOff)
   return overlaysOff
 }
 
@@ -835,7 +833,7 @@ export function setForeground(game: boolean, app: boolean): void {
   if (away) {
     awayTimer = setTimeout(() => {
       gameAway = true
-      for (const win of [bubble, panel, hud, merchant, meter, killFeed, timerBar, details, skills, miniMap]) {
+      for (const win of [bubble, panel, hud, merchant, meter, killFeed, timerBar, details, ...measuredWins()]) {
         if (!alive(win) || !win.isVisible()) continue
         awayHidden.add(win)
         win.hide()
@@ -860,7 +858,7 @@ const ON_TOP_EVERY_MS = 5_000
  */
 export function startOnTopWatch(): void {
   setInterval(() => {
-    for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, details, skills, miniMap]) {
+    for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, details, ...measuredWins()]) {
       if (!alive(win) || !win.isVisible()) continue
       win.setAlwaysOnTop(true, 'screen-saver')
       win.moveTop()
@@ -871,11 +869,13 @@ export function startOnTopWatch(): void {
 /** Settings that change how the windows behave, applied live. */
 export function applyWindowSettings(): void {
   const hidden = settings.get('hideFromCapture')
-  for (const w of [bubble, panel, hud, merchant, meter, killFeed, timerBar, details, skills, miniMap]) if (alive(w)) w.setContentProtection(hidden)
+  for (const w of [bubble, panel, hud, merchant, meter, killFeed, timerBar, details, ...measuredWins()]) if (alive(w)) w.setContentProtection(hidden)
   if (!settings.get('minimap').enabled) closeMiniMap()
   else if (alive(bubble)) createMiniMap()
   if (!settings.get('skills').enabled) closeSkills()
   else if (alive(bubble)) createSkills()
+  if (!settings.get('buffs').enabled) closeBuffs()
+  else if (alive(bubble)) createBuffs()
   // Turned on: with the other overlays, while they are up (the bubble is, awake).
   if (!settings.get('timerBar').enabled) closeTimerBar()
   else if (alive(bubble)) createTimerBar()
@@ -894,15 +894,14 @@ export function applyWindowSettings(): void {
  * window that is only hidden keeps its renderer process. An open panel stays open.
  */
 export function closeOverlays(): void {
-  for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, skills, miniMap]) if (alive(win)) win.destroy()
+  for (const win of [bubble, hud, merchant, meter, killFeed, timerBar]) if (alive(win)) win.destroy()
+  for (const m of MEASURED) m.close()
   bubble = null
   hud = null
   merchant = null
   meter = null
   killFeed = null
   timerBar = null
-  skills = null
-  miniMap = null
   awayHidden.clear()
   hudEditing = false
   hudSize = { width: 0, height: 0 }
@@ -939,17 +938,11 @@ export function rebuildWindow(win: BrowserWindow): string | null {
     showMerchant()
     return 'merchant'
   }
-  if (win === miniMap) {
-    win.destroy()
-    miniMap = null
-    createMiniMap()
-    return 'minimap'
-  }
-  if (win === skills) {
-    win.destroy()
-    skills = null
-    createSkills()
-    return 'skills'
+  for (const [m, route] of [[skillsOverlay, 'skills'], [miniMapOverlay, 'minimap'], [buffsOverlay, 'buffs']] as const) {
+    if (win !== m.win()) continue
+    m.close()
+    m.create()
+    return route
   }
   if (win === details) {
     const source = detailsShowing
