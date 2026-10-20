@@ -1,0 +1,31 @@
+[package]
+name = "lokthar-engine"
+version = "0.1.0"
+description = "Lokthar overlay's capture and DPS engine: a sidecar that talks JSON lines with the app"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+
+[dependencies]
+# A2Tools DPS Meter's parser and DPS calculator (GPL-3.0), without its Tauri app
+# (`desktop`) or anything that talks to a service (`online`). Pinned: its API is
+# internal, so a bump is a deliberate step (see overlay-plan.md, "Keeping up with
+# upstream").
+a2tools-dps-meter = { git = "https://github.com/taengu/A2Tools-DPS-Meter", rev = "08b249d49ef18be9ac9b41d8dd35596ae99aacfd", default-features = false }
+
+chrono = "0.4"
+libloading = "0.8"
+parking_lot = "0.12"
+pcap-file = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "macros", "time"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[target.'cfg(windows)'.dependencies]
+# Npcap's folder on the DLL search path (capture::pcap_lib::prepare).
+windows = { version = "0.59", features = ["Win32_System_LibraryLoader"] }
+
+[profile.release]
+strip = true

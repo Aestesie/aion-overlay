@@ -13,6 +13,7 @@ import { startIdleWatch } from './idle.ts'
 import { startLokthar } from './lokthar.ts'
 import { join } from 'node:path'
 import { moveDataFolder, OLD_NAMES } from './migrate.ts'
+import { engine, killEngineNow, stopEngine } from './engine.ts'
 import { startTimers } from './timers.ts'
 import { killTrackerNow, log, stopTracker, tracker } from './tracker.ts'
 import { createTray, setTrayTooltip } from './tray.ts'
@@ -42,9 +43,14 @@ if (!app.requestSingleInstanceLock()) {
     registerIpc()
     createTray()
 
+    let targetMode = settings.get('meter').targetMode
     settings.onChanged((all) => {
       broadcast('settings:changed', all)
       applyWindowSettings()
+      if (all.meter.targetMode !== targetMode) {
+        targetMode = all.meter.targetMode
+        engine.applyTargetMode()
+      }
     })
     // A tab of the Black Cloud Merchant was opened: its pets worth buying, in their own window.
     tracker.onShop(() => showMerchant())
@@ -90,7 +96,11 @@ if (!app.requestSingleInstanceLock()) {
   app.on('before-quit', () => {
     markQuitting()
     stopTracker()
+    stopEngine()
   })
-  // Windows children outlive their parent: make sure the tracker goes with us.
-  process.on('exit', () => killTrackerNow())
+  // Windows children outlive their parent: make sure the tracker and the engine go with us.
+  process.on('exit', () => {
+    killTrackerNow()
+    killEngineNow()
+  })
 }

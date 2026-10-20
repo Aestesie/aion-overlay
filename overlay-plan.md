@@ -114,6 +114,12 @@ Revisit after phase 2, when Python is gone and the engine is a plain crate. At t
 - The engine and Python capture side by side is fine for a spike.
 - First step: a 20-line test crate that builds against the pinned rev and replays a capture (`capture/file_replay.rs` reads `TIMESTAMP|STREAMKEY|HEX_DATA`); compare its numbers to upstream's meter on the same capture.
 
+Status (2026-10-19), built but not yet run against the game:
+- `engine/` (`lokthar-engine`): upstream's crate at `08b249d`, their capture files copied and trimmed (header in each), English tables embedded from `engine/data/`. `cargo test`: 16 pass, upstream's capture tests included, plus an end-to-end replay test (a synthetic stream locks onto the game port and comes out as a meter row).
+- `lokthar-engine replay <file> [--every <s>] [--mode <mode>]` reads `.pcap`, `.pcapng` and A2Tools packet logs, timed by capture time; prints `dps` lines and a table.
+- App: `main/engine.ts` (spawn, restart, commands), `#/meter` window (`MeterPage.vue`), `meter` settings and a Settings section, idle sleeps it with the game, `npm run dist` and CI build and ship the engine.
+- To do: run it in game on Windows; validate against upstream's meter (record a fight with A2Tools' packet logging on, note its numbers, replay the log); report an error when no capture device opens (it says "listening" today); a dev replay mode in real time for UI work.
+
 **Phase 2: one sidecar.**
 - Port `protocol.py` decoders (pets, Kina, shop, field bosses) to Rust on `frame_tap`; local player id and mob codes come from `DataStorage` (replaces our vote-based `self_id`).
 - Pets done right from the start: souls read as a list (bug 1), the `14 90` level-up (bug 2), reset to 0 on level-up (bug 3), collections keyed per server (gap 4). Saved per-character data migrates once into per-server.

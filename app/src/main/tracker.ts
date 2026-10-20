@@ -125,7 +125,7 @@ function dataFile(root: string | null): string {
 }
 
 /** Npcap is what the tracker captures with; it cannot be bundled, so each user installs it. */
-function npcapInstalled(): boolean {
+export function npcapInstalled(): boolean {
   const system = join(process.env['SystemRoot'] ?? 'C:\\Windows', 'System32')
   return existsSync(join(system, 'Npcap', 'wpcap.dll')) || existsSync(join(system, 'wpcap.dll'))
 }

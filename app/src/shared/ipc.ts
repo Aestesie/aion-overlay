@@ -4,6 +4,7 @@
  * pattern is marnis-app's (shared/ipc-contract.ts), with this app's channels.
  */
 import type { KinaSession } from './kina.ts'
+import type { EngineStatus, MeterData } from './meter.ts'
 import type { SyncResult } from './lokthar.ts'
 import type { Point, SettingKey, Settings } from './settings.ts'
 import type { FieldBosses, TimerAlert, TimerId } from './timers.ts'
@@ -46,6 +47,16 @@ export interface InvokeChannels {
   'timers:open': { args: []; result: void }
   /** Open the panel on a pet's drop locations (from the merchant window). */
   'panel:showPet': { args: [pet: number]; result: void }
+  /** The DPS meter: the fight as it stands, and the engine's state. */
+  'meter:get': { args: []; result: { meter: MeterData; status: EngineStatus } }
+  /** Start the fight over: no target, no damage. */
+  'meter:reset': { args: []; result: void }
+  'meter:restart': { args: []; result: void }
+  /** One target's breakdown by skill (A2Tools DPS Meter's TargetDetailsResponse). */
+  'meter:details': { args: [target: number, actors?: number[]]; result: unknown }
+  'meter:moveTo': { args: [to: Point]; result: void }
+  'meter:dragEnd': { args: []; result: void }
+  'meter:resize': { args: [size: { width: number; height: number }]; result: void }
   /** The Lokthar sync: check the address and token; the last attempt's outcome. */
   'lokthar:test': { args: []; result: SyncResult }
   'lokthar:last': { args: []; result: SyncResult | null }
@@ -77,6 +88,9 @@ export interface EventChannels {
   'panel:showTimers': TimerId[]
   'hud:editing': boolean
   'panel:visible': boolean
+  /** The fight, as the engine last reported it (checked 5 times a second, sent on change). */
+  'meter:dps': MeterData
+  'meter:status': EngineStatus
 }
 
 export type InvokeChannel = keyof InvokeChannels
@@ -99,8 +113,9 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'hud:setEditing', 'hud:moveTo', 'hud:dragEnd', 'hud:resize',
   'merchant:moveTo', 'merchant:dragEnd', 'merchant:resize', 'merchant:close', 'panel:showPet', 'timers:get', 'timers:dismiss', 'timers:open',
   'lokthar:test', 'lokthar:last',
+  'meter:get', 'meter:reset', 'meter:restart', 'meter:details', 'meter:moveTo', 'meter:dragEnd', 'meter:resize',
 ]
 
 export const EVENT_CHANNELS: readonly EventChannel[] = [
-  'settings:changed', 'tracker:status', 'tracker:pets', 'tracker:pet', 'tracker:soul', 'tracker:nearby', 'tracker:combat', 'tracker:shop', 'tracker:kina', 'tracker:fieldBosses', 'panel:showPet', 'panel:showTimers', 'timers:alert', 'timers:alerting', 'hud:editing', 'panel:visible',
+  'settings:changed', 'tracker:status', 'tracker:pets', 'tracker:pet', 'tracker:soul', 'tracker:nearby', 'tracker:combat', 'tracker:shop', 'tracker:kina', 'tracker:fieldBosses', 'panel:showPet', 'panel:showTimers', 'timers:alert', 'timers:alerting', 'hud:editing', 'panel:visible', 'meter:dps', 'meter:status',
 ]

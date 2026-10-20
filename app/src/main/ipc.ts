@@ -1,5 +1,6 @@
 /** Every invoke handler, typed against the contract in shared/ipc.ts. */
 import { app, ipcMain, shell } from 'electron'
+import { engine } from './engine.ts'
 import { lokthar } from './lokthar.ts'
 import { settings } from './settings.ts'
 import { timers } from './timers.ts'
@@ -11,11 +12,14 @@ import {
   hudDragEnded,
   markQuitting,
   merchantDragEnded,
+  meterDragEnded,
   moveBubble,
   moveHud,
   moveMerchant,
+  moveMeter,
   resizeHud,
   resizeMerchant,
+  resizeMeter,
   setHudEditing,
   setPanelExpanded,
   showPetInPanel,
@@ -100,5 +104,21 @@ export function registerIpc(): void {
   })
   handle('panel:showPet', (pet) => {
     if (Number.isInteger(pet)) showPetInPanel(pet)
+  })
+
+  handle('meter:get', () => ({ meter: engine.meter(), status: engine.status() }))
+  handle('meter:reset', () => engine.reset())
+  handle('meter:restart', () => engine.restart())
+  handle('meter:details', (target, actors) => {
+    if (!Number.isInteger(target)) return null
+    const ids = Array.isArray(actors) ? actors.filter((a) => Number.isInteger(a)).slice(0, 64) : undefined
+    return engine.details(target, ids)
+  })
+  handle('meter:moveTo', (to) => {
+    if (isPoint(to)) moveMeter(to)
+  })
+  handle('meter:dragEnd', () => meterDragEnded())
+  handle('meter:resize', (size) => {
+    if (isPoint({ x: size?.width, y: size?.height })) resizeMeter(size)
   })
 }

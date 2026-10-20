@@ -65,7 +65,8 @@ automatic updates: to update, pull the new upstream version, review it, and rebu
 
 ## Build from source
 
-Needs Windows, [Python 3.12+](https://www.python.org), [Node.js 24](https://nodejs.org) and Npcap.
+Needs Windows, [Python 3.12+](https://www.python.org), [Node.js 24](https://nodejs.org),
+[Rust](https://rustup.rs) (for the engine, `engine/`) and Npcap.
 
 ```bash
 python -m venv .venv

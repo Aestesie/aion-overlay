@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// HUD, panel, privacy, Lokthar sync and tracker settings. Every change applies at once.
-import { onMounted, ref } from 'vue'
+// HUD, DPS meter, panel, privacy, Lokthar sync and tracker settings. Every change applies at once.
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Button from '@/components/Button.vue'
 import SettingRow from '@/components/SettingRow.vue'
 import Slider from '@/components/Slider.vue'
@@ -8,6 +8,7 @@ import Toggle from '@/components/Toggle.vue'
 import { bridge } from '@/lib/bridge.ts'
 import { useApp } from '@/stores/app.ts'
 import type { SyncResult } from '@shared/lokthar.ts'
+import type { EngineStatus } from '@shared/meter.ts'
 
 const store = useApp()
 const info = ref<{ version: string; settingsFile: string; logFile: string } | null>(null)
@@ -33,6 +34,21 @@ async function testSync(): Promise<void> {
   testing.value = false
 }
 const ago = (at: number): string => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+
+const setMeter = (patch: Partial<typeof store.settings.meter>): Promise<void> => store.set('meter', { ...store.settings.meter, ...patch })
+const engineStatus = ref<EngineStatus | null>(null)
+onMounted(async () => {
+  engineStatus.value = (await bridge().invoke('meter:get')).status
+  offEngine = bridge().on('meter:status', (s) => (engineStatus.value = s))
+})
+let offEngine: (() => void) | null = null
+onBeforeUnmount(() => offEngine?.())
+const engineHint = computed(() => {
+  const s = engineStatus.value
+  if (!s) return ''
+  const what = { off: 'Off', starting: 'Starting', listening: 'Looking for the game', locked: 'Reading the game', error: 'Error', exited: 'Restarting' }[s.state]
+  return s.detail ? `${what}: ${s.detail}` : what
+})
 </script>
 
 <template>
@@ -125,6 +141,24 @@ const ago = (at: number): string => new Date(at).toLocaleTimeString([], { hour: 
           <Button size="sm" @click="bridge().invoke('hud:setEditing', !store.hudEditing)">
             {{ store.hudEditing ? 'Done' : 'Move HUD' }}
           </Button>
+        </SettingRow>
+      </div>
+    </section>
+
+    <section>
+      <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-darkest">DPS meter</h3>
+      <div class="divide-y divide-[color:var(--gray-4)] rounded-lg border border-card bg-card px-3">
+        <SettingRow label="Show the DPS meter" hint="Its own window while the game is open: drag it by its header. The numbers come from A2Tools DPS Meter's parser.">
+          <Toggle :model-value="store.settings.meter.enabled" @update:model-value="setMeter({ enabled: $event })" />
+        </SettingRow>
+        <SettingRow label="Players listed">
+          <Slider :model-value="store.settings.meter.rows" :min="1" :max="24" :step="1" @update:model-value="setMeter({ rows: $event })" />
+        </SettingRow>
+        <SettingRow label="Opacity">
+          <Slider :model-value="store.settings.meter.opacity" :min="0.3" :max="1" :step="0.05" :format="pct" @update:model-value="setMeter({ opacity: $event })" />
+        </SettingRow>
+        <SettingRow label="Engine" :hint="engineHint">
+          <Button size="sm" @click="bridge().invoke('meter:restart')">Restart</Button>
         </SettingRow>
       </div>
     </section>

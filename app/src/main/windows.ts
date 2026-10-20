@@ -6,6 +6,8 @@
  *   hud       #/hud       the in-game overlay: click-through, sized to its content
  *   merchant  #/merchant  the Black Cloud Merchant's pets worth buying: opened when a tab of the
  *                         shop is, always movable, closed with its X
+ *   meter     #/meter     the DPS meter: open while the game is (and the meter is on), movable by
+ *                         its header, sized to its rows
  *
  * Overlay rules carried over from marnis-app (docs/09 there): 'screen-saver' level so they sit
  * above a borderless game (exclusive fullscreen cannot be drawn over by anything), shown with
@@ -35,6 +37,8 @@ let panel: BrowserWindow | null = null
 let hud: BrowserWindow | null = null
 let merchant: BrowserWindow | null = null
 let merchantSize = { width: 0, height: 0 }
+let meter: BrowserWindow | null = null
+let meterSize = { width: 0, height: 0 }
 let panelExpanded = false
 let hudEditing = false
 let hudSize = { width: 0, height: 0 }
@@ -390,6 +394,60 @@ export function merchantDragEnded(): void {
   settings.set('merchantWindow', { x, y })
 }
 
+// ---- meter ----------------------------------------------------------------------------------
+
+function meterPosition(): Point {
+  const saved = settings.get('meter').position
+  if (saved) return saved
+  const area = screen.getPrimaryDisplay().workArea
+  return { x: area.x + EDGE, y: area.y + 160 }
+}
+
+/** Open the meter window, unless it is turned off. It shows once its page has measured itself. */
+export function createMeter(): void {
+  if (!settings.get('meter').enabled || alive(meter)) return
+  const p = meterPosition()
+  const win = overlayWindow({ x: p.x, y: p.y, width: 320, height: 120 })
+  meter = win
+  meterSize = { width: 0, height: 0 }
+  win.on('closed', () => (meter = null))
+  load(win, 'meter')
+}
+
+export function closeMeter(): void {
+  if (alive(meter)) meter.destroy()
+  meter = null
+}
+
+function refreshMeter(): void {
+  if (!alive(meter)) return
+  const { width, height } = meterSize
+  if (width > 0 && height > 0) {
+    const p = meterPosition()
+    meter.setBounds(clampToDisplay({ x: p.x, y: p.y, width, height }))
+    if (!meter.isVisible()) meter.showInactive()
+  } else if (meter.isVisible()) {
+    meter.hide()
+  }
+}
+
+export function resizeMeter(size: { width: number; height: number }): void {
+  meterSize = { width: Math.ceil(size.width), height: Math.ceil(size.height) }
+  refreshMeter()
+}
+
+export function moveMeter(to: Point): void {
+  if (!alive(meter)) return
+  const { width, height } = meter.getBounds()
+  meter.setBounds(clampToDisplay({ x: to.x, y: to.y, width, height }))
+}
+
+export function meterDragEnded(): void {
+  if (!alive(meter)) return
+  const { x, y } = meter.getBounds()
+  settings.set('meter', { ...settings.get('meter'), position: { x, y } })
+}
+
 // ---- all ------------------------------------------------------------------------------------
 
 const ON_TOP_EVERY_MS = 5_000
@@ -403,7 +461,7 @@ const ON_TOP_EVERY_MS = 5_000
  */
 export function startOnTopWatch(): void {
   setInterval(() => {
-    for (const win of [bubble, hud, merchant]) {
+    for (const win of [bubble, hud, merchant, meter]) {
       if (!alive(win) || !win.isVisible()) continue
       win.setAlwaysOnTop(true, 'screen-saver')
       win.moveTop()
@@ -414,8 +472,9 @@ export function startOnTopWatch(): void {
 /** Settings that change how the windows behave, applied live. */
 export function applyWindowSettings(): void {
   const hidden = settings.get('hideFromCapture')
-  for (const w of [bubble, panel, hud, merchant]) if (alive(w)) w.setContentProtection(hidden)
+  for (const w of [bubble, panel, hud, merchant, meter]) if (alive(w)) w.setContentProtection(hidden)
   if (!settings.get('hud').merchant) closeMerchant()
+  if (!settings.get('meter').enabled) closeMeter()
   if (alive(panel)) {
     const onTop = settings.get('panelOnTop')
     panel.setAlwaysOnTop(onTop, 'screen-saver')
@@ -425,14 +484,15 @@ export function applyWindowSettings(): void {
 }
 
 /**
- * Close the bubble, the HUD and the merchant window, and the panel if it is hidden: a window that
- * is only hidden keeps its renderer process. An open panel stays open.
+ * Close the bubble, the HUD, the merchant window and the meter, and the panel if it is hidden: a
+ * window that is only hidden keeps its renderer process. An open panel stays open.
  */
 export function closeOverlays(): void {
-  for (const win of [bubble, hud, merchant]) if (alive(win)) win.destroy()
+  for (const win of [bubble, hud, merchant, meter]) if (alive(win)) win.destroy()
   bubble = null
   hud = null
   merchant = null
+  meter = null
   hudEditing = false
   hudSize = { width: 0, height: 0 }
   if (alive(panel) && !panel.isVisible()) {
@@ -467,6 +527,12 @@ export function rebuildWindow(win: BrowserWindow): string | null {
     merchant = null
     showMerchant()
     return 'merchant'
+  }
+  if (win === meter) {
+    win.destroy()
+    meter = null
+    createMeter()
+    return 'meter'
   }
   if (win === panel) {
     const visible = win.isVisible()

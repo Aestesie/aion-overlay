@@ -3,6 +3,7 @@
  * file or a renderer bug can never store something the app then trips over.
  */
 
+import { TARGET_MODES, type TargetMode } from './meter.ts'
 import { defaultShown, leadChoices, REGIONS, TIMERS, type Region, type TimerId } from './timers.ts'
 
 export interface Point {
@@ -49,6 +50,18 @@ export interface Settings {
 
   /** Where the Black Cloud Merchant window sits (top-left, screen DIPs); null = top centre. */
   merchantWindow: Point | null
+
+  /** The DPS meter: its own window, fed by the engine (A2Tools DPS Meter's parser). */
+  meter: {
+    enabled: boolean
+    /** Top-left in screen DIPs; null = left of the primary display. */
+    position: Point | null
+    /** Which target it follows. */
+    targetMode: TargetMode
+    /** How many players it lists. */
+    rows: number
+    opacity: number
+  }
 
   /** Hide every overlay window from screenshots, OBS and Discord (WDA_EXCLUDEFROMCAPTURE). */
   hideFromCapture: boolean
@@ -125,6 +138,7 @@ export const SETTINGS_DEFAULTS: Settings = {
     kina: true,
   },
   merchantWindow: null,
+  meter: { enabled: true, position: null, targetMode: 'bossTargets', rows: 8, opacity: 0.92 },
   hideFromCapture: false,
   faction: 'elyos',
   playerLevel: null,
@@ -208,6 +222,16 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         shown: Object.fromEntries(
           TIMERS.map((t) => [t.id, bool((v.shown as Partial<Record<TimerId, unknown>> | undefined)?.[t.id], defaultShown(t))]),
         ) as Record<TimerId, boolean>,
+      } as Settings[K]
+    }
+    case 'meter': {
+      const v = (value ?? {}) as Partial<Settings['meter']>
+      return {
+        enabled: bool(v.enabled, d.meter.enabled),
+        position: point(v.position),
+        targetMode: (TARGET_MODES as readonly unknown[]).includes(v.targetMode) ? v.targetMode : d.meter.targetMode,
+        rows: Math.round(num(v.rows, 1, 24, d.meter.rows)),
+        opacity: num(v.opacity, 0.3, 1, d.meter.opacity),
       } as Settings[K]
     }
     case 'faction':

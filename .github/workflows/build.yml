@@ -1,5 +1,5 @@
 # The Windows installer, built on a GitHub runner: the tracker helper is a PyInstaller build and
-# PyInstaller only builds for the system it runs on.
+# PyInstaller only builds for the system it runs on; the engine (engine/, Rust) is built here too.
 #
 #   git tag v0.2.0-offline.1 && git push origin v0.2.0-offline.1
 #       builds, and attaches the installer and its SHA-256 to a release named after the tag
@@ -30,6 +30,16 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: app/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+
+      - name: Engine tests
+        working-directory: engine
+        run: cargo test --locked
 
       - name: Tracker helper dependencies
         run: |
