@@ -16,7 +16,8 @@
  * shows. A big transparent window made the game drop frames on every alt-tab there.
  *
  * While the game is closed the bubble and the HUD do not exist at all (idle.ts): the panel can
- * still be opened from the tray, where the bubble would be.
+ * still be opened from the tray, where the bubble would be. While another program is in front
+ * (an alt-tab), every window hides, and comes back with the game (setForeground).
  */
 import { app, BrowserWindow, screen, shell, type Rectangle } from 'electron'
 import { join } from 'node:path'
@@ -138,7 +139,7 @@ export function createBubble(): BrowserWindow {
   // showInactive(), so it takes focus only when clicked, which opens the panel anyway.
   const win = overlayWindow({ ...bubbleBounds(settings.get('bubble')) })
   bubble = win
-  win.once('ready-to-show', () => win.showInactive())
+  win.once('ready-to-show', () => reveal(win))
   win.on('closed', () => (bubble = null))
   load(win, 'bubble')
   return win
@@ -242,6 +243,7 @@ export function setPanelExpanded(expanded: boolean): void {
 
 export function hidePanel(): void {
   if (!alive(panel)) return
+  awayHidden.delete(panel)
   panel.hide()
   broadcast('panel:visible', false)
   for (const fn of panelListeners) fn(false)
@@ -292,7 +294,7 @@ export function refreshHud(): void {
     const now = hud.getBounds()
     if (next.x !== now.x || next.y !== now.y || next.width !== now.width || next.height !== now.height) hud.setBounds(next)
   }
-  if (wanted && !hud.isVisible()) hud.showInactive()
+  if (wanted && !hud.isVisible()) reveal(hud)
   if (!wanted && hud.isVisible()) hud.hide()
 }
 
@@ -373,7 +375,7 @@ function refreshMerchant(): void {
   if (width > 0 && height > 0) {
     const p = merchantPosition()
     merchant.setBounds(clampToDisplay({ x: p.x, y: p.y, width, height }))
-    if (!merchant.isVisible()) merchant.showInactive()
+    if (!merchant.isVisible()) reveal(merchant)
   } else if (merchant.isVisible()) {
     merchant.hide()
   }
@@ -427,7 +429,7 @@ function refreshMeter(): void {
   if (width > 0 && height > 0) {
     const p = meterPosition()
     meter.setBounds(clampToDisplay({ x: p.x, y: p.y, width, height }))
-    if (!meter.isVisible()) meter.showInactive()
+    if (!meter.isVisible()) reveal(meter)
   } else if (meter.isVisible()) {
     meter.hide()
   }
@@ -469,7 +471,7 @@ export function createKillFeed(): void {
   killFeed = win
   win.on('closed', () => (killFeed = null))
   load(win, 'killfeed')
-  win.webContents.once('did-finish-load', () => alive(win) && win.showInactive())
+  win.webContents.once('did-finish-load', () => alive(win) && reveal(win))
 }
 
 /** PvP Log → Open HUD / the window's X. Remembered, so it comes back with the game. */
@@ -500,6 +502,52 @@ export function killFeedDragEnded(): void {
   settings.set('killFeed', { ...settings.get('killFeed'), position: { x, y } })
 }
 
+// ---- the game in front ----------------------------------------------------------------------
+
+/**
+ * How long another program must be in front before the overlays hide, so holding Alt+Tab (the
+ * switcher is in front meanwhile) doesn't flicker them. A2Tools DPS Meter waits 1.5 s for this.
+ */
+const AWAY_GRACE_MS = 1000
+
+/** Another program is in front (not the game, not one of ours): the overlays are hidden. */
+let gameAway = false
+/** The windows hidden for it, shown again when the game is back. */
+const awayHidden = new Set<BrowserWindow>()
+let awayTimer: NodeJS.Timeout | null = null
+
+/** Show an overlay without taking the focus; while the game is away, once it is back. */
+function reveal(win: BrowserWindow): void {
+  if (gameAway) awayHidden.add(win)
+  else win.showInactive()
+}
+
+/** What is in front, as the engine sees it (Windows): the game, one of our windows, or neither. */
+export function setForeground(game: boolean, app: boolean): void {
+  const away = settings.get('hideWhenGameAway') && !game && !app
+  if (awayTimer) clearTimeout(awayTimer)
+  awayTimer = null
+  if (away === gameAway) return
+  if (away) {
+    awayTimer = setTimeout(() => {
+      gameAway = true
+      for (const win of [bubble, panel, hud, merchant, meter, killFeed]) {
+        if (!alive(win) || !win.isVisible()) continue
+        awayHidden.add(win)
+        win.hide()
+      }
+    }, AWAY_GRACE_MS)
+    return
+  }
+  gameAway = false
+  for (const win of awayHidden) if (alive(win) && win !== hud && win !== merchant && win !== meter) win.showInactive()
+  awayHidden.clear()
+  // These three decide for themselves whether they have anything to show.
+  refreshHud()
+  refreshMerchant()
+  refreshMeter()
+}
+
 // ---- all ------------------------------------------------------------------------------------
 
 const ON_TOP_EVERY_MS = 5_000
@@ -527,6 +575,7 @@ export function applyWindowSettings(): void {
   for (const w of [bubble, panel, hud, merchant, meter, killFeed]) if (alive(w)) w.setContentProtection(hidden)
   if (!settings.get('hud').merchant) closeMerchant()
   if (!settings.get('meter').enabled) closeMeter()
+  if (gameAway && !settings.get('hideWhenGameAway')) setForeground(true, false)
   if (alive(panel)) {
     const onTop = settings.get('panelOnTop')
     panel.setAlwaysOnTop(onTop, 'screen-saver')
@@ -546,6 +595,7 @@ export function closeOverlays(): void {
   merchant = null
   meter = null
   killFeed = null
+  awayHidden.clear()
   hudEditing = false
   hudSize = { width: 0, height: 0 }
   if (alive(panel) && !panel.isVisible()) {

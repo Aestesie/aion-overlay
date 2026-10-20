@@ -153,6 +153,9 @@ const setMeter = (patch: Partial<typeof store.settings.meter>): Promise<void> =>
         >
           <Toggle :model-value="store.settings.sleepWithoutGame" @update:model-value="store.set('sleepWithoutGame', $event)" />
         </SettingRow>
+        <SettingRow label="Hide when the game is not in front" hint="Alt-tab to another program and the overlay hides; it comes back with the game.">
+          <Toggle :model-value="store.settings.hideWhenGameAway" @update:model-value="store.set('hideWhenGameAway', $event)" />
+        </SettingRow>
         <SettingRow label="Keep this panel on top" hint="Stays above the game while open.">
           <Toggle :model-value="store.settings.panelOnTop" @update:model-value="store.set('panelOnTop', $event)" />
         </SettingRow>

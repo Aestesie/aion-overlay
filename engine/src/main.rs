@@ -13,6 +13,7 @@
 //! Logs go to stderr.
 
 mod capture;
+mod focus;
 mod meter;
 mod replay;
 mod sidecar;

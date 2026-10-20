@@ -152,7 +152,8 @@ export function startTracker(): void {
     return
   }
   const data = dataFile()
-  const args = ['--data', data]
+  // The app's own windows in front count as the game's (the engine's focus events).
+  const args = ['--data', data, '--app-pid', String(process.pid)]
   if (replay) args.push('--replay', replay, '--speed', process.env['A2T_REPLAY_SPEED'] ?? '1')
   else if (!capturing) args.push('--paused')
 

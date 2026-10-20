@@ -17,7 +17,7 @@ import { startMeter } from './meter.ts'
 import { startTimers } from './timers.ts'
 import { killTrackerNow, log, stopTracker, tracker } from './tracker.ts'
 import { createTray, setTrayTooltip } from './tray.ts'
-import { applyWindowSettings, markQuitting, refreshHud, showMerchant, showPanel, startOnTopWatch } from './windows.ts'
+import { applyWindowSettings, markQuitting, refreshHud, setForeground, showMerchant, showPanel, startOnTopWatch } from './windows.ts'
 
 // The name is also the data folder's (%APPDATA%\<name>): the old one is moved across once.
 app.setName(DISPLAY_NAME)
@@ -48,6 +48,8 @@ if (!app.requestSingleInstanceLock()) {
       applyWindowSettings()
     })
     startMeter()
+    // An alt-tab away from the game hides the overlays; back to it shows them.
+    tracker.onEvent('focus', (ev) => setForeground(ev['game'] === true, ev['app'] === true))
     // A tab of the Black Cloud Merchant was opened: its pets worth buying, in their own window.
     tracker.onShop(() => showMerchant())
     tracker.onStatus((status) => {

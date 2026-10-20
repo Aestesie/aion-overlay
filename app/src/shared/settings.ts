@@ -99,6 +99,12 @@ export interface Settings {
   sleepWithoutGame: boolean
 
   /**
+   * Hide every overlay while another program is in front (an alt-tab to Discord), and show them
+   * again when the game is. The overlay's own panel, clicked into, counts as the game.
+   */
+  hideWhenGameAway: boolean
+
+  /**
    * Sync the field bosses to the Lokthar site's timers (main/lokthar.ts): off until turned on with
    * a token. The only network request the app makes, to `url` alone.
    */
@@ -155,6 +161,7 @@ export const SETTINGS_DEFAULTS: Settings = {
     shown: Object.fromEntries(TIMERS.map((t) => [t.id, defaultShown(t)])) as Record<TimerId, boolean>,
   },
   sleepWithoutGame: true,
+  hideWhenGameAway: true,
   lokthar: { sync: false, url: 'https://lokthar.com', token: '' },
   tracker: { dataFile: '' },
 }
@@ -186,6 +193,7 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
     case 'hideFromCapture':
     case 'hideMaxed':
     case 'sleepWithoutGame':
+    case 'hideWhenGameAway':
       return bool(value, d[key] as boolean) as Settings[K]
     case 'hud': {
       const v = (value ?? {}) as Partial<Settings['hud']>

@@ -2,7 +2,7 @@
 //! and commands are the Python tracker's (sidecar.py, which this replaces),
 //! plus the DPS meter's.
 //!
-//!   lokthar-engine [--data collection.json] [--paused] [--replay X.pcap [--speed 4]]
+//!   lokthar-engine [--data collection.json] [--app-pid N] [--paused] [--replay X.pcap [--speed 4]]
 //!
 //! stdout, one JSON object per line (nothing else is ever written there):
 //!
@@ -25,6 +25,8 @@
 //!   {"type": "snapshot", "pets": [...]}               answer to "snapshot" (then a nearby)
 //!   {"type": "nearby", "world": 1010, "position": [x, y] | null, "monsters": [{"npc", "count"}]}
 //!   {"type": "dps", ...DpsData}                       the meter, when it changes (else every 5 s)
+//!   {"type": "focus", "game": true, "app": false}     what is in front, when it changes (Windows):
+//!                                                     the game, the app's own window (--app-pid), or neither
 //!   {"type": "details", "target": 123, ...TargetDetailsResponse}
 //!   {"type": "error", "detail": "..."}
 //!
@@ -67,11 +69,13 @@ pub struct Options {
     pub paused: bool,
     pub replay: Option<PathBuf>,
     pub speed: f64,
+    /// The overlay app's process: its windows in front count as the game's.
+    pub app_pid: Option<u32>,
 }
 
 impl Options {
     pub fn parse(args: &[String]) -> Result<Self, String> {
-        let mut opts = Options { data: PathBuf::from("collection.json"), paused: false, replay: None, speed: 1.0 };
+        let mut opts = Options { data: PathBuf::from("collection.json"), paused: false, replay: None, speed: 1.0, app_pid: None };
         let mut rest = args.iter();
         while let Some(arg) = rest.next() {
             let mut value = || rest.next().cloned().ok_or(format!("{arg} needs a value"));
@@ -80,6 +84,7 @@ impl Options {
                 "--paused" => opts.paused = true,
                 "--replay" => opts.replay = Some(PathBuf::from(value()?)),
                 "--speed" => opts.speed = value()?.parse().map_err(|_| "--speed needs a number")?,
+                "--app-pid" => opts.app_pid = Some(value()?.parse().map_err(|_| "--app-pid needs a number")?),
                 _ => return Err(format!("unexpected argument {arg:?}")),
             }
         }
@@ -158,6 +163,7 @@ pub fn run(opts: Options) -> Result<(), String> {
     }
     sidecar.publish();
     sidecar.heartbeat();
+    crate::focus::watch(opts.app_pid);
 
     // Commands, until stdin closes (the app quit) or says quit.
     for line in std::io::stdin().lock().lines() {
