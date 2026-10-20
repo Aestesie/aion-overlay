@@ -158,9 +158,12 @@ const shownCount = computed(() => TIMERS.filter((d) => shown(d.id)).length)
 
 <template>
   <div class="space-y-4 p-3">
-    <div class="rounded-lg border border-card bg-card px-3">
+    <div class="divide-y divide-[color:var(--gray-4)] rounded-lg border border-card bg-card px-3">
       <SettingRow label="Countdown bar" hint="The timers with an alert on, starting within 13 hours, over the game. Drag it to move it.">
         <Toggle :model-value="store.settings.timerBar.enabled" @update:model-value="store.set('timerBar', { ...store.settings.timerBar, enabled: $event })" />
+      </SettingRow>
+      <SettingRow v-if="store.settings.timerBar.enabled" label="Opacity">
+        <Slider :model-value="store.settings.timerBar.opacity" :min="0.3" :max="1" :step="0.05" :format="pct" @update:model-value="store.set('timerBar', { ...store.settings.timerBar, opacity: $event })" />
       </SettingRow>
     </div>
     <div ref="list" class="space-y-3">

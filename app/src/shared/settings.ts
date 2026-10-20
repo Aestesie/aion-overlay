@@ -51,8 +51,8 @@ export interface Settings {
   /** Where the Black Cloud Merchant window sits (top-left, screen DIPs); null = top centre. */
   merchantWindow: Point | null
 
-  /** The timers' countdown bar over the game: on, and where (null = top centre). */
-  timerBar: { enabled: boolean; position: Point | null }
+  /** The timers' countdown bar over the game: on, where (null = top centre), how opaque. */
+  timerBar: { enabled: boolean; position: Point | null; opacity: number }
 
   /** The kill feed over the game: open (from the PvP Log tab), and where (null = top right). */
   killFeed: { open: boolean; position: Point | null }
@@ -148,7 +148,7 @@ export const SETTINGS_DEFAULTS: Settings = {
     kina: true,
   },
   merchantWindow: null,
-  timerBar: { enabled: true, position: null },
+  timerBar: { enabled: true, position: null, opacity: 0.92 },
   killFeed: { open: false, position: null },
   meter: { enabled: true, position: null, targetMode: 'bossTargets', rows: 8, opacity: 0.92 },
   hideFromCapture: false,
@@ -240,7 +240,11 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
     }
     case 'timerBar': {
       const v = (value ?? {}) as Partial<Settings['timerBar']>
-      return { enabled: bool(v.enabled, d.timerBar.enabled), position: point(v.position) } as Settings[K]
+      return {
+        enabled: bool(v.enabled, d.timerBar.enabled),
+        position: point(v.position),
+        opacity: num(v.opacity, 0.3, 1, d.timerBar.opacity),
+      } as Settings[K]
     }
     case 'killFeed': {
       const v = (value ?? {}) as Partial<Settings['killFeed']>

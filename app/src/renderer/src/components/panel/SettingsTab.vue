@@ -156,6 +156,9 @@ const setMeter = (patch: Partial<typeof store.settings.meter>): Promise<void> =>
         <SettingRow label="Show the countdown bar" hint="The timers with an alert on (Timers tab), starting within 13 hours, as icons and countdowns over the game. Drag it to move it.">
           <Toggle :model-value="store.settings.timerBar.enabled" @update:model-value="store.set('timerBar', { ...store.settings.timerBar, enabled: $event })" />
         </SettingRow>
+        <SettingRow label="Opacity">
+          <Slider :model-value="store.settings.timerBar.opacity" :min="0.3" :max="1" :step="0.05" :format="pct" @update:model-value="store.set('timerBar', { ...store.settings.timerBar, opacity: $event })" />
+        </SettingRow>
       </div>
     </section>
 
