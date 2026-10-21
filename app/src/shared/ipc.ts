@@ -124,6 +124,7 @@ export interface InvokeChannels {
   'meter:resize': { args: [size: { width: number; height: number }]; result: void }
   /** The Lokthar sync: check the address and token; the last attempt's outcome. */
   'lokthar:test': { args: []; result: SyncResult }
+  'lokthar:sync': { args: []; result: SyncResult }
   'lokthar:last': { args: []; result: SyncResult | null }
 }
 
@@ -199,7 +200,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'bubble:moveTo', 'bubble:dragEnd', 'panel:toggle', 'panel:hide', 'panel:minimize', 'panel:maximize',
   'hud:setEditing', 'hud:moveTo', 'hud:dragEnd', 'hud:resize',
   'merchant:moveTo', 'merchant:dragEnd', 'merchant:resize', 'merchant:close', 'panel:showPet', 'timers:get', 'timers:dismiss', 'timers:open',
-  'lokthar:test', 'lokthar:last',
+  'lokthar:test', 'lokthar:sync', 'lokthar:last',
   'meter:get', 'meter:reset', 'meter:moveTo', 'meter:dragEnd', 'meter:resize',
   'minimap:moveTo', 'minimap:dragEnd', 'minimap:resize',
   'skills:get', 'skills:moveTo', 'skills:dragEnd', 'skills:resize',

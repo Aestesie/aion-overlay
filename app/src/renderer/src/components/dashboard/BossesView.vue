@@ -2,13 +2,16 @@
 // Field Bosses: each one's state as your map last listed it (alive, or how long until it
 // respawns), when that was, and its alert. The list comes from the game when you open the map; the
 // Lokthar sync can fill in what others' maps saw. Only Verteron's bosses are known so far.
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import Button from '@/components/Button.vue'
 import Toggle from '@/components/Toggle.vue'
 import Countdown from '@/components/ui/Countdown.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import SelectBox from '@/components/ui/SelectBox.vue'
+import { bridge } from '@/lib/bridge.ts'
 import { leadLabel, setAlert, setLead } from '@/lib/timerView.ts'
 import { useApp } from '@/stores/app.ts'
+import type { SyncResult } from '@shared/lokthar.ts'
 import { FIELD_BOSSES, leadChoices, TIMERS, type TimerDef } from '@shared/timers.ts'
 
 const store = useApp()
@@ -40,6 +43,16 @@ const rows = computed(() =>
   }).sort((a, b) => a.rank - b.rank || (a.state?.at ?? 0) - (b.state?.at ?? 0) || a.name.localeCompare(b.name)),
 )
 const alive = computed(() => rows.value.filter((r) => r.state?.up).length)
+// Lokthar sync, by hand: the list as your map last said, sent now, and how the site took it.
+const hasToken = computed(() => !!store.settings.lokthar.token)
+const syncResult = ref<SyncResult | null>(null)
+const syncing = ref(false)
+onMounted(async () => (syncResult.value = await bridge().invoke('lokthar:last')))
+async function syncNow(): Promise<void> {
+  syncing.value = true
+  syncResult.value = await bridge().invoke('lokthar:sync')
+  syncing.value = false
+}
 const on = (def: TimerDef): boolean => (cfg.value.enabled[def.id] ?? false) && (cfg.value.shown[def.id] ?? false)
 </script>
 
@@ -59,6 +72,17 @@ const on = (def: TimerDef): boolean => (cfg.value.enabled[def.id] ?? false) && (
       </button>
       <span class="pb-2 text-xs text-darkest">Other zones' bosses are not known yet.</span>
       <span class="ml-auto pb-2 text-xs text-darker"><span class="font-semibold text-green">{{ alive }}</span> alive</span>
+    </div>
+
+    <div v-if="hasToken" class="mb-4 flex items-center gap-3 rounded-xl border border-card bg-card px-4 py-2.5 text-xs">
+      <span class="font-medium text-default">Lokthar sync</span>
+      <span v-if="syncResult" :class="['min-w-0 flex-1 truncate', syncResult.ok ? 'text-darker' : 'text-red']" :title="syncResult.message">
+        {{ ago(syncResult.at) }}: {{ syncResult.message }}
+      </span>
+      <span v-else class="flex-1 text-darkest">Not synced yet</span>
+      <Button size="sm" :disabled="syncing" title="Send these bosses, as your map last listed them, to lokthar.com" @click="syncNow">
+        {{ syncing ? 'Syncing…' : 'Sync now' }}
+      </Button>
     </div>
 
     <div class="overflow-hidden rounded-xl border border-card">

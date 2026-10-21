@@ -63,7 +63,8 @@ No update checks, no shared timers, no machine id. Everything it reads stays on 
 With **Settings → Lokthar sync** on, the field boss list your map shows is posted to the Lokthar
 site's timers (`POST <site>/api/aion2/field_bosses`), so the guild's spawn tracker follows the
 game's own respawn times. It is the only request the app makes: to that one address (https only),
-whenever the list changes while your map is open, carrying the bosses' ids, whether each is up and
+whenever the list changes while your map is open (or when you press **Sync now**, on the Field
+Bosses page or in Settings), carrying the bosses' ids, whether each is up and
 its time, and your game server id. Nothing else: no character name, no collection, no packets.
 
 It needs a token, issued on the site's server for an account that may report kills, so its not

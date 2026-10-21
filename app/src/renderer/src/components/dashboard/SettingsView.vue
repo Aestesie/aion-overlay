@@ -38,6 +38,14 @@ async function testSync(): Promise<void> {
   syncResult.value = await bridge().invoke('lokthar:test')
   testing.value = false
 }
+/** Send the field bosses as your map last listed them, now. */
+const syncing = ref(false)
+async function syncNow(): Promise<void> {
+  syncing.value = true
+  await saveLokthar({ url: siteUrl.value.trim(), token: token.value.trim() })
+  syncResult.value = await bridge().invoke('lokthar:sync')
+  syncing.value = false
+}
 /**
  * Who you are, as the game says: your side (its zones first where a soul drops), your region (the
  * timers') and your level (the Nearby marks) all come from it. Before the game names you, the last
@@ -247,7 +255,10 @@ const lastPacket = computed(() => {
       <div class="flex items-center justify-between gap-2 py-3 text-xs">
         <span v-if="syncResult" :class="['min-w-0 truncate', syncResult.ok ? 'text-darker' : 'text-red']" :title="syncResult.message">{{ ago(syncResult.at) }}: {{ syncResult.message }}</span>
         <span v-else class="text-darkest">Not synced yet</span>
-        <Button size="sm" :disabled="testing" @click="testSync">{{ testing ? 'Testing…' : 'Test' }}</Button>
+        <div class="flex shrink-0 gap-2">
+          <Button size="sm" :disabled="testing" @click="testSync">{{ testing ? 'Testing…' : 'Test' }}</Button>
+          <Button size="sm" :disabled="syncing || !token.trim()" title="Send the field bosses as your map last listed them" @click="syncNow">{{ syncing ? 'Syncing…' : 'Sync now' }}</Button>
+        </div>
       </div>
     </Section>
 

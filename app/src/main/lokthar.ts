@@ -77,25 +77,27 @@ function finish(ok: boolean, message: string): SyncResult {
   return last
 }
 
+/** Post a list and say how the site took it; throws when the site cannot be reached. */
+async function push(batch: { server: number; world: number; list: MapBoss[] }): Promise<SyncResult> {
+  const { status, json } = await post({ server: batch.server, world: batch.world, bosses: batch.list })
+  if (status !== 200) return finish(false, refusal(status, json, batch.server))
+  const changes = (json['changes'] as Change[] | undefined) ?? []
+  const moved = changes.filter((c) => c.outcome === 'recorded' || c.outcome === 'corrected')
+  const odd = changes.filter((c) => c.outcome === 'stale' || c.outcome === 'future')
+  return finish(
+    true,
+    (moved.length ? moved.map((c) => `${c.timer} ${c.outcome} (kill ${c.killed_at})`).join(', ') : 'timers already up to date') +
+      (odd.length ? `; ignored ${odd.map((c) => `${c.timer} (${c.outcome})`).join(', ')}` : ''),
+  )
+}
+
 async function send(): Promise<void> {
   if (busy || !pending) return
   const batch = pending
   pending = null
   busy = true
   try {
-    const { status, json } = await post({ server: batch.server, world: batch.world, bosses: batch.list })
-    if (status !== 200) {
-      finish(false, refusal(status, json, batch.server))
-      return
-    }
-    const changes = (json['changes'] as Change[] | undefined) ?? []
-    const moved = changes.filter((c) => c.outcome === 'recorded' || c.outcome === 'corrected')
-    const odd = changes.filter((c) => c.outcome === 'stale' || c.outcome === 'future')
-    finish(
-      true,
-      (moved.length ? moved.map((c) => `${c.timer} ${c.outcome} (kill ${c.killed_at})`).join(', ') : 'timers already up to date') +
-        (odd.length ? `; ignored ${odd.map((c) => `${c.timer} (${c.outcome})`).join(', ')}` : ''),
-    )
+    await push(batch)
   } catch (err) {
     finish(false, `could not reach the site: ${(err as Error).message}`)
     // Tried again a little later, unless a newer list came in meanwhile.
@@ -112,6 +114,23 @@ async function send(): Promise<void> {
 
 export const lokthar = {
   last: (): SyncResult | null => last,
+
+  /**
+   * Sync now (a button): send every boss as your map last said, whether or not the list changed
+   * since (the site keeps what it already has, and takes the rest). A click is asked for, so it goes
+   * with the sync switch off too, but never without a token.
+   */
+  async syncNow(): Promise<SyncResult> {
+    if (!settings.get('lokthar').token) return finish(false, 'no token yet: add one in Settings → Lokthar sync')
+    const { server, world, list } = fieldBosses.lastMap()
+    if (server === null) return finish(false, "your server is not known yet: log in to a character first")
+    if (world === null || !list.length) return finish(false, 'no field boss list yet: open the map in game first')
+    try {
+      return await push({ server, world, list })
+    } catch (err) {
+      return finish(false, `could not reach the site: ${(err as Error).message}`)
+    }
+  },
 
   /** Check the address and the token, without sending any bosses. */
   async test(): Promise<SyncResult> {

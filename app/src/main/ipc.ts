@@ -120,6 +120,7 @@ export function registerIpc(): void {
   })
   handle('tracker:restart', () => tracker.restart())
   handle('lokthar:test', () => lokthar.test())
+  handle('lokthar:sync', () => lokthar.syncNow())
   handle('lokthar:last', () => lokthar.last())
   handle('tracker:resetSession', () => tracker.resetSession())
 

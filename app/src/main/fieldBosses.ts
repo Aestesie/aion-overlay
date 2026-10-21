@@ -21,6 +21,8 @@ export interface MapBoss {
 }
 
 let server: number | null = null
+/** The zone of the last list read from the map (the sync names it). */
+let world: number | null = null
 let bosses: FieldBosses = {}
 const mapListeners = new Set<(server: number | null, world: number, list: MapBoss[]) => void>()
 
@@ -28,8 +30,9 @@ const file = (): string => join(app.getPath('userData'), 'fieldbosses.json')
 
 function load(): void {
   try {
-    const saved = JSON.parse(readFileSync(file(), 'utf8')) as { server?: number | null; bosses?: FieldBosses }
+    const saved = JSON.parse(readFileSync(file(), 'utf8')) as { server?: number | null; world?: number | null; bosses?: FieldBosses }
     server = saved.server ?? null
+    world = saved.world ?? null
     bosses = saved.bosses ?? {}
   } catch {
     bosses = {}
@@ -38,7 +41,7 @@ function load(): void {
 
 function save(): void {
   try {
-    writeFileSync(file(), JSON.stringify({ server, bosses }))
+    writeFileSync(file(), JSON.stringify({ server, world, bosses }))
   } catch (err) {
     log(`field bosses: not saved: ${String(err)}`)
   }
@@ -52,6 +55,13 @@ function changed(): void {
 export const fieldBosses = {
   all: (): FieldBosses => bosses,
   server: (): number | null => server,
+  /** The last zone the map listed bosses in, and every boss as the map last said (Sync now). */
+  lastMap(): { server: number | null; world: number | null; list: MapBoss[] } {
+    const list = Object.entries(bosses)
+      .filter(([, b]) => b.source === 'map')
+      .map(([id, b]) => ({ id: Number(id), up: b.up, at: b.at }))
+    return { server, world, list }
+  },
 
   /** Every list read from the map, as read (main/lokthar.ts). */
   onMap(fn: (server: number | null, world: number, list: MapBoss[]) => void): void {
@@ -68,16 +78,17 @@ export const fieldBosses = {
   },
 
   /** A list read from the game's map. */
-  fromMap(world: number, list: MapBoss[]): void {
+  fromMap(zone: number, list: MapBoss[]): void {
     const seen = Date.now()
+    world = zone
     bosses = { ...bosses, ...Object.fromEntries(list.map((b) => [b.id, { up: b.up, at: b.at, seen, source: 'map' as const }])) }
     const g = bosses[101021]
     log(
-      `field bosses: zone ${world}, ${list.filter((b) => b.up).length}/${list.length} up` +
+      `field bosses: zone ${zone}, ${list.filter((b) => b.up).length}/${list.length} up` +
         (g ? `; Gartua ${g.up ? 'up' : `respawns ${new Date(g.at).toISOString().slice(0, 16).replace('T', ' ')} UTC`}` : ''),
     )
     changed()
-    for (const fn of mapListeners) fn(server, world, list)
+    for (const fn of mapListeners) fn(server, zone, list)
   },
 }
 
