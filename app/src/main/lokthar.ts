@@ -26,7 +26,7 @@ interface Change {
 }
 
 let last: SyncResult | null = null
-let pending: { server: number; world: number; list: MapBoss[] } | null = null
+let pending: { server: number; world: number | null; list: MapBoss[] } | null = null
 let retry: ReturnType<typeof setTimeout> | null = null
 let busy = false
 
@@ -78,7 +78,7 @@ function finish(ok: boolean, message: string): SyncResult {
 }
 
 /** Post a list and say how the site took it; throws when the site cannot be reached. */
-async function push(batch: { server: number; world: number; list: MapBoss[] }): Promise<SyncResult> {
+async function push(batch: { server: number; world: number | null; list: MapBoss[] }): Promise<SyncResult> {
   const { status, json } = await post({ server: batch.server, world: batch.world, bosses: batch.list })
   if (status !== 200) return finish(false, refusal(status, json, batch.server))
   const changes = (json['changes'] as Change[] | undefined) ?? []
@@ -124,7 +124,8 @@ export const lokthar = {
     if (!settings.get('lokthar').token) return finish(false, 'no token yet: add one in Settings → Lokthar sync')
     const { server, world, list } = fieldBosses.lastMap()
     if (server === null) return finish(false, "your server is not known yet: log in to a character first")
-    if (world === null || !list.length) return finish(false, 'no field boss list yet: open the map in game first')
+    // The zone is only told (the site goes by the bosses' ids): lists kept before it was saved have none.
+    if (!list.length) return finish(false, 'no field boss list yet: open the map in game first')
     try {
       return await push({ server, world, list })
     } catch (err) {
