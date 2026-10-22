@@ -79,6 +79,11 @@ an open feature at the moment.
    PC": choose **More info → Run anyway**.
 3. Start the tracker **before you log in** to your character, so it picks up your collection.
 
+**Portable, without installing:** each release also has `Lokthar-<version>-portable.zip`. Unpack it
+anywhere and run `Aion2DropTracker.exe` (Npcap is still needed). Settings → Updates tells you when a
+new version is out and opens its release page: unpack the new zip over the old folder. Your settings
+and data live in `%APPDATA%\Lokthar` either way.
+
 The overlay draws over **borderless or windowed** mode, not exclusive fullscreen. To update,
 use **Settings → Updates → Check for updates**: it installs the latest release over your copy,
 only when you ask. How it works and how to publish a release: [updates.md](updates.md).
@@ -102,6 +107,10 @@ cd ../app && npm install && npm run dev
 
 After changing the engine, build it again and use Settings → Restart engine. `A2T_REPLAY=<file>`
 plays a recording (`.pcap`, `.pcapng` or an A2Tools packet log) instead of the game.
+
+To find where the game sends something, use **Settings → Developer → Packet log**: every game
+message the engine reads goes to `%APPDATA%\Lokthar\recordings\packets-<date>.txt`, one line each
+(time, opcode, length, bytes), with the marks you add (Alt+Shift+M while it runs) between them.
 
 ## Credits
 

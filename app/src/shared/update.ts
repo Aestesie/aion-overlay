@@ -30,4 +30,6 @@ export interface UpdateState {
   error: string | null
   /** When it was last checked (ms since epoch). */
   checkedAt: number | null
+  /** Run from the portable zip, not installed: an update is a new zip, from the release page. */
+  portable: boolean
 }

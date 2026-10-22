@@ -40,6 +40,12 @@ only for this check (by hand) and the optional Lokthar field boss sync.
 In development (`npm run dev`) there is nothing to update: the section says so and the button is
 off.
 
+### The portable copy
+
+A copy unpacked from `Lokthar-<version>-portable.zip` has no installer to run (it is told apart by
+having no `Uninstall Lokthar.exe` next to it). It checks the same way, but **Download** becomes
+**Get the x.y.z zip**: it opens the release page, and the new zip is unpacked over the old folder.
+
 ## Requirements
 
 - **The repo must be public.** The app reads releases without a token; a private repo's
@@ -68,6 +74,7 @@ off.
    - `Lokthar-Setup-0.3.1.exe.sha256`
    - `Lokthar-Setup-0.3.1.exe.blockmap`, for downloading only what changed
    - `latest.yml`, what the app reads
+   - `Lokthar-0.3.1-portable.zip` and its `.sha256`, the portable copy
 4. Installed copies see it at Settings → Updates → Check for updates.
 
 To build without releasing, run the workflow by hand (Actions → Build → Run workflow): the

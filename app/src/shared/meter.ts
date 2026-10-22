@@ -412,3 +412,15 @@ export function detailsView(
     defense: d.defense ? Object.fromEntries(Object.entries(d.defense).map(([id, v]) => [Number(id), v])) : null,
   }
 }
+
+/** The packet log (Settings → Developer): every game message as a text line, with your marks. */
+export interface PacketLog {
+  on: boolean
+  /** The file being written, or the last one written. */
+  path: string | null
+  /** Messages in it so far (counted again at each mark, and at the end). */
+  count: number
+  startedAt: number | null
+  marks: number
+}
+export const NO_PACKET_LOG: PacketLog = { on: false, path: null, count: 0, startedAt: null, marks: 0 }

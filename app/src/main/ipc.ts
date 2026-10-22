@@ -5,6 +5,7 @@ import { dummy } from './dummy.ts'
 import { updater } from './updater.ts'
 import { meterState } from './meter.ts'
 import { lokthar } from './lokthar.ts'
+import { packets } from './packets.ts'
 import { settings } from './settings.ts'
 import { timers } from './timers.ts'
 import { logPath, tracker } from './tracker.ts'
@@ -197,6 +198,10 @@ export function registerIpc(): void {
     if (typeof id === 'string') dummy.remove(id)
   })
   handle('recordings:get', () => meterState.recordings())
+  handle('packets:get', () => packets.get())
+  handle('packets:set', (on) => packets.set(on === true))
+  handle('packets:mark', (text) => packets.mark(typeof text === 'string' ? text : ''))
+  handle('packets:show', () => packets.show())
   handle('recordings:set', (on) => meterState.record(on === true))
   handle('recordings:open', async () => {
     const dir = meterState.recordingsDir()

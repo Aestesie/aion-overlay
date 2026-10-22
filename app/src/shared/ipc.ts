@@ -7,7 +7,7 @@ import type { Buff } from './buffs.ts'
 import type { DummyState } from './dummy.ts'
 import type { UpdateState } from './update.ts'
 import type { KinaSession } from './kina.ts'
-import type { DetailsSource, DetailsView, FightSummary, MeterData, PersonalView, Recordings } from './meter.ts'
+import type { DetailsSource, DetailsView, FightSummary, MeterData, PacketLog, PersonalView, Recordings } from './meter.ts'
 import type { SyncResult } from './lokthar.ts'
 import type { Point, SettingKey, Settings } from './settings.ts'
 import type { FieldBosses, TimerAlert, TimerId } from './timers.ts'
@@ -85,6 +85,11 @@ export interface InvokeChannels {
   'recordings:get': { args: []; result: Recordings }
   'recordings:set': { args: [on: boolean]; result: void }
   'recordings:open': { args: []; result: void }
+  /** The packet log (Settings → Developer): its state, start or stop, a mark, its file shown. */
+  'packets:get': { args: []; result: PacketLog }
+  'packets:set': { args: [on: boolean]; result: void }
+  'packets:mark': { args: [text: string]; result: void }
+  'packets:show': { args: []; result: void }
   /** App updates, by hand: the state, look for one, download it, restart to install it. */
   'update:get': { args: []; result: UpdateState }
   'update:check': { args: []; result: void }
@@ -175,6 +180,8 @@ export interface EventChannels {
   'dummy:state': DummyState
   /** A recording started or stopped. */
   'recordings:changed': Recordings
+  /** The packet log started, stopped or was marked. */
+  'packets:state': PacketLog
   /** The overlays were hidden by hand (true) or shown again. */
   'overlays:hidden': boolean
 }
@@ -204,10 +211,10 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'meter:get', 'meter:reset', 'meter:moveTo', 'meter:dragEnd', 'meter:resize',
   'minimap:moveTo', 'minimap:dragEnd', 'minimap:resize',
   'skills:get', 'skills:moveTo', 'skills:dragEnd', 'skills:resize',
-  'buffs:get', 'buffs:moveTo', 'buffs:dragEnd', 'buffs:resize', 'cc:moveTo', 'cc:dragEnd', 'cc:resize', 'training:moveTo', 'training:dragEnd', 'training:resize', 'overlays:toggle', 'overlays:hidden', 'recordings:get', 'recordings:set', 'recordings:open', 'update:get', 'update:check', 'update:download', 'update:install', 'dummy:get', 'dummy:start', 'dummy:stop', 'dummy:newGroup', 'dummy:delete',
+  'buffs:get', 'buffs:moveTo', 'buffs:dragEnd', 'buffs:resize', 'cc:moveTo', 'cc:dragEnd', 'cc:resize', 'training:moveTo', 'training:dragEnd', 'training:resize', 'overlays:toggle', 'overlays:hidden', 'recordings:get', 'recordings:set', 'recordings:open', 'packets:get', 'packets:set', 'packets:mark', 'packets:show', 'update:get', 'update:check', 'update:download', 'update:install', 'dummy:get', 'dummy:start', 'dummy:stop', 'dummy:newGroup', 'dummy:delete',
   'details:open', 'details:get', 'details:close', 'details:moveTo', 'details:dragEnd', 'history:list', 'history:delete',
 ]
 
 export const EVENT_CHANNELS: readonly EventChannel[] = [
-  'settings:changed', 'tracker:status', 'tracker:pets', 'tracker:pet', 'tracker:soul', 'tracker:nearby', 'tracker:cubes', 'tracker:combat', 'tracker:shop', 'tracker:kina', 'tracker:fieldBosses', 'tracker:pvp', 'tracker:pvpKill', 'panel:showPet', 'panel:showTimers', 'timers:alert', 'timers:alerting', 'hud:editing', 'panel:visible', 'panel:maximized', 'meter:dps', 'details:source', 'history:changed', 'buffs:list', 'overlays:hidden', 'recordings:changed', 'dummy:state', 'update:state',
+  'settings:changed', 'tracker:status', 'tracker:pets', 'tracker:pet', 'tracker:soul', 'tracker:nearby', 'tracker:cubes', 'tracker:combat', 'tracker:shop', 'tracker:kina', 'tracker:fieldBosses', 'tracker:pvp', 'tracker:pvpKill', 'panel:showPet', 'panel:showTimers', 'timers:alert', 'timers:alerting', 'hud:editing', 'panel:visible', 'panel:maximized', 'meter:dps', 'details:source', 'history:changed', 'buffs:list', 'overlays:hidden', 'recordings:changed', 'packets:state', 'dummy:state', 'update:state',
 ]

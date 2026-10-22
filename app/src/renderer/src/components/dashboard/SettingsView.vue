@@ -14,6 +14,7 @@ import SelectBox from '@/components/ui/SelectBox.vue'
 import { bridge } from '@/lib/bridge.ts'
 import { useApp } from '@/stores/app.ts'
 import type { SyncResult } from '@shared/lokthar.ts'
+import { NO_PACKET_LOG, type PacketLog } from '@shared/meter.ts'
 import type { UpdateState } from '@shared/update.ts'
 import { serverLabel } from '@shared/servers.ts'
 
@@ -79,6 +80,21 @@ onMounted(async () => {
   update.value = await bridge().invoke('update:get')
 })
 onBeforeUnmount(() => offUpdate?.())
+
+// Developer: the packet log, every game message as a text line, and marks to find them by.
+const packetLog = ref<PacketLog>({ ...NO_PACKET_LOG })
+const markText = ref('')
+let offPackets: (() => void) | null = null
+onMounted(async () => {
+  offPackets = bridge().on('packets:state', (s) => (packetLog.value = s))
+  packetLog.value = await bridge().invoke('packets:get')
+})
+onBeforeUnmount(() => offPackets?.())
+const fileName = (path: string): string => path.split(/[\\/]/).pop() ?? path
+function addMark(): void {
+  void bridge().invoke('packets:mark', markText.value.trim())
+  markText.value = ''
+}
 const updateLine = computed(() => {
   const u = update.value
   if (!u) return ''
@@ -92,7 +108,7 @@ const updateLine = computed(() => {
     case 'current':
       return `You have the latest version (${u.latest ?? u.current}).`
     case 'available':
-      return `Version ${u.latest} is out${u.releasedAt ? ` (${new Date(u.releasedAt).toLocaleDateString()})` : ''}.`
+      return `Version ${u.latest} is out${u.releasedAt ? ` (${new Date(u.releasedAt).toLocaleDateString()})` : ''}.${u.portable ? ' This is the portable copy: get the new zip, unpack it over this folder (your settings and data stay).' : ''}`
     case 'downloading':
       return `Downloading version ${u.latest}… ${u.percent}%`
     case 'ready':
@@ -147,7 +163,7 @@ const lastPacket = computed(() => {
     <Section title="Updates" icon="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 13.5h11">
       <SettingRow :label="`Version ${update?.current ?? info?.version ?? '…'}`" :hint="updateLine" :warning="update?.status === 'error' ? 'Try again in a moment; the log has the details.' : undefined">
         <div class="flex items-center gap-2">
-          <Button v-if="update?.status === 'available'" size="sm" intent="primary" @click="bridge().invoke('update:download')">Download {{ update.latest }}</Button>
+          <Button v-if="update?.status === 'available'" size="sm" intent="primary" @click="bridge().invoke('update:download')">{{ update.portable ? `Get the ${update.latest} zip` : `Download ${update.latest}` }}</Button>
           <Button v-else-if="update?.status === 'ready'" size="sm" intent="primary" @click="bridge().invoke('update:install')">Restart and install</Button>
           <Button
             v-else
@@ -259,6 +275,32 @@ const lastPacket = computed(() => {
           <Button size="sm" :disabled="testing" @click="testSync">{{ testing ? 'Testing…' : 'Test' }}</Button>
           <Button size="sm" :disabled="syncing || !token.trim()" title="Send the field bosses as your map last listed them" @click="syncNow">{{ syncing ? 'Syncing…' : 'Sync now' }}</Button>
         </div>
+      </div>
+    </Section>
+
+    <Section title="Developer" icon="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5M9 3 7 13">
+      <SettingRow
+        label="Packet log"
+        hint="Writes every game message to a text file (time, message type, bytes) to share for debugging or to find data for new features. Add marks as you do things in game to find their messages by time. It grows fast in fights: keep it short."
+      >
+        <Button size="sm" :intent="packetLog.on ? 'primary' : undefined" @click="bridge().invoke('packets:set', !packetLog.on)">
+          {{ packetLog.on ? 'Stop' : 'Start' }}
+        </Button>
+      </SettingRow>
+      <div v-if="packetLog.on" class="flex items-center gap-2 py-3 text-xs">
+        <span class="size-2 shrink-0 animate-pulse rounded-full bg-danger" />
+        <span class="shrink-0 text-darker">Recording{{ packetLog.marks ? ` · ${packetLog.marks} mark${packetLog.marks === 1 ? '' : 's'}` : '' }}</span>
+        <input
+          v-model="markText"
+          class="h-8 min-w-0 flex-1 rounded-md border border-light bg-default px-2.5 text-sm placeholder:text-darkest"
+          placeholder="What you did, e.g. opened the map (Alt+Shift+M marks from the game)"
+          @keydown.enter="addMark"
+        />
+        <Button size="sm" @click="addMark">Mark</Button>
+      </div>
+      <div v-else-if="packetLog.path" class="flex items-center justify-between gap-2 py-3 text-xs">
+        <span class="min-w-0 truncate text-darker" :title="packetLog.path">Last: {{ fileName(packetLog.path) }} · {{ packetLog.count.toLocaleString() }} messages</span>
+        <Button size="sm" @click="bridge().invoke('packets:show')">Show in folder</Button>
       </div>
     </Section>
 

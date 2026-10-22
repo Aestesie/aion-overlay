@@ -1,6 +1,7 @@
-# Windows installer: per-user NSIS (no admin rights), like marnis-app's.
+# Windows installer: per-user NSIS (no admin rights), like marnis-app's; and the same app as a zip
+# to unpack and run anywhere, without installing (the portable copy: main/updater.ts tells them apart).
 #
-#   npm run dist      -> dist/Lokthar-Setup-<version>.exe
+#   npm run dist      -> dist/Lokthar-Setup-<version>.exe, dist/Lokthar-<version>-portable.zip
 #
 # The engine (capture, tracking and the DPS meter) is the Rust build in ../build/engine; npm run dist
 # builds it first (scripts/build-engine.mjs). Npcap is not bundled: its licence does not allow it, and
@@ -24,8 +25,10 @@ extraResources:
 asar: true
 electronLanguages: [en-US]
 win:
-  target: [nsis]
+  target: [nsis, zip]
   icon: build/icon.ico
+  # The zip's name (the installer has its own, below).
+  artifactName: Lokthar-${version}-portable.${ext}
 # Where the installed app looks for updates (Settings → Updates, by hand only): the latest release
 # of this repo. The build writes latest.yml next to the installer; the release workflow attaches
 # both. The repo must be public for the app to read its releases.

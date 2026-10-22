@@ -39,6 +39,8 @@
 //!   {"type": "details", "target": 123, ...TargetDetailsResponse, "fightBuffs": {"startTimeMs", "durationMs", "buffs"} | null}
 //!   {"type": "recording", "on": true, "path": "...", "segments"?: 1234}
 //!                                                     a recording started or stopped (it stops with the capture)
+//!   {"type": "packets", "on": bool, "path": "...", "count": 1234}
+//!                                                     the packet log started, stopped or marked
 //!   {"type": "recordings", "dir": "...", "recording": path | null, "files": [{"name", "path", "bytes", "modified": ms}]}
 //!                                                     answer to "recordings"
 //!   {"type": "error", "detail": "..."}
@@ -56,6 +58,8 @@
 //!                                      the saved boss fights (in <data folder>/history)
 //!   {"cmd": "record", "on": true}      record the game's traffic (<data folder>/recordings), or stop
 //!   {"cmd": "recordings"}              the recordings kept
+//!   {"cmd": "packets", "on": true}     write every game message to a text file (<data folder>/recordings), or stop
+//!   {"cmd": "mark", "text": "..."}     a line in that file between the messages: what you just did
 //!   {"cmd": "quit"}                    (closing stdin quits too)
 //!
 //! A pet is {"id", "name" (null if unknown), "souls", "level", "levelEstimated", "crystals", "session"}.
@@ -74,6 +78,7 @@ use serde_json::{Value, json};
 use tokio::sync::mpsc;
 
 use crate::capture::pcap_capturer::PcapCapturer;
+use crate::capture::frame_log::FrameLog;
 use crate::capture::recorder::Recorder;
 use crate::meter::Meter;
 use crate::tracker::Tracker;
@@ -145,6 +150,7 @@ struct Sidecar {
     training_on: Arc<AtomicBool>,
     last_frame: Arc<Mutex<Option<Instant>>>,
     recorder: Arc<Mutex<Recorder>>,
+    frame_log: Arc<Mutex<FrameLog>>,
 }
 
 pub fn run(opts: Options) -> Result<(), String> {
@@ -189,6 +195,9 @@ pub fn run(opts: Options) -> Result<(), String> {
         recorder: Arc::new(Mutex::new(Recorder::new(
             opts.data.parent().map_or_else(|| PathBuf::from("recordings"), |p| p.join("recordings")),
         ))),
+        frame_log: Arc::new(Mutex::new(FrameLog::new(
+            opts.data.parent().map_or_else(|| PathBuf::from("recordings"), |p| p.join("recordings")),
+        ))),
     });
 
     // Every frame the parser reads goes through the tracker too, timed by its
@@ -196,9 +205,12 @@ pub fn run(opts: Options) -> Result<(), String> {
     {
         let tracker = sidecar.tracker.clone();
         let last_frame = sidecar.last_frame.clone();
+        let frame_log = sidecar.frame_log.clone();
         frame_tap::set(Some(Arc::new(move |frame: &[u8]| {
             *last_frame.lock() = Some(Instant::now());
-            tracker.lock().frame(clock::now_ms(), frame);
+            let ts = clock::now_ms();
+            frame_log.lock().note(ts, frame);
+            tracker.lock().frame(ts, frame);
         })));
     }
 
@@ -481,6 +493,23 @@ impl Sidecar {
                     }
                 }
                 "recordings" => emit(&event("recordings", self.recorder.lock().list())),
+                "packets" => {
+                    let mut log = self.frame_log.lock();
+                    if msg["on"].as_bool().ok_or("no on")? {
+                        let path = log.start().map_err(|e| {
+                            emit(&event("error", json!({ "detail": format!("packet log not started: {e}") })));
+                            "packet log not started"
+                        })?;
+                        emit(&event("packets", json!({ "on": true, "path": path.display().to_string(), "count": log.count() })));
+                    } else if let Some((path, count)) = log.stop() {
+                        emit(&event("packets", json!({ "on": false, "path": path.display().to_string(), "count": count })));
+                    }
+                }
+                "mark" => {
+                    let mut log = self.frame_log.lock();
+                    log.mark(clock::now_ms(), msg["text"].as_str().unwrap_or_default());
+                    emit(&event("packets", json!({ "on": log.on(), "count": log.count() })));
+                }
                 "history" => {
                     let fights = self.meter.history.get().map(|h| h.list_fights()).unwrap_or_default();
                     emit(&event("history", json!({ "fights": fights })));

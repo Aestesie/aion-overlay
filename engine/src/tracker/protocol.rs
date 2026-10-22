@@ -60,6 +60,11 @@ fn f32_at(b: &[u8], at: usize) -> Option<f32> {
 }
 
 /// The frame's opcode.
+/// Where a frame's opcode starts: after its length prefix (the packet log).
+pub fn opcode_at(frame: &[u8]) -> Option<usize> {
+    varint(frame, 0).map(|(_, n)| n)
+}
+
 pub fn opcode(frame: &[u8]) -> Option<[u8; 2]> {
     let (_, n) = varint(frame, 0)?;
     frame.get(n..n + 2)?.try_into().ok()
@@ -399,6 +404,27 @@ pub fn field_bosses(frame: &[u8]) -> Option<(u32, Vec<FieldBoss>)> {
     Some((world, out))
 }
 
+/// A field boss id as the map's list names them (101001 Neikel of the East, 101021 Eternal Gartua...).
+fn boss_id(v: u32) -> bool {
+    (101_001..=101_099).contains(&v)
+}
+
+/// How many different field boss ids a frame names, as varints or u32s: a diagnostic, to find the
+/// messages that carry the bosses besides the list `field_bosses` reads.
+pub fn boss_ids_in(frame: &[u8]) -> usize {
+    let mut seen: Vec<u32> = Vec::new();
+    for i in 0..frame.len() {
+        let as_u32 = u32_at(frame, i).filter(|&v| boss_id(v));
+        let as_varint = varint(frame, i).map(|(v, _)| v).filter(|&v| boss_id(v));
+        for v in [as_u32, as_varint].into_iter().flatten() {
+            if !seen.contains(&v) {
+                seen.push(v);
+            }
+        }
+    }
+    seen.len()
+}
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ShopItem {
     pub slot: u32,
@@ -556,6 +582,13 @@ mod tests {
         out.extend_from_slice(&op);
         out.extend_from_slice(body);
         out
+    }
+
+    #[test]
+    fn finds_boss_ids() {
+        // 101001 as a varint (89 95 06) and 101021 as a u32 (9d 8a 01 00).
+        assert_eq!(boss_ids_in(&[0x05, 0x10, 0x20, 0x89, 0x95, 0x06, 0x00, 0x9d, 0x8a, 0x01, 0x00]), 2);
+        assert_eq!(boss_ids_in(&[0x05, 0x10, 0x20, 0x01, 0x02]), 0);
     }
 
     #[test]

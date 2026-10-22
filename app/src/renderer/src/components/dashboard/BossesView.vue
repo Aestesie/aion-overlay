@@ -31,7 +31,8 @@ function ago(ms: number): string {
   const h = Math.round(m / 60)
   return h < 48 ? `${h} h ago` : `${Math.round(h / 24)} d ago`
 }
-const time = (ms: number): string => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+/** "Oct 21, 14:56": the exact time a respawn or a read was, to check against the game's map. */
+const stamp = (ms: number): string => new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 /** Alive first, then by respawn, the ones never seen last. */
 const rows = computed(() =>
@@ -90,7 +91,7 @@ const on = (def: TimerDef): boolean => (cfg.value.enabled[def.id] ?? false) && (
         <thead class="bg-card text-xs uppercase tracking-wide text-darker">
           <tr class="border-b border-card">
             <th class="py-2.5 pl-4 text-left font-medium">Boss</th>
-            <th class="w-40 px-3 text-left font-medium">Status</th>
+            <th class="w-52 px-3 text-left font-medium">Status</th>
             <th class="w-36 px-3 text-left font-medium">Last read</th>
             <th class="w-44 px-3 text-left font-medium">Alert me</th>
             <th class="w-20 pr-4 text-right font-medium">Alert</th>
@@ -104,14 +105,26 @@ const on = (def: TimerDef): boolean => (cfg.value.enabled[def.id] ?? false) && (
                 <span class="font-medium">{{ r.name }}</span>
               </div>
             </td>
-            <td class="px-3">
+            <td class="px-3 py-1.5">
               <span v-if="!r.state" class="text-darkest">Not seen</span>
-              <span v-else-if="r.state.up" class="font-medium text-green">Alive</span>
-              <span v-else-if="r.state.at <= now" class="text-yellow" :title="`Due since ${time(r.state.at)}`">Due</span>
-              <span v-else class="font-medium text-yellow" :title="`Respawns at ${time(r.state.at)}`"><Countdown :at="r.state.at" :now="now" /></span>
+              <template v-else-if="r.state.up">
+                <div class="font-medium text-green">Alive</div>
+                <div v-if="r.state.at" class="text-[11px] text-darker">since {{ stamp(r.state.at) }}</div>
+              </template>
+              <template v-else-if="r.state.at <= now">
+                <div class="text-yellow">Due</div>
+                <div class="text-[11px] text-darker">respawned {{ stamp(r.state.at) }}</div>
+              </template>
+              <template v-else>
+                <div class="font-medium text-yellow">Time left <Countdown :at="r.state.at" :now="now" /></div>
+                <div class="text-[11px] text-darker">respawns {{ stamp(r.state.at) }}</div>
+              </template>
             </td>
             <td class="px-3 text-xs text-darker">
-              <template v-if="r.state">{{ ago(r.state.seen) }}<span v-if="r.state.source === 'shared'" class="text-darkest"> · shared</span></template>
+              <template v-if="r.state">
+                <div>{{ ago(r.state.seen) }}<span v-if="r.state.source === 'shared'" class="text-darkest"> · shared</span></div>
+                <div class="text-[11px] text-darkest">{{ stamp(r.state.seen) }}</div>
+              </template>
             </td>
             <td class="px-3">
               <SelectBox

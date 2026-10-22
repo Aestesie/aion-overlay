@@ -98,6 +98,10 @@ pub struct Tracker {
     /// The collection waiting for the record that names the character.
     pending_sync: Option<(i64, p::Collection)>,
     field_bosses: Option<(u32, Vec<p::FieldBoss>)>,
+    /// When a field boss list last could not be read (logged at most once a minute).
+    field_bosses_unread: i64,
+    /// Other messages naming field bosses, by opcode: when each was last logged.
+    boss_messages: HashMap<[u8; 2], i64>,
 
     /// Around you: monsters loaded (entity -> code), your zone and position (x, -y).
     visible: HashMap<u32, u32>,
@@ -148,6 +152,8 @@ impl Tracker {
             last_combat: i64::MIN,
             pending_sync: None,
             field_bosses: None,
+            field_bosses_unread: 0,
+            boss_messages: HashMap::new(),
             visible: HashMap::new(),
             world: None,
             position: None,
@@ -308,6 +314,17 @@ impl Tracker {
             }
         }
         let Some(op) = p::opcode(f) else { return };
+        // Looking for where else the game sends field bosses (the map's list comes at login, but
+        // not always with the map open): any other message naming two of them is logged, once a
+        // minute for each kind, with its bytes.
+        if op != p::OP_FIELD_BOSSES && f.len() <= 8192 && p::boss_ids_in(f) >= 2 {
+            let last = self.boss_messages.entry(op).or_insert(0);
+            if ts - *last > 60_000 {
+                *last = ts;
+                let hex: String = f.iter().take(600).map(|b| format!("{b:02x}")).collect();
+                tracing::info!("field bosses in message {:02x} {:02x} ({} bytes): {hex}", op[0], op[1], f.len());
+            }
+        }
 
         for credit in p::kill_credits(f) {
             self.kill_credit(ts, &credit);
@@ -426,8 +443,8 @@ impl Tracker {
                     (self.emit)(json!({ "type": "kina", "ts": ts, "balance": balance }));
                 }
             }
-            p::OP_FIELD_BOSSES => {
-                if let Some(list) = p::field_bosses(f) {
+            p::OP_FIELD_BOSSES => match p::field_bosses(f) {
+                Some(list) => {
                     if self.field_bosses.as_ref() != Some(&list) {
                         (self.emit)(json!({
                             "type": "fieldBosses", "ts": ts, "world": list.0,
@@ -436,7 +453,14 @@ impl Tracker {
                         self.field_bosses = Some(list);
                     }
                 }
-            }
+                // The map's list, in a shape the parser does not know (a patch): its bytes, to fix it.
+                None if ts - self.field_bosses_unread > 60_000 => {
+                    self.field_bosses_unread = ts;
+                    let hex: String = f.iter().take(600).map(|b| format!("{b:02x}")).collect();
+                    tracing::warn!("field boss list not read ({} bytes): {hex}", f.len());
+                }
+                None => {}
+            },
             p::OP_SHOP => {
                 if let Some((tab, items, next)) = p::shop(f) {
                     // As the tab shows it: the app knows which items are pets worth buying.
