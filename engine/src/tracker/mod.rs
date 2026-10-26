@@ -124,6 +124,8 @@ pub struct Tracker {
     enemies: HashMap<u32, p::Player>,
     /// Hits between you and other players, and the fights saved from them (`pvp`).
     pvp_hits: pvp::Hits,
+    /// Players' classes, from the skills they were seen using (`pvp::skill_class`).
+    classes: HashMap<u32, &'static str>,
     pvp_fights: pvp::Fights,
     /// Player cards (`30 97`, target info `50 36`) by name and server: level, gear score, combat power.
     cards: HashMap<(String, u16), Card>,
@@ -178,6 +180,7 @@ impl Tracker {
             enemies: HashMap::new(),
             cards: HashMap::new(),
             pvp_hits: pvp::Hits::default(),
+            classes: HashMap::new(),
             pvp_fights,
             target_unread: 0,
             legions: HashMap::new(),
@@ -238,6 +241,7 @@ impl Tracker {
         self.recent.clear();
         self.self_votes.clear();
         self.players.clear();
+        self.classes.clear();
         self.legions.clear();
         self.self_entity = None;
         self.clear_cubes();
@@ -313,15 +317,24 @@ impl Tracker {
         }
     }
 
-    /// The hits in a `04 38`: those between you and another player are kept (`pvp`).
+    /// The hits in a `04 38`: a player's skill says their class, and those between you and another
+    /// player are kept (`pvp`).
     fn damage(&mut self, ts: i64, frame: &[u8]) {
-        // Nobody in view, or you not known yet: no hit between players to keep.
+        // Nobody in view: no player's hit to read.
         if self.players.is_empty() {
             return;
         }
-        let Some(me) = self.me() else { return };
+        let me = self.me();
         let storage = self.storage.clone();
         for h in damage::hits(frame, |v| storage.is_plausible_entity_id(v)) {
+            if self.players.contains_key(&h.actor) || Some(h.actor) == me {
+                if let Some(class) = pvp::skill_class(h.skill) {
+                    if self.classes.insert(h.actor, class) != Some(class) {
+                        self.class_learnt(ts, h.actor);
+                    }
+                }
+            }
+            let Some(me) = me else { continue };
             let other = if h.actor == me { h.target } else if h.target == me { h.actor } else { continue };
             if other == me || !self.players.contains_key(&other) {
                 continue;
@@ -344,6 +357,30 @@ impl Tracker {
         }
     }
 
+    /// A player's class, newly read from their skills: the enemies' list shows it. Where their
+    /// card says another (its class number, `p::roster_class`), the log says so: that table is
+    /// A2Tools' from 14 players, and this is how the rest of it gets checked.
+    fn class_learnt(&mut self, ts: i64, entity: u32) {
+        if let Some(player) = self.players.get(&entity) {
+            let card = player.server.and_then(|s| self.cards.get(&(player.name.clone(), s))).and_then(|c| c.class);
+            let skills = self.classes.get(&entity).copied();
+            if let (Some(card), Some(skills)) = (card, skills) {
+                if card != skills {
+                    tracing::warn!("class check: {}'s card says {card}, their skills say {skills}", player.name);
+                }
+            }
+        }
+        if self.enemies.contains_key(&entity) {
+            self.enemies_changed(ts);
+        }
+    }
+
+    /// A player's class: their card's, else the one their skills say.
+    fn class_of(&self, entity: Option<u32>, name: &str, server: Option<u16>) -> Option<&'static str> {
+        let card = server.and_then(|s| self.cards.get(&(name.to_string(), s))).and_then(|c| c.class);
+        card.or_else(|| entity.and_then(|e| self.classes.get(&e).copied()))
+    }
+
     /// A saved PvP fight, by id.
     pub fn pvp_fight(&self, id: &str) -> Option<pvp::Fight> {
         self.pvp_fights.get(id).cloned()
@@ -356,18 +393,22 @@ impl Tracker {
             entity,
             name: name.to_string(),
             server,
-            class_name: card.and_then(|c| c.class).map(str::to_string),
+            class_name: card.and_then(|c| c.class).or_else(|| self.classes.get(&entity).copied()).map(str::to_string),
             combat_power: card.and_then(|c| c.cp),
             legion,
         }
     }
 
-    /// Your kill or death: the fight with that player, saved from your hits on each other. None
-    /// when there were none (a kill seen without a fight on record).
-    fn save_pvp_fight(&mut self, ts: i64, credit: &p::KillCredit, died: bool, my_legion: Option<String>, my_server: Option<u16>) -> Option<String> {
+    /// A kill you took part in: the fight with that player, saved from your hits on each other.
+    /// Your kill, your death, or someone else's kill of a player you were fighting (an assist: the
+    /// fight with the victim). None when you two exchanged no hits (a kill you only saw).
+    fn save_pvp_fight(&mut self, ts: i64, credit: &p::KillCredit, mine: bool, died: bool, my_legion: Option<String>, my_server: Option<u16>) -> Option<String> {
         let me = self.me()?;
         let my_name = self.store.current.clone()?;
         let opponent = if died { credit.killer } else { credit.victim };
+        if opponent == me {
+            return None;
+        }
         let hits = self.pvp_hits.between(me, opponent, ts);
         if hits.is_empty() {
             return None;
@@ -378,9 +419,13 @@ impl Tracker {
             let v = self.players.get(&opponent)?.clone();
             self.pvp_side(opponent, &v.name, v.server, v.legion.or_else(|| self.legions.get(&opponent).cloned()))
         };
-        let mine = self.pvp_side(me, &my_name, my_server, my_legion);
+        let me_side = self.pvp_side(me, &my_name, my_server, my_legion);
         let id = format!("pvp-{ts}-{opponent}");
-        let fight = pvp::fight(id.clone(), ts, if died { "death" } else { "kill" }, mine, them, &hits);
+        let outcome = if died { "death" } else if mine { "kill" } else { "assist" };
+        let mut fight = pvp::fight(id.clone(), ts, outcome, me_side, them, &hits);
+        if outcome == "assist" {
+            fight.killer = Some(credit.name.clone());
+        }
         tracing::info!("pvp fight saved: {} vs {} ({}, {} hits)", fight.me.name, fight.opponent.name, fight.outcome, hits.len());
         self.pvp_fights.add(fight);
         Some(id)
@@ -402,7 +447,7 @@ impl Tracker {
                     json!({
                         "entity": e.entity, "name": e.name, "server": e.server, "legion": e.legion,
                         "level": card.map(|c| c.level), "gearScore": card.map(|c| c.gear_score), "combatPower": card.and_then(|c| c.cp),
-                        "className": card.and_then(|c| c.class),
+                        "className": card.and_then(|c| c.class).or_else(|| self.classes.get(&e.entity).copied()),
                     })
                 })
                 .collect();
@@ -554,6 +599,7 @@ impl Tracker {
                     self.move_to(ts, x, y, true);
                     self.visible.clear();
                     self.players.clear();
+                    self.classes.clear();
                     self.legions.clear();
                     self.clear_enemies(ts);
                     self.nearby_dirty = true;
@@ -948,19 +994,16 @@ impl Tracker {
         let legion = ours(killer_legion.as_deref(), Some(credit.server as u64))
             || victim.as_ref().is_some_and(|v| ours(v["guild"].as_str(), v["server"].as_u64()));
         let mine = me.as_deref() == Some(credit.name.as_str()) && mine_entry.server.is_none_or(|s| s == credit.server);
-        let fight = if mine || died { self.save_pvp_fight(ts, credit, died, my_legion.clone(), mine_entry.server) } else { None };
-        let class_of = |name: &str, server: Option<u64>| -> Option<&'static str> {
-            let server = u16::try_from(server?).ok()?;
-            self.cards.get(&(name.to_string(), server))?.class
-        };
+        let fight = self.save_pvp_fight(ts, credit, mine, died, my_legion.clone(), mine_entry.server);
         let victim = victim.map(|mut v| {
-            let class = v["name"].as_str().and_then(|n| class_of(n, v["server"].as_u64()));
+            let server = v["server"].as_u64().and_then(|s| u16::try_from(s).ok());
+            let class = v["name"].as_str().and_then(|n| self.class_of(Some(credit.victim), n, server));
             v["className"] = json!(class);
             v
         });
         (self.emit)(json!({
             "type": "pvpKill", "ts": ts, "fight": fight,
-            "killer": { "name": credit.name, "server": credit.server, "guild": killer_legion, "className": class_of(&credit.name, Some(credit.server as u64)) },
+            "killer": { "name": credit.name, "server": credit.server, "guild": killer_legion, "className": self.class_of(Some(credit.killer), &credit.name, Some(credit.server)) },
             "victim": victim,
             "mine": mine,
             "died": died,

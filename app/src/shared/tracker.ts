@@ -119,7 +119,10 @@ export interface PvpKill {
   died: boolean
   /** Your legion was the killer's or the victim's (you included). */
   legion: boolean
-  /** Your kill or death: the fight's id, to open in Details (null when no hits between you were seen). */
+  /**
+   * A kill you took part in (yours, your death, or one of a player you were fighting): the fight's
+   * id, to open in Details. Null when no hits between you were seen.
+   */
   fight?: string | null
 }
 

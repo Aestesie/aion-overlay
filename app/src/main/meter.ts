@@ -122,7 +122,9 @@ interface PvpSide {
 interface PvpFight {
   id: string
   at: number
-  outcome: 'kill' | 'death'
+  /** An assist: someone else (`killer`) killed the player you were fighting. */
+  outcome: 'kill' | 'death' | 'assist'
+  killer?: string
   me: PvpSide
   opponent: PvpSide
   startMs: number
@@ -151,7 +153,7 @@ async function pvpDetails(source: Extract<DetailsSource, { kind: 'pvp' }>): Prom
   return {
     source,
     buffs: null,
-    title: `${fight.me.name} vs ${fight.opponent.name} · ${fight.outcome === 'kill' ? 'you won' : 'you died'}`,
+    title: `${fight.me.name} vs ${fight.opponent.name} · ${fight.outcome === 'kill' ? 'you won' : fight.outcome === 'death' ? 'you died' : `${fight.killer ?? 'someone else'} got the kill`}`,
     startedAt: fight.startMs,
     battleTime: fight.durationMs,
     totalDamage: sum(skills, (s) => s.damage),

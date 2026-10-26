@@ -58,7 +58,7 @@ function ago(ms: number): string {
 const rowClass = (k: PvpKill): string =>
   k.mine ? 'bg-green/10 border-l-2 border-green' : k.died ? 'bg-danger/10 border-l-2 border-danger' : 'border-l-2 border-transparent'
 const clear = (): void => void bridge().invoke('tracker:clearPvp')
-/** Your kill or death, its fight in the Details window: each side's damage and skills. */
+/** A kill you took part in, its fight in the Details window: each side's damage and skills. */
 const openFight = (k: PvpKill): void => {
   if (k.fight) void bridge().invoke('details:open', { kind: 'pvp', id: k.fight })
 }
@@ -123,6 +123,7 @@ const BACKGROUND_HINT = 'At None the text keeps a dark glow, readable on the gam
           </div>
           <div v-if="k.killer.guild" class="truncate text-[11px] text-darker">{{ k.killer.guild }}</div>
         </div>
+        <span v-if="k.fight && !k.mine && !k.died" class="shrink-0 rounded bg-accent/15 px-1.5 text-[10px] font-semibold text-accent" title="You fought this player before someone else took the kill">Assist</span>
         <span v-if="k.fight" class="shrink-0 text-[11px] font-medium text-accent">Details ›</span>
         <span class="shrink-0 text-[11px] tabular-nums text-darker" :title="time(k.at)">{{ ago(k.at) }}</span>
       </li>

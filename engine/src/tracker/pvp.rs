@@ -8,7 +8,32 @@ use std::collections::{HashMap, VecDeque};
 use std::fs;
 use std::path::PathBuf;
 
+use a2tools_dps_meter_lib::entity::job_class::JobClass;
 use serde::{Deserialize, Serialize};
+
+/// A skill's class, named as the meter names them (A2Tools' `JobClass::convert_from_skill`).
+pub fn skill_class(skill: i32) -> Option<&'static str> {
+    Some(match JobClass::convert_from_skill(skill)? {
+        JobClass::Gladiator => "Gladiator",
+        JobClass::Templar => "Templar",
+        JobClass::Ranger => "Ranger",
+        JobClass::Assassin => "Assassin",
+        JobClass::Sorcerer => "Sorcerer",
+        JobClass::Cleric => "Cleric",
+        JobClass::Elementalist => "Spiritmaster",
+        JobClass::Chanter => "Chanter",
+        JobClass::Fighter => "Brawler",
+    })
+}
+
+/// The class most of these skills belong to.
+pub fn class_of_skills(skills: impl IntoIterator<Item = i32>) -> Option<&'static str> {
+    let mut votes: HashMap<&'static str, u32> = HashMap::new();
+    for class in skills.into_iter().filter_map(skill_class) {
+        *votes.entry(class).or_default() += 1;
+    }
+    votes.into_iter().max_by_key(|&(class, n)| (n, class)).map(|(class, _)| class)
+}
 
 /// Hits kept: the last few minutes of fighting, whatever comes of it.
 const KEEP_MS: i64 = 10 * 60_000;
@@ -106,8 +131,12 @@ pub struct Fight {
     pub id: String,
     /// When the kill came (ms since epoch).
     pub at: i64,
-    /// "kill": you killed them; "death": they killed you.
+    /// "kill": you killed them; "death": they killed you; "assist": someone else killed the
+    /// player you were fighting (`killer`).
     pub outcome: String,
+    /// An assist's killer: who took the kill.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub killer: Option<String>,
     pub me: Side,
     pub opponent: Side,
     pub start_ms: i64,
@@ -136,7 +165,7 @@ pub fn fight(id: String, at: i64, outcome: &str, me: Side, opponent: Side, hits:
     }
     let mut skills: Vec<SkillLine> = lines.into_values().collect();
     skills.sort_by(|a, b| b.damage.cmp(&a.damage));
-    Fight { id, at, outcome: outcome.to_string(), me, opponent, start_ms: start, duration_ms: (end - start).max(1000), skills }
+    Fight { id, at, outcome: outcome.to_string(), killer: None, me, opponent, start_ms: start, duration_ms: (end - start).max(1000), skills }
 }
 
 /// The fights saved, newest first.

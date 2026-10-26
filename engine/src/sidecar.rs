@@ -520,6 +520,22 @@ impl Sidecar {
                     let id = msg["id"].as_str().ok_or("no id")?;
                     let fight = self.tracker.lock().pvp_fight(id);
                     let mut fight = serde_json::to_value(fight).unwrap_or(Value::Null);
+                    // A side whose class was not known then (no card, no skill seen before the
+                    // fight): the class its skills in the fight say.
+                    for side in ["me", "opponent"] {
+                        if !fight[side]["className"].is_null() {
+                            continue;
+                        }
+                        let entity = fight[side]["entity"].clone();
+                        let codes: Vec<i32> = fight["skills"]
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .filter(|s| s["actor"] == entity)
+                            .filter_map(|s| s["code"].as_i64().map(|c| c as i32))
+                            .collect();
+                        fight[side]["className"] = json!(crate::tracker::pvp::class_of_skills(codes));
+                    }
                     // Each skill as the meter names it: a skill's variants folded into it, as
                     // upstream's parser does (the PvP reader keeps raw ids), and its name.
                     if let Some(skills) = fight.get_mut("skills").and_then(Value::as_array_mut) {
