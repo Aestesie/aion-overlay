@@ -9,6 +9,7 @@ import WorldMap, { type MapLayer } from '@/components/WorldMap.vue'
 import { displayName, monsterName } from '@/lib/petDb.ts'
 import { currentWorld, levelFit, LEVEL_GAP, loadSpawns, npcUrl, sortDroppers, type Dropper } from '@/lib/spawns.ts'
 import { useApp } from '@/stores/app.ts'
+import { MAX_PINNED } from '@shared/settings.ts'
 import { blankPet } from '@shared/tracker.ts'
 
 const props = defineProps<{ id: number }>()
@@ -26,6 +27,8 @@ onMounted(async () => {
 })
 
 const pet = computed(() => store.pets.find((p) => p.id === props.id) ?? blankPet(props.id))
+const pinned = computed(() => store.settings.hud.pinned.includes(props.id))
+const pinsFull = computed(() => store.settings.hud.pinned.length >= MAX_PINNED)
 const droppers = computed<Dropper[]>(() =>
   data.value ? sortDroppers(data.value.pets[props.id] ?? [], data.value, store.settings.faction, store.settings.playerLevel) : [],
 )
@@ -101,6 +104,22 @@ const FIT_CLASS = { good: 'text-green', low: 'text-red', high: 'text-yellow' }
           <span v-if="monsterName(pet)" class="truncate">· farmed from {{ monsterName(pet) }}</span>
         </div>
       </div>
+      <!-- Pinned: on the HUD's pinned list and the map overlay, as from the Pets page. -->
+      <button
+        type="button"
+        :title="pinned ? 'Unpin from the HUD and the map overlay' : pinsFull ? `${MAX_PINNED} pets pinned already: unpin one first` : 'Pin to the HUD and the map overlay'"
+        :disabled="!pinned && pinsFull"
+        :class="[
+          'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs transition disabled:cursor-not-allowed disabled:opacity-50',
+          pinned ? 'border-accent bg-accent-soft text-accent' : 'border-light text-darker hover:text-default',
+        ]"
+        @click="store.togglePin(id)"
+      >
+        <svg viewBox="0 0 16 16" class="size-3.5" :fill="pinned ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.4">
+          <path d="M6 2h4l-.5 4 2.5 2.5H4L6.5 6z M8 8.5V14" stroke-linejoin="round" />
+        </svg>
+        {{ pinned ? 'Pinned' : 'Pin' }}
+      </button>
       <!-- Your level, as the game says: what the drop-rate marks below go by. -->
       <span v-if="store.settings.playerLevel" class="shrink-0 text-xs text-darker" title="Read from the game">
         You: <span class="font-semibold tabular-nums text-default">Lv {{ store.settings.playerLevel }}</span>
