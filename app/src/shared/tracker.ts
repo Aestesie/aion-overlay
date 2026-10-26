@@ -111,10 +111,13 @@ export interface Cube {
 /** A player killed by a player around you, as the game credits it (the killing blow). */
 export interface PvpKill {
   at: number
-  /** `className` when a player card or target info named it (shared/tracker.ts Enemy). */
-  killer: { name: string; server: number; guild: string | null; className?: string | null }
+  /**
+   * `className` when a player card or target info named it (shared/tracker.ts Enemy); `combatPower`
+   * when their spawn, card or target info gave it.
+   */
+  killer: { name: string; server: number; guild: string | null; className?: string | null; combatPower?: number | null }
   /** Null when the victim was never in view (no name to give). */
-  victim: { name: string; server: number | null; guild?: string | null; className?: string | null } | null
+  victim: { name: string; server: number | null; guild?: string | null; className?: string | null; combatPower?: number | null } | null
   /** You were the killer. */
   mine: boolean
   /** You were the victim. */

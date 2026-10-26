@@ -417,6 +417,11 @@ impl Tracker {
         card.or_else(|| entity.and_then(|e| self.classes.get(&e).copied()))
     }
 
+    /// A player's combat power, as their card shows it.
+    fn combat_power_of(&self, name: &str, server: Option<u16>) -> Option<u32> {
+        server.and_then(|s| self.cards.get(&(name.to_string(), s))).and_then(|c| c.cp)
+    }
+
     /// A saved PvP fight, by id.
     pub fn pvp_fight(&self, id: &str) -> Option<pvp::Fight> {
         self.pvp_fights.get(id).cloned()
@@ -1070,11 +1075,16 @@ impl Tracker {
             let server = v["server"].as_u64().and_then(|s| u16::try_from(s).ok());
             let class = v["name"].as_str().and_then(|n| self.class_of(Some(credit.victim), n, server));
             v["className"] = json!(class);
+            v["combatPower"] = json!(v["name"].as_str().and_then(|n| self.combat_power_of(n, server)));
             v
         });
         (self.emit)(json!({
             "type": "pvpKill", "ts": ts, "fight": fight,
-            "killer": { "name": credit.name, "server": credit.server, "guild": killer_legion, "className": self.class_of(Some(credit.killer), &credit.name, Some(credit.server)) },
+            "killer": {
+                "name": credit.name, "server": credit.server, "guild": killer_legion,
+                "className": self.class_of(Some(credit.killer), &credit.name, Some(credit.server)),
+                "combatPower": self.combat_power_of(&credit.name, Some(credit.server)),
+            },
             "victim": victim,
             "mine": mine,
             "died": died,

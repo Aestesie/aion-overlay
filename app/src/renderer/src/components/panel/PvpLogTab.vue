@@ -20,6 +20,8 @@ import type { PvpKill } from '@shared/tracker.ts'
 const store = useApp()
 const kills = computed(() => [...store.pvp].reverse())
 const myServer = computed(() => store.status?.server ?? null)
+/** Combat power as the game rounds it: 115485 → 115.4K. */
+const cp = (v: number): string => `${(Math.floor(v / 100) / 10).toFixed(1)}K`
 const tag = (server: number | null): string | null => (server === null || server === myServer.value ? null : serverTag(server))
 // One filter at a time; clicking the active one shows everything again.
 type Filter = 'mine' | 'legion'
@@ -114,12 +116,14 @@ const BACKGROUND_HINT = 'At None the text keeps a dark glow, readable on the gam
             <ClassIcon :class-name="k.killer.className" :size="16" />
             <span class="truncate font-medium" :class="k.mine && 'text-green'">{{ k.killer.name }}</span>
             <span v-if="tag(k.killer.server)" class="shrink-0 text-[11px] text-yellow">[{{ tag(k.killer.server) }}]</span>
+            <span v-if="k.killer.combatPower" class="shrink-0 text-[11px] font-semibold tabular-nums text-yellow" title="Combat power">{{ cp(k.killer.combatPower) }}</span>
             <svg viewBox="0 0 16 16" class="size-3.5 shrink-0 text-darker" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
               <path d="M3 8h9M9 4.5 12.5 8 9 11.5" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
             <ClassIcon :class-name="k.victim?.className" :size="16" />
             <span class="truncate font-medium" :class="k.died && 'text-danger'">{{ k.victim?.name ?? 'a player out of view' }}</span>
             <span v-if="k.victim && tag(k.victim.server)" class="shrink-0 text-[11px] text-yellow">[{{ tag(k.victim.server) }}]</span>
+            <span v-if="k.victim?.combatPower" class="shrink-0 text-[11px] font-semibold tabular-nums text-yellow" title="Combat power">{{ cp(k.victim.combatPower) }}</span>
           </div>
           <div v-if="k.killer.guild" class="truncate text-[11px] text-darker">{{ k.killer.guild }}</div>
         </div>
