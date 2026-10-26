@@ -1,6 +1,6 @@
 /**
  * App updates, only when asked (Settings → Updates): electron-updater reads the latest release of
- * github.com/matiasmoya/aion-overlay (the latest.yml the build attaches to it), downloads the
+ * github.com/erylopez/aion-overlay (the latest.yml the build attaches to it), downloads the
  * installer and runs it over this copy, then starts the app again. Nothing is checked or downloaded
  * by itself. Its requests go through electron-updater's own session, not the windows' one that
  * main/index.ts blocks.
@@ -19,7 +19,7 @@ import type { UpdateState } from '../shared/update.ts'
 // electron-updater is CommonJS: its named exports sit on the default import in the ESM build.
 const { autoUpdater } = electronUpdater
 
-const REPO = { owner: 'matiasmoya', repo: 'aion-overlay' }
+const REPO = { owner: 'erylopez', repo: 'aion-overlay' }
 /** An installed copy has its uninstaller next to it ("Uninstall Lokthar.exe"); one unpacked from the zip does not. */
 function isPortable(): boolean {
   if (process.platform !== 'win32' || !app.isPackaged) return false

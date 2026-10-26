@@ -34,7 +34,7 @@ win:
 # both. The repo must be public for the app to read its releases.
 publish:
   provider: github
-  owner: matiasmoya
+  owner: erylopez
   repo: aion-overlay
   releaseType: release
 nsis:

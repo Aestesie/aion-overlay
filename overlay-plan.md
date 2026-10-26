@@ -8,7 +8,7 @@ All three live inside `~/code/lokthar/`, gitignored there, each its own git repo
 
 | Folder | Repo | What it is |
 |---|---|---|
-| `aion-overlay/` | github.com/matiasmoya/aion-overlay | **This repo.** Electron + Vue overlay (`app/`) with a Python capture sidecar (`aion2_tracker/`, scapy + Npcap) talking JSON lines over stdin/stdout. Windows only. Based on xCROv/aion2-nyerk. |
+| `aion-overlay/` | github.com/erylopez/aion-overlay | **This repo.** Electron + Vue overlay (`app/`) with a Python capture sidecar (`aion2_tracker/`, scapy + Npcap) talking JSON lines over stdin/stdout. Windows only. Based on xCROv/aion2-nyerk. |
 | `dps-meter-experiment/` | github.com/taengu/A2Tools-DPS-Meter | Upstream DPS meter. Tauri 2 + Rust + vanilla JS, GPL-3.0. Windows and Linux. |
 | `dps-meter-experiment-plugins/` | github.com/taengu/A2Tools-Plugins | Their plugins; `plugins/pet-souls` is the equivalent of our pet tracker. |
 

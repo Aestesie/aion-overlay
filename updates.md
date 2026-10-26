@@ -5,7 +5,7 @@ How the app updates itself, and how to publish a release it can update to.
 ## How it works
 
 There is no update server. The installed app reads the latest GitHub release of
-[matiasmoya/aion-overlay](https://github.com/matiasmoya/aion-overlay) with
+[erylopez/aion-overlay](https://github.com/erylopez/aion-overlay) with
 [electron-updater](https://www.electron.build/auto-update), and installs it over itself.
 
 1. **Settings → Updates → Check for updates.** The app downloads `latest.yml` from the latest
