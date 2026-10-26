@@ -158,6 +158,9 @@ const BACKGROUND_HINT = 'At None the text keeps a dark glow, readable on the gam
           <Toggle :model-value="store.settings.enemies.enabled" @update:model-value="setEnemies({ enabled: $event })" />
         </SettingRow>
         <template v-if="store.settings.enemies.enabled">
+          <SettingRow label="Enemies on the map" hint="A red pin on the map overlay where each enemy was last seen: as they come into view, then as effects and skills land on them.">
+            <Toggle :model-value="store.settings.enemies.mapPins" @update:model-value="setEnemies({ mapPins: $event })" />
+          </SettingRow>
           <SettingRow label="Enemies background" :hint="BACKGROUND_HINT">
             <Slider :model-value="store.settings.enemies.opacity" :min="0" :max="1" :step="0.05" :format="background" @update:model-value="setEnemies({ opacity: $event })" />
           </SettingRow>

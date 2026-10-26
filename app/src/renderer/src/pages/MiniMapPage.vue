@@ -59,6 +59,10 @@ const layers = computed<MapLayer[]>(() =>
 /** The legend: the tracked pets (all with spawns in this zone). */
 const legend = tracked
 const cubes = computed(() => store.cubes.map((c) => c.position))
+/** Enemy players in view whose place is known: red pins (PvP page, Enemies nearby). */
+const enemyPins = computed(() =>
+  store.settings.enemies.mapPins ? store.enemies.flatMap((e) => (e.position ? [{ name: e.name, position: e.position }] : [])) : [],
+)
 const pet = (id: number) => store.pets.find((p) => p.id === id) ?? blankPet(id)
 
 const drag = windowDrag({ move: 'minimap:moveTo', end: 'minimap:dragEnd' })
@@ -159,6 +163,7 @@ onBeforeUnmount(() => observer?.disconnect())
             :focus="NO_FOCUS"
             :you="store.nearby.position"
             :cubes="cubes"
+            :enemies="enemyPins"
             :follow="cfg.zoom"
             :hint="false"
             class="!rounded-none"

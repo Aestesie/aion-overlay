@@ -75,6 +75,8 @@ export interface Enemy {
   gearScore?: number | null
   combatPower?: number | null
   className?: string | null
+  /** Where they were last seen, in the map data's (x, -y), as Nearby gives yours. */
+  position?: [number, number] | null
 }
 
 /** The player you last targeted: their sheet as the game sends it (`50 36`). */

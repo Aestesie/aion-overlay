@@ -122,6 +122,11 @@ pub struct Tracker {
     players: HashMap<u32, p::Player>,
     /// Players of the other faction in view: in on `45 36`, out on `42 36` or a new zone.
     enemies: HashMap<u32, p::Player>,
+    /// Where each enemy in view was last seen, game (x, y): their arrival, then the effects and
+    /// casts that land on them.
+    enemy_places: HashMap<u32, (f32, f32)>,
+    /// When the enemies' list last went out for a move (moves go out once a second at most).
+    enemies_moved_ms: i64,
     /// Hits between you and other players, and the fights saved from them (`pvp`).
     pvp_hits: pvp::Hits,
     /// Players' classes, from the skills they were seen using (`pvp::skill_class`).
@@ -178,6 +183,8 @@ impl Tracker {
             cubes: HashMap::new(),
             players: HashMap::new(),
             enemies: HashMap::new(),
+            enemy_places: HashMap::new(),
+            enemies_moved_ms: 0,
             cards: HashMap::new(),
             pvp_hits: pvp::Hits::default(),
             classes: HashMap::new(),
@@ -329,7 +336,12 @@ impl Tracker {
         for h in damage::hits(frame, |v| storage.is_plausible_entity_id(v)) {
             if self.players.contains_key(&h.actor) || Some(h.actor) == me {
                 if let Some(class) = pvp::skill_class(h.skill) {
-                    if self.classes.insert(h.actor, class) != Some(class) {
+                    let before = self.classes.insert(h.actor, class);
+                    if let Some(said) = before.filter(|&b| b != class) {
+                        let name = self.players.get(&h.actor).map_or("you", |p| p.name.as_str());
+                        tracing::warn!("class check: {name}'s spawn record says {said}, their skills say {class}");
+                    }
+                    if before != Some(class) {
                         self.class_learnt(ts, h.actor);
                     }
                 }
@@ -444,7 +456,9 @@ impl Tracker {
             list.iter()
                 .map(|e| {
                     let card = e.server.and_then(|s| self.cards.get(&(e.name.clone(), s)));
+                    let position = self.enemy_places.get(&e.entity).map(|&(x, y)| [x.round() as i64, (-y).round() as i64]);
                     json!({
+                        "position": position,
                         "entity": e.entity, "name": e.name, "server": e.server, "legion": e.legion,
                         "level": card.map(|c| c.level), "gearScore": card.map(|c| c.gear_score), "combatPower": card.and_then(|c| c.cp),
                         "className": card.and_then(|c| c.class).or_else(|| self.classes.get(&e.entity).copied()),
@@ -454,7 +468,20 @@ impl Tracker {
         (self.emit)(json!({ "type": "enemies", "ts": ts, "players": players }));
     }
 
+    /// An enemy seen standing at game (x, y): their pin on the map moves (once a second at most).
+    fn enemy_moved(&mut self, ts: i64, entity: u32, x: f32, y: f32) {
+        if !self.enemies.contains_key(&entity) {
+            return;
+        }
+        self.enemy_places.insert(entity, (x, y));
+        if ts - self.enemies_moved_ms >= ENEMY_MOVE_EVERY_MS {
+            self.enemies_moved_ms = ts;
+            self.enemies_changed(ts);
+        }
+    }
+
     fn clear_enemies(&mut self, ts: i64) {
+        self.enemy_places.clear();
         if !self.enemies.is_empty() {
             self.enemies.clear();
             self.enemies_changed(ts);
@@ -611,8 +638,10 @@ impl Tracker {
                 }
             }
             op if p::OP_EFFECTS.contains(&op) => {
-                // Effects on you, whoever put them there: where you are, between zone loads.
+                // Effects on you, whoever put them there: where you are, between zone loads. On an
+                // enemy: where they are.
                 if let Some((target, x, y)) = p::effect_position(f) {
+                    self.enemy_moved(ts, target, x, y);
                     if Some(target) == self.me() && !self.jump(ts, x, y) {
                         self.move_to(ts, x, y, true);
                     }
@@ -622,6 +651,10 @@ impl Tracker {
                 // Your casts give where their target is: only a guess at where you
                 // are, taken when nothing better is known or it is far from it.
                 if let Some((actor, x, y)) = p::cast(f) {
+                    // A cast's place is its target's: an enemy's, when they are the target.
+                    if let Some(target) = p::cast_target(f) {
+                        self.enemy_moved(ts, target, x, y);
+                    }
                     let near = self.position.is_some_and(|(px, py)| (px - x).hypot(py + y) <= CAST_RANGE);
                     if Some(actor) == self.me() && !(self.position_exact && near) && !self.jump(ts, x, y) {
                         self.move_to(ts, x, y, false);
@@ -689,6 +722,7 @@ impl Tracker {
                 // Out of view: off the enemies' list (kept among the players, for names on a late
                 // kill credit; a new zone clears those).
                 if let Some(entity) = p::player_gone(f) {
+                    self.enemy_places.remove(&entity);
                     if self.enemies.remove(&entity).is_some() {
                         self.enemies_changed(ts);
                     }
@@ -707,6 +741,12 @@ impl Tracker {
             p::OP_PLAYER => {
                 if let Some(player) = p::player(f) {
                     let enemy = matches!((player.faction, self.my_faction()), (Some(theirs), Some(mine)) if theirs != mine);
+                    if let Some(class) = player.class.and_then(p::roster_class) {
+                        self.classes.entry(player.entity).or_insert(class);
+                    }
+                    if let (true, Some(place)) = (enemy, player.place) {
+                        self.enemy_places.insert(player.entity, place);
+                    }
                     if enemy && self.enemies.insert(player.entity, player.clone()).is_none() {
                         tracing::info!("enemy in view: {} ({:?})", player.name, player.server);
                         self.enemies_changed(ts);
@@ -1025,6 +1065,8 @@ struct Card {
     pending: Option<u32>,
 }
 
+/// An enemy's pin moves on the map this often at most (a fight sends many effects a second).
+const ENEMY_MOVE_EVERY_MS: i64 = 1000;
 /// Cards kept at most: past it they start over (a long session among crowds).
 const MAX_CARDS: usize = 5000;
 /// Combat power players have (late 2026: most 90k-175k, some past 200k); outside it, a misread.

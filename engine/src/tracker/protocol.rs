@@ -307,6 +307,17 @@ pub fn cast(frame: &[u8]) -> Option<(u32, f32, f32)> {
     (n + 6..(b.len().saturating_sub(12)).min(n + 24)).find_map(|off| place_at(b, off).map(|(x, y)| (actor, x, y)))
 }
 
+/// The target of a `02 38` / `03 38` cast: `<caster varint> 00 <target varint>`. The place
+/// `cast` reads is this target's.
+pub fn cast_target(frame: &[u8]) -> Option<u32> {
+    let b = OP_CASTS.iter().find_map(|&op| body(frame, op))?;
+    let (_, n) = varint(b, 0)?;
+    if *b.get(n)? != 0 {
+        return None;
+    }
+    varint(b, n + 1).map(|(target, _)| target).filter(|&t| t != 0)
+}
+
 /// Epoch ms, 2020 to 2128: how the time in an effect record is found. Effects
 /// that never run out carry the end of 2099.
 const EFFECT_MS: std::ops::Range<u64> = 1_580_000_000_000..5_000_000_000_000;
@@ -531,6 +542,11 @@ pub struct Player {
     pub legion: Option<String>,
     /// 1 Elyos, 2 Asmodian: the server's, else the byte after the name's u32.
     pub faction: Option<u8>,
+    /// The u32 right after the name: the class number (`roster_class`), as target info has it.
+    pub class: Option<u32>,
+    /// Where they stand, game (x, y): 8 bytes after the name (all 8 players of the 2026-10
+    /// captures; Wolf's matched his effects' position to the unit).
+    pub place: Option<(f32, f32)>,
 }
 
 pub const ELYOS: u8 = 1;
@@ -564,7 +580,9 @@ pub fn player(frame: &[u8]) -> Option<Player> {
         }
     }
     let faction = server.and_then(server_faction).or_else(|| b.get(end + 4).copied().filter(|f| [ELYOS, ASMODIAN].contains(f)));
-    Some(Player { entity, name, server, legion, faction })
+    let class = u32_at(b, end).filter(|&c| roster_class(c).is_some());
+    let place = place_at(b, end + 8);
+    Some(Player { entity, name, server, legion, faction, class, place })
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -793,6 +811,8 @@ mod tests {
         // Two players from the 2026-10-25 packet log, their first 200 bytes: an Asmodian (2406) and an Elyos (1406).
         let asmo = player(&frame(OP_PLAYER, &hex("b1490320a401070a4c6f706572616d69646117000000020100d20cda5f48765c52c800a027456d948b4383c601826e826ef40e0000f40e00000000000000000000c80d0200c80d020000000000f049020001000000a0860100a0860100d04e0900d04e090002a467650250e56302cdd84f01660914020000000066090a53796e646963617465330200020000000000000000000000000000000a1126815ffd09ffffffffffffffff8075d52abb030000b1490f006cc35f4825d051c8001028451127017a030affff"))).unwrap();
         assert_eq!((asmo.name.as_str(), asmo.server, asmo.faction), ("Loperamida", Some(2406), Some(ASMODIAN)));
+        let (x, y) = asmo.place.unwrap();
+        assert!((x - 229_224.0).abs() < 1.0 && (y + 215_410.0).abs() < 1.0, "{x} {y}");
         let ely = player(&frame(OP_PLAYER, &hex("ab620320a001070659616b617a6506000000010280d214746148345c52c8bddc1e4553c57e432cb50000b3ca01dc0e0000dc0e000000000000000000005c0602004833020080890000f049020001000000a0860100a08601004a11090070d50a000100000001084ecb0138d6cc01ee1753027e052400000000007e05084f6c6450617274790100020000000000000000000000000000000d11122bc4c901ffffffffffffffff8075d52abb030000ab620100c8fb3e478ef8144800c4b94611133fc4c901ffffffff"))).unwrap();
         assert_eq!((ely.server, ely.faction), (Some(1406), Some(ELYOS)));
     }

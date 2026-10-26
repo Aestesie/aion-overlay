@@ -14,6 +14,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       'Click your PvP kills and deaths to see the fight: damage, DPS and skills on both sides.',
       'Fights are saved for assists too, when someone else takes the kill.',
+      'Enemy players show as red pins on the map overlay.',
       'Fixed: enemies stayed on the Enemies nearby list after leaving or dying.',
       'Players\' classes are read from the skills they use: class icons on kills, enemies and fights.',
     ],

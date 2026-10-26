@@ -20,6 +20,8 @@ const props = defineProps<{
   focus: [number, number][]
   you?: [number, number] | null
   cubes?: [number, number][]
+  /** Enemy players in view: red pins, the name on hover. */
+  enemies?: { name: string; position: [number, number] }[]
   /** Keep you in the middle at this zoom (times the whole zone's): the map overlay. */
   follow?: number
   /** The help line at the bottom (off in the small map overlay). */
@@ -33,6 +35,12 @@ const view = ref({ k: 1, x: 0, y: 0 })
 const loaded = ref(false)
 
 const youXY = computed(() => (props.you ? project(props.world, props.you).map((v) => v * SIZE) : null))
+const enemyXY = computed(() =>
+  (props.enemies ?? []).map((e) => ({ name: e.name, xy: project(props.world, e.position).map((v) => v * SIZE) as [number, number] })),
+)
+/** A map pin's outline, its point at (0, 0), `s` tall. */
+const pinPath = (s: number): string =>
+  `M0 0C${-0.12 * s} ${-0.35 * s} ${-0.38 * s} ${-0.5 * s} ${-0.38 * s} ${-0.72 * s}A${0.38 * s} ${0.38 * s} 0 1 1 ${0.38 * s} ${-0.72 * s}C${0.38 * s} ${-0.5 * s} ${0.12 * s} ${-0.35 * s} 0 0Z`
 const cubeXY = computed(() => (props.cubes ?? []).map((c) => project(props.world, c).map((v) => v * SIZE) as [number, number]))
 /** A golden cube's three faces, centred on 0,0, at `r` map units across. */
 function cubeFaces(r: number): { top: string; left: string; right: string } {
@@ -222,6 +230,12 @@ defineExpose({ fit, recentre })
           <polygon :points="cubeFaces(9 / view.k).top" fill="#fde68a" stroke="#78350f" :stroke-width="1 / view.k" />
           <polygon :points="cubeFaces(9 / view.k).left" fill="#f59e0b" stroke="#78350f" :stroke-width="1 / view.k" />
           <polygon :points="cubeFaces(9 / view.k).right" fill="#b45309" stroke="#78350f" :stroke-width="1 / view.k" />
+        </g>
+        <!-- Enemy players: red pins pointing at where they stand. -->
+        <g v-for="(e, i) in enemyXY" :key="`enemy-${i}`" :transform="`translate(${e.xy[0]} ${e.xy[1]})`">
+          <title>{{ e.name }}</title>
+          <path :d="pinPath(22 / view.k)" fill="#ef4444" stroke="#450a0a" :stroke-width="1.2 / view.k" />
+          <circle :cy="-15.8 / view.k" :r="3.2 / view.k" fill="#fff" />
         </g>
         <!-- You: a ring with a dot, drawn last so nothing covers it. -->
         <g v-if="youXY">
