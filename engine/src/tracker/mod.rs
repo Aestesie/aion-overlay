@@ -134,6 +134,8 @@ pub struct Tracker {
     pvp_fights: pvp::Fights,
     /// Player cards (`30 97`, target info `50 36`) by name and server: level, gear score, combat power.
     cards: HashMap<(String, u16), Card>,
+    /// Counts card updates, to tell which card is oldest (`card_mut`).
+    card_tick: u64,
     /// When target info last had no believable combat power (logged once a minute, to fix the reader).
     target_unread: i64,
     legions: HashMap<u32, String>,
@@ -186,6 +188,7 @@ impl Tracker {
             enemy_places: HashMap::new(),
             enemies_moved_ms: 0,
             cards: HashMap::new(),
+            card_tick: 0,
             pvp_hits: pvp::Hits::default(),
             classes: HashMap::new(),
             pvp_fights,
@@ -282,10 +285,7 @@ impl Tracker {
     /// A player card read: kept, its combat power through `steady_cp`. An enemy in view it names
     /// gets the numbers on the list.
     fn player_card(&mut self, ts: i64, card: p::PlayerCard) {
-        if self.cards.len() >= MAX_CARDS {
-            self.cards.clear();
-        }
-        let entry = self.cards.entry((card.name.clone(), card.server)).or_default();
+        let entry = self.card_mut((card.name.clone(), card.server));
         entry.level = card.level;
         entry.gear_score = card.gear_score;
         entry.class = p::roster_class(card.class).or(entry.class);
@@ -296,6 +296,33 @@ impl Tracker {
         }
     }
 
+    /// A player's card to update, made if new. Past `MAX_CARDS` the one updated longest ago makes
+    /// room: a crowd (a city, a siege) never stops new players' cards being kept.
+    fn card_mut(&mut self, key: (String, u16)) -> &mut Card {
+        self.card_tick += 1;
+        if !self.cards.contains_key(&key) && self.cards.len() >= MAX_CARDS {
+            if let Some(oldest) = self.cards.iter().min_by_key(|(_, c)| c.touched).map(|(k, _)| k.clone()) {
+                self.cards.remove(&oldest);
+            }
+        }
+        let tick = self.card_tick;
+        let card = self.cards.entry(key).or_default();
+        card.touched = tick;
+        card
+    }
+
+    /// The combat power a player's spawn gives, onto their card. True when the shown value changed.
+    fn spawn_combat_power(&mut self, player: &p::Player) -> bool {
+        let (Some(cp), Some(server)) = (player.combat_power, player.server) else { return false };
+        let card = self.card_mut((player.name.clone(), server));
+        if card.class.is_none() {
+            card.class = player.class.and_then(p::roster_class);
+        }
+        let before = card.cp;
+        steady_cp(card, cp);
+        card.cp != before
+    }
+
     /// A player you targeted: their sheet. It goes on their card (the Enemies overlay shows it), and
     /// to the app as your target.
     fn target_info(&mut self, ts: i64, t: p::TargetInfo, raw: &[u8]) {
@@ -304,10 +331,7 @@ impl Tracker {
             let tail: String = raw.iter().rev().take(64).rev().map(|b| format!("{b:02x}")).collect();
             tracing::warn!("target info: no combat power read for {} ({}): tail {tail}", t.name, t.combat_power);
         }
-        if self.cards.len() >= MAX_CARDS {
-            self.cards.clear();
-        }
-        let card = self.cards.entry((t.name.clone(), t.server)).or_default();
+        let card = self.card_mut((t.name.clone(), t.server));
         card.level = t.level;
         card.gear_score = t.gear_score;
         card.class = p::roster_class(t.class);
@@ -460,7 +484,7 @@ impl Tracker {
                     json!({
                         "position": position,
                         "entity": e.entity, "name": e.name, "server": e.server, "legion": e.legion,
-                        "level": card.map(|c| c.level), "gearScore": card.map(|c| c.gear_score), "combatPower": card.and_then(|c| c.cp),
+                        "level": card.map(|c| c.level).filter(|&l| l > 0), "gearScore": card.map(|c| c.gear_score).filter(|&g| g > 0), "combatPower": card.and_then(|c| c.cp),
                         "className": card.and_then(|c| c.class).or_else(|| self.classes.get(&e.entity).copied()),
                     })
                 })
@@ -751,8 +775,11 @@ impl Tracker {
                     if let (true, Some(place)) = (enemy, player.place) {
                         self.enemy_places.insert(player.entity, place);
                     }
+                    let cp_changed = self.spawn_combat_power(&player);
                     if enemy && self.enemies.insert(player.entity, player.clone()).is_none() {
-                        tracing::info!("enemy in view: {} ({:?})", player.name, player.server);
+                        tracing::info!("enemy in view: {} ({:?}, {:?} combat power)", player.name, player.server, player.combat_power);
+                        self.enemies_changed(ts);
+                    } else if enemy && cp_changed {
                         self.enemies_changed(ts);
                     }
                     self.players.insert(player.entity, player);
@@ -1067,11 +1094,13 @@ struct Card {
     cp: Option<u32>,
     /// A value far from the shown one, seen once: taken if the next read agrees.
     pending: Option<u32>,
+    /// When it was last updated (`card_tick`): the oldest goes first when there are too many.
+    touched: u64,
 }
 
 /// An enemy's pin moves on the map this often at most (a fight sends many effects a second).
 const ENEMY_MOVE_EVERY_MS: i64 = 1000;
-/// Cards kept at most: past it they start over (a long session among crowds).
+/// Cards kept at most: past it the oldest makes room (a long session among crowds).
 const MAX_CARDS: usize = 5000;
 /// Combat power players have (late 2026: most 90k-175k, some past 200k); outside it, a misread.
 const CP_RANGE: std::ops::RangeInclusive<u32> = 20_000..=400_000;

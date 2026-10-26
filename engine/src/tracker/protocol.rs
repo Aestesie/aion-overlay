@@ -547,6 +547,8 @@ pub struct Player {
     /// Where they stand, game (x, y): 8 bytes after the name (all 8 players of the 2026-10
     /// captures; Wolf's matched his effects' position to the unit).
     pub place: Option<(f32, f32)>,
+    /// Their combat power, as the game shows it (`spawn_combat_power`).
+    pub combat_power: Option<u32>,
 }
 
 pub const ELYOS: u8 = 1;
@@ -582,7 +584,26 @@ pub fn player(frame: &[u8]) -> Option<Player> {
     let faction = server.and_then(server_faction).or_else(|| b.get(end + 4).copied().filter(|f| [ELYOS, ASMODIAN].contains(f)));
     let class = u32_at(b, end).filter(|&c| roster_class(c).is_some());
     let place = place_at(b, end + 8);
-    Some(Player { entity, name, server, legion, faction, class, place })
+    let combat_power = spawn_combat_power(b, end);
+    Some(Player { entity, name, server, legion, faction, class, place, combat_power })
+}
+
+/// The mark the combat power follows in a player's spawn, at its last place after the name.
+const SPAWN_CP_MARK: [u8; 3] = [0xf4, 0xcb, 0x1f];
+
+/// A spawn's combat power: after the last `f4 cb 1f` past the name, two u32, sometimes one more
+/// byte, then the combat power as a u64 and a zero byte. Taken only when the two readings (with
+/// and without that byte) agree on one believable value. From another overlay's author (MarceUY,
+/// `FindSpawnCombatPower`), checked on SquarX in the owner's 2026-10-26 log: 115485, shown 115.4k.
+fn spawn_combat_power(b: &[u8], name_end: usize) -> Option<u32> {
+    let rest = b.get(name_end..)?;
+    let mark = name_end + rest.windows(3).rposition(|w| w == SPAWN_CP_MARK)?;
+    let read = |at: usize| u64_at(b, at).filter(|v| (1_000..=10_000_000).contains(v) && b.get(at + 8) == Some(&0));
+    let at = mark + 3 + 8;
+    match (read(at), read(at + 1)) {
+        (Some(a), Some(b)) if a != b => None,
+        (a, b) => a.or(b).map(|v| v as u32),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -815,6 +836,16 @@ mod tests {
         assert!((x - 229_224.0).abs() < 1.0 && (y + 215_410.0).abs() < 1.0, "{x} {y}");
         let ely = player(&frame(OP_PLAYER, &hex("ab620320a001070659616b617a6506000000010280d214746148345c52c8bddc1e4553c57e432cb50000b3ca01dc0e0000dc0e000000000000000000005c0602004833020080890000f049020001000000a0860100a08601004a11090070d50a000100000001084ecb0138d6cc01ee1753027e052400000000007e05084f6c6450617274790100020000000000000000000000000000000d11122bc4c901ffffffffffffffff8075d52abb030000ab620100c8fb3e478ef8144800c4b94611133fc4c901ffffffff"))).unwrap();
         assert_eq!((ely.server, ely.faction), (Some(1406), Some(ELYOS)));
+    }
+
+    #[test]
+    fn a_player_in_view_reads_its_combat_power() {
+        // SquarX (2308 gear score, 115.4k combat power in game), from the 2026-10-26 15:07 log.
+        let squarx = player(&frame(OP_PLAYER, &hex(include_str!("testdata/spawn-squarx.hex")))).unwrap();
+        assert_eq!((squarx.name.as_str(), squarx.combat_power), ("SquarX", Some(115_485)));
+        // Cut before the mark: none.
+        let b = hex(include_str!("testdata/spawn-squarx.hex"));
+        assert_eq!(player(&frame(OP_PLAYER, &b[..200])).map(|p| p.combat_power), Some(None));
     }
 
     #[test]

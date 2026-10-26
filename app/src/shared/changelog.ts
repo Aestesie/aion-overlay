@@ -14,6 +14,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       'Alt+Shift+R starts and stops the packet log from the game, with a pill over the game while it records.',
       'The packet log can be copied while it runs: it is written to disk every second.',
+      'Enemies nearby and the PvP log show combat power as soon as a player comes into view.',
     ],
   },
   {

@@ -128,6 +128,8 @@ Alt+Shift+R starts and stops it from the game, with a pill over the game while i
   and `docs/FINDINGS.md`. The full list of cube templates (26, with the game's asset names) is
   [benhighlanderr/Aion2-Hidden-Cube-Radar](https://github.com/benhighlanderr/Aion2-Hidden-Cube-Radar)'s
   `HIDDEN_CUBE_IDS`.
+- Where a player's combat power sits in their spawn message came from MarceUY, who found it for
+  their own overlay.
 - Pet record layouts and soul counting rules follow the pet-souls plugin of
   [taengu/A2Tools-Plugins](https://github.com/taengu/A2Tools-Plugins) (GPL-3.0).
 - Skill icons are the game's own (its asset CDN), matched to skills by A2Tools DPS Meter's
