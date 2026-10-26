@@ -59,6 +59,25 @@ impl Meter {
         }
     }
 
+    /// A skill id as the meter counts it: a variant (a level, a specialization) folded into its
+    /// skill when the skill list names them the same. Copied from A2Tools DPS Meter
+    /// (stream_processor.rs `normalize_skill_id`, GPL-3.0) for the PvP fights' own reader.
+    pub fn normalize_skill(&self, raw: i32) -> i32 {
+        if (30_000_000..=30_999_999).contains(&raw) {
+            return raw;
+        }
+        let base = raw - (raw % 10000);
+        let base_name = self.skills.get_skill_name(base);
+        if base_name.is_empty() {
+            return raw;
+        }
+        let raw_name = self.skills.get_skill_name(raw);
+        if raw_name.is_empty() || raw_name == base_name {
+            return base;
+        }
+        raw
+    }
+
     /// A skill's name, as the meter's skill list has it.
     pub fn skill_name(&self, code: i32) -> String {
         self.skills.get_skill_name(code)

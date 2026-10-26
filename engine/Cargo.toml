@@ -11,7 +11,7 @@ publish = false
 # (`desktop`) or anything that talks to a service (`online`). Pinned: its API is
 # internal, so a bump is a deliberate step (see overlay-plan.md, "Keeping up with
 # upstream").
-a2tools-dps-meter = { path = "../../dps-meter-experiment/src-tauri", default-features = false }
+a2tools-dps-meter = { git = "https://github.com/taengu/A2Tools-DPS-Meter", rev = "08b249d49ef18be9ac9b41d8dd35596ae99aacfd", default-features = false }
 
 chrono = "0.4"
 libloading = "0.8"

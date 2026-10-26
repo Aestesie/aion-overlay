@@ -119,7 +119,8 @@ message the engine reads goes to `%APPDATA%\Lokthar\recordings\packets-<date>.tx
   Rust in `engine/src/tracker/`). The PvP log and kill feed are copied from Nyerk 0.2.17.
 - The DPS meter, packet capture and combat parsing use code from
   [taengu/A2Tools-DPS-Meter](https://github.com/taengu/A2Tools-DPS-Meter) (GPL-3.0): its parser
-  crate as a dependency, and its capture code copied into `engine/`. Its monster, skill and
+  crate as a dependency, and its capture code copied into `engine/`. The PvP fights' hit reader
+  (`engine/src/tracker/damage.rs`) is a copy of its damage parser. Its monster, skill and
   buff tables are in `engine/data/`, and the meter's class icons are its too.
 - Hidden Cubes are found as [dr89mh/aion2-cube-radar](https://github.com/dr89mh/aion2-cube-radar)
   (GPL-3.0) found them: the object records and the cube templates from its `ObjectMessages.cs`

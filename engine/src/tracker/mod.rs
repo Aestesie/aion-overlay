@@ -7,6 +7,7 @@
 //! Events go out as JSON (the sidecar prints them); the shapes are the Python
 //! tracker's, documented in main.rs.
 
+pub mod damage;
 pub mod data;
 pub mod protocol;
 pub mod pvp;
@@ -17,7 +18,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use a2tools_dps_meter_lib::combat::data_storage::DataStorage;
-use a2tools_dps_meter_lib::entity::damage_packet::ParsedDamagePacket;
 use a2tools_dps_meter_lib::entity::special_damage::SpecialDamage;
 use a2tools_dps_meter_lib::i18n::lookup::NpcLookup;
 use serde_json::{Value, json};
@@ -313,29 +313,35 @@ impl Tracker {
         }
     }
 
-    /// A hit as the parser read it: kept when it is between you and another player.
-    pub fn hit(&mut self, ts: i64, pdp: &ParsedDamagePacket) {
-        let (Ok(actor), Ok(target)) = (u32::try_from(pdp.actor_id()), u32::try_from(pdp.target_id())) else { return };
-        let Some(me) = self.me() else { return };
-        let other = if actor == me { target } else if target == me { actor } else { return };
-        if other == me || !self.players.contains_key(&other) {
+    /// The hits in a `04 38`: those between you and another player are kept (`pvp`).
+    fn damage(&mut self, ts: i64, frame: &[u8]) {
+        // Nobody in view, or you not known yet: no hit between players to keep.
+        if self.players.is_empty() {
             return;
         }
-        let has = |s: SpecialDamage| pdp.specials().contains(&s);
-        self.pvp_hits.push(pvp::Hit {
-            ts,
-            actor,
-            target,
-            skill: pdp.skill_code(),
-            damage: i64::from(pdp.total_damage()),
-            crit: pdp.is_crit(),
-            dot: pdp.is_dot(),
-            back: has(SpecialDamage::Back),
-            perfect: has(SpecialDamage::Perfect),
-            double: has(SpecialDamage::Double),
-            parry: has(SpecialDamage::Parry),
-            multi: u32::try_from(pdp.multi_hit_count()).unwrap_or(0),
-        });
+        let Some(me) = self.me() else { return };
+        let storage = self.storage.clone();
+        for h in damage::hits(frame, |v| storage.is_plausible_entity_id(v)) {
+            let other = if h.actor == me { h.target } else if h.target == me { h.actor } else { continue };
+            if other == me || !self.players.contains_key(&other) {
+                continue;
+            }
+            let has = |s: SpecialDamage| h.specials.contains(&s);
+            self.pvp_hits.push(pvp::Hit {
+                ts,
+                actor: h.actor,
+                target: h.target,
+                skill: h.skill,
+                damage: h.damage,
+                crit: h.crit,
+                dot: false,
+                back: has(SpecialDamage::Back),
+                perfect: has(SpecialDamage::Perfect),
+                double: has(SpecialDamage::Double),
+                parry: has(SpecialDamage::Parry),
+                multi: u32::try_from(h.multi_hit_count).unwrap_or(0),
+            });
+        }
     }
 
     /// A saved PvP fight, by id.
@@ -632,6 +638,7 @@ impl Tracker {
                     (self.emit)(json!({ "type": "shop", "ts": ts, "tab": tab, "nextAt": next, "items": items }));
                 }
             }
+            damage::OP_DAMAGE => self.damage(ts, f),
             p::OP_PLAYER_GONE => {
                 // Out of view: off the enemies' list (kept among the players, for names on a late
                 // kill credit; a new zone clears those).

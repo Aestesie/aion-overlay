@@ -1,6 +1,6 @@
-//! PvP fights: every hit between you and another player (A2Tools DPS Meter's
-//! parsed hits, through its damage tap, which sees them before its meter takes
-//! a player's hit on a player for party healing), and on a kill or a death of
+//! PvP fights: every hit between you and another player (read by `damage`, a
+//! copy of A2Tools DPS Meter's reader: its meter takes a player's hit on a
+//! player for party healing and keeps none), and on a kill or a death of
 //! yours, the fight with that player saved: each side's skills, the damage they
 //! did and when. The PvP page opens one in the Details window.
 

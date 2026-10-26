@@ -74,7 +74,6 @@ use std::time::{Duration, Instant};
 
 use a2tools_dps_meter_lib::capture::captured_payload::CapturedPayload;
 use a2tools_dps_meter_lib::capture::frame_tap;
-use a2tools_dps_meter_lib::combat::damage_tap;
 use a2tools_dps_meter_lib::clock;
 use parking_lot::Mutex;
 use serde_json::{Value, json};
@@ -215,9 +214,6 @@ pub fn run(opts: Options) -> Result<(), String> {
             frame_log.lock().note(ts, frame);
             tracker.lock().frame(ts, frame);
         })));
-        // Every hit too: those between you and other players make the PvP fights (tracker/pvp.rs).
-        let tracker = sidecar.tracker.clone();
-        damage_tap::set(Some(Arc::new(move |pdp| tracker.lock().hit(clock::now_ms(), pdp))));
     }
 
     {
@@ -256,7 +252,6 @@ pub fn run(opts: Options) -> Result<(), String> {
     }
     sidecar.set_capture(false);
     frame_tap::set(None);
-    damage_tap::set(None);
     Ok(())
 }
 
@@ -525,12 +520,21 @@ impl Sidecar {
                     let id = msg["id"].as_str().ok_or("no id")?;
                     let fight = self.tracker.lock().pvp_fight(id);
                     let mut fight = serde_json::to_value(fight).unwrap_or(Value::Null);
-                    // Each skill's name, from the meter's skill list.
+                    // Each skill as the meter names it: a skill's variants folded into it, as
+                    // upstream's parser does (the PvP reader keeps raw ids), and its name.
                     if let Some(skills) = fight.get_mut("skills").and_then(Value::as_array_mut) {
-                        for s in skills {
-                            let name = s["code"].as_i64().map(|c| self.meter.skill_name(c as i32));
-                            s["name"] = json!(name);
+                        let mut merged: Vec<Value> = Vec::new();
+                        for mut s in skills.drain(..) {
+                            let code = self.meter.normalize_skill(s["code"].as_i64().unwrap_or(0) as i32);
+                            s["code"] = json!(code);
+                            s["name"] = json!(self.meter.skill_name(code));
+                            match merged.iter_mut().find(|m| m["actor"] == s["actor"] && m["code"] == s["code"]) {
+                                Some(m) => merge_skill_line(m, &s),
+                                None => merged.push(s),
+                            }
                         }
+                        merged.sort_by_key(|s| std::cmp::Reverse(s["damage"].as_i64().unwrap_or(0)));
+                        *skills = merged;
                     }
                     emit(&event("pvpFight", json!({ "id": id, "fight": fight })));
                 }
@@ -571,4 +575,15 @@ impl Sidecar {
             Ok(()) => true,
         }
     }
+}
+
+/// Two lines of one skill in a PvP fight (`tracker::pvp::SkillLine` as JSON), added up.
+fn merge_skill_line(into: &mut Value, from: &Value) {
+    for key in ["damage", "hits", "crits", "back", "perfect", "double", "parry", "multi"] {
+        into[key] = json!(into[key].as_i64().unwrap_or(0) + from[key].as_i64().unwrap_or(0));
+    }
+    into["maxHit"] = json!(into["maxHit"].as_i64().unwrap_or(0).max(from["maxHit"].as_i64().unwrap_or(0)));
+    let mut at: Vec<i64> = into["at"].as_array().into_iter().chain(from["at"].as_array()).flatten().filter_map(Value::as_i64).collect();
+    at.sort_unstable();
+    into["at"] = json!(at);
 }
