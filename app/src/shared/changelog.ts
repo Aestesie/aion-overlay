@@ -10,6 +10,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.3.6',
+    items: [
+      'Alt+Shift+R starts and stops the packet log from the game, with a pill over the game while it records.',
+      'The packet log can be copied while it runs: it is written to disk every second.',
+    ],
+  },
+  {
     version: '0.3.5',
     items: [
       'Check for updates now downloads, installs and restarts by itself, the portable copy included.',

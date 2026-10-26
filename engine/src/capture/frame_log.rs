@@ -14,6 +14,8 @@ pub struct FrameLog {
     dir: PathBuf,
     /// The file being written, and how many messages so far.
     open: Option<(BufWriter<File>, PathBuf, u64)>,
+    /// When the file was last written through, so a copy taken while the log runs is whole.
+    flushed_ms: i64,
 }
 
 fn time(ms: i64) -> String {
@@ -26,7 +28,7 @@ fn time(ms: i64) -> String {
 
 impl FrameLog {
     pub fn new(dir: PathBuf) -> Self {
-        Self { dir, open: None }
+        Self { dir, open: None, flushed_ms: 0 }
     }
 
     /// Start a new file, named for now (a log already going is kept).
@@ -67,6 +69,10 @@ impl FrameLog {
         let hex: String = body.iter().map(|b| format!("{b:02x}")).collect();
         if writeln!(file, "{} | {op} | {:5} | {hex}", time(ts), body.len()).is_ok() {
             *n += 1;
+        }
+        if ts - self.flushed_ms >= 1000 {
+            let _ = file.flush();
+            self.flushed_ms = ts;
         }
     }
 

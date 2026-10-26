@@ -234,7 +234,7 @@ const lastPacket = computed(() => {
     <Section title="Developer" icon="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5M9 3 7 13">
       <SettingRow
         label="Packet log"
-        hint="Writes every game message to a text file (time, message type, bytes) to share for debugging or to find data for new features. Add marks as you do things in game to find their messages by time. It grows fast in fights: keep it short."
+        hint="Writes every game message to a text file (time, message type, bytes) to share for debugging or to find data for new features. Add marks as you do things in game to find their messages by time. Alt+Shift+R starts and stops it from the game. It grows fast in fights: keep it short."
       >
         <Button size="sm" :intent="packetLog.on ? 'primary' : undefined" @click="bridge().invoke('packets:set', !packetLog.on)">
           {{ packetLog.on ? 'Stop' : 'Start' }}

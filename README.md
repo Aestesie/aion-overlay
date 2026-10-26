@@ -111,6 +111,7 @@ plays a recording (`.pcap`, `.pcapng` or an A2Tools packet log) instead of the g
 To find where the game sends something, use **Settings → Developer → Packet log**: every game
 message the engine reads goes to `%APPDATA%\Lokthar\recordings\packets-<date>.txt`, one line each
 (time, opcode, length, bytes), with the marks you add (Alt+Shift+M while it runs) between them.
+Alt+Shift+R starts and stops it from the game, with a pill over the game while it records.
 
 ## Credits
 

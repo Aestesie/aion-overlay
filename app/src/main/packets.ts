@@ -1,19 +1,33 @@
 /**
  * The packet log (Settings → Developer): the engine writes every game message it reads to a text
  * file, one line each, with the marks you add between them ("opened the map"), to find where the
- * game sends something by its time. While it runs, Alt+Shift+M adds a mark from the game (the key
- * is only taken while the log runs).
+ * game sends something by its time. Alt+Shift+R starts or stops it from the game (hotkeys.ts); while
+ * it runs, Alt+Shift+M adds a mark (the key is only taken while the log runs), and a pill over the
+ * game says so, staying a few seconds after it stops.
  */
 import { globalShortcut, shell } from 'electron'
 import { basename, dirname } from 'node:path'
 import { broadcast } from './broadcast.ts'
 import { meterState } from './meter.ts'
+import { closePacketsHud, createPacketsHud } from './windows.ts'
 import { command, log, tracker } from './tracker.ts'
 import { NO_PACKET_LOG, type PacketLog } from '../shared/meter.ts'
 
 const MARK_KEY = 'Alt+Shift+M'
 
+/** The pill stays this long after the log stops, with where it went. */
+const HUD_AFTER_MS = 5_000
+
 let state: PacketLog = { ...NO_PACKET_LOG }
+let hudTimer: NodeJS.Timeout | null = null
+
+/** The pill: up while the log runs, gone a few seconds after. */
+function hud(on: boolean): void {
+  if (hudTimer) clearTimeout(hudTimer)
+  hudTimer = null
+  if (on) createPacketsHud()
+  else hudTimer = setTimeout(closePacketsHud, HUD_AFTER_MS)
+}
 
 function changed(): void {
   broadcast('packets:state', state)
@@ -34,8 +48,10 @@ export function startPackets(): void {
     const path = typeof ev['path'] === 'string' ? ev['path'] : state.path
     if (on && !state.on) log(`packet log: writing ${path}`)
     if (!on && state.on) log(`packet log: ${String(ev['count'])} messages in ${path}`)
+    const was = state.on
     state = { ...state, on, path, count: Number(ev['count'] ?? state.count), startedAt: on ? (state.startedAt ?? Date.now()) : null }
     markKey(on)
+    if (on !== was) hud(on)
     changed()
   })
   // The engine started again: its log, if one ran, ended with it.
@@ -43,6 +59,7 @@ export function startPackets(): void {
     if (!state.on) return
     state = { ...state, on: false, startedAt: null }
     markKey(false)
+    hud(false)
     changed()
   })
 }

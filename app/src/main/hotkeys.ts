@@ -4,8 +4,10 @@
  *
  *   Alt+E        open the dashboard
  *   Alt+Shift+E  every overlay off, or back on (the dashboard is left as it is)
+ *   Alt+Shift+R  start or stop the packet log (Settings → Developer), with a pill over the game
  */
 import { globalShortcut } from 'electron'
+import { packets } from './packets.ts'
 import { log } from './tracker.ts'
 import { showPanel, toggleOverlays } from './windows.ts'
 
@@ -15,6 +17,7 @@ const KEYS: { accelerator: string; run: () => void }[] = [
     accelerator: 'Alt+Shift+E',
     run: () => log(`overlays ${toggleOverlays() ? 'hidden' : 'shown'} (Alt+Shift+E)`),
   },
+  { accelerator: 'Alt+Shift+R', run: () => packets.set(!packets.get().on) },
 ]
 
 export function startHotkeys(): void {

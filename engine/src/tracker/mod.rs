@@ -731,6 +731,10 @@ impl Tracker {
             p::OP_TARGET_INFO => {
                 if let Some(t) = p::target_info(f) {
                     self.target_info(ts, t, f);
+                } else if ts - self.target_unread > 60_000 {
+                    self.target_unread = ts;
+                    let head: String = f.iter().take(64).map(|b| format!("{b:02x}")).collect();
+                    tracing::warn!("target info not read ({} bytes): head {head}", f.len());
                 }
             }
             p::OP_PLAYER_CARD => {

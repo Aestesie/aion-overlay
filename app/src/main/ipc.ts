@@ -21,6 +21,7 @@ import {
   moveCc,
   moveEnemies,
   resizeCc,
+  resizePacketsHud,
   resizeEnemies,
   moveBuffs,
   resizeBuffs,
@@ -232,6 +233,9 @@ export function registerIpc(): void {
   })
   handle('cc:resize', (size) => {
     if (isPoint({ x: size?.width, y: size?.height })) resizeCc(size)
+  })
+  handle('packets:resize', (size) => {
+    if (isPoint({ x: size?.width, y: size?.height })) resizePacketsHud(size)
   })
   handle('buffs:moveTo', (to) => {
     if (isPoint(to)) moveBuffs(to)

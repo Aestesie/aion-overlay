@@ -700,7 +700,23 @@ export const resizeTraining = trainingOverlay.resize
 export const moveTraining = trainingOverlay.move
 export const trainingDragEnded = trainingOverlay.dragEnded
 
-const MEASURED = [skillsOverlay, miniMapOverlay, buffsOverlay, ccOverlay, enemiesOverlay, trainingOverlay]
+/** The packet log's pill (Alt+Shift+R): top left while it records, and a few seconds after. */
+const packetsOverlay = measuredOverlay({
+  route: 'packets',
+  enabled: () => true,
+  saved: () => null,
+  fallback: () => {
+    const area = screen.getPrimaryDisplay().workArea
+    return { x: area.x + EDGE, y: area.y + EDGE }
+  },
+  save: () => {},
+  clickThrough: true,
+})
+export const createPacketsHud = packetsOverlay.create
+export const closePacketsHud = packetsOverlay.close
+export const resizePacketsHud = packetsOverlay.resize
+
+const MEASURED = [skillsOverlay, miniMapOverlay, buffsOverlay, ccOverlay, enemiesOverlay, trainingOverlay, packetsOverlay]
 /** The measured overlays that are open. */
 const measuredWins = (): BrowserWindow[] => MEASURED.map((m) => m.win()).filter((w): w is BrowserWindow => w !== null)
 
@@ -1040,7 +1056,7 @@ export function rebuildWindow(win: BrowserWindow): string | null {
     showMerchant()
     return 'merchant'
   }
-  for (const [m, route] of [[skillsOverlay, 'skills'], [miniMapOverlay, 'minimap'], [buffsOverlay, 'buffs'], [ccOverlay, 'cc'], [enemiesOverlay, 'enemies'], [trainingOverlay, 'training']] as const) {
+  for (const [m, route] of [[skillsOverlay, 'skills'], [miniMapOverlay, 'minimap'], [buffsOverlay, 'buffs'], [ccOverlay, 'cc'], [enemiesOverlay, 'enemies'], [trainingOverlay, 'training'], [packetsOverlay, 'packets']] as const) {
     if (win !== m.win()) continue
     m.close()
     m.create()
