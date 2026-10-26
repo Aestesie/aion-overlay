@@ -332,8 +332,12 @@ function panelShown(up: boolean): void {
   for (const m of MEASURED) m.panelUp(up)
 }
 
+/**
+ * Alt+E and the tray: the dashboard down when it is up where you can see it (in front, or kept on
+ * top of the game), else up. One left behind the game (not on top) comes forward instead.
+ */
 export function togglePanel(): void {
-  if (panelVisible()) hidePanel()
+  if (panelVisible() && (panel?.isFocused() || panel?.isAlwaysOnTop())) hidePanel()
   else showPanel()
 }
 

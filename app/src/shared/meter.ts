@@ -268,6 +268,8 @@ export interface DetailsActor {
   /** From the party roster; 0 when not known. */
   combatPower: number
   you: boolean
+  /** A PvP fight's enemy: the opponent, or a player of the other faction. */
+  enemy?: boolean
 }
 
 export interface DetailsView {

@@ -16,6 +16,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       'The packet log can be copied while it runs: it is written to disk every second.',
       'Enemies nearby and the PvP log show combat power as soon as a player comes into view.',
       'PvP fight details include your allies\' hits on the enemy and the enemy\'s hits on them.',
+      'Alt+E hides the dashboard again when it is open.',
+      'PvP fight details show the enemy\'s name in red.',
     ],
   },
   {

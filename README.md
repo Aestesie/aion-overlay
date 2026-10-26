@@ -11,7 +11,7 @@ to keep opening the Pets menu.
   counts always match the Pets menu.
 - **In-game HUD:** a small click-through overlay with nearby soul monsters, this fight's pets and
   a feed of drops. It clears itself between fights.
-- **Dashboard:** Alt+E (or the bubble) opens it: a Home page with every overlay's switch and a
+- **Dashboard:** Alt+E (or the bubble) opens it, and Alt+E again puts it away: a Home page with every overlay's switch and a
   summary of each page, then Combat Meter, Map, Pets, PvP, Buffs, Event Alerts, Field Bosses,
   History and Session. Each overlay's settings are on its page.
 - **Pets:** every pet with its genus, level and progress; search, filter, pin pets to the HUD and

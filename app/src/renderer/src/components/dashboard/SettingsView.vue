@@ -203,7 +203,7 @@ const lastPacket = computed(() => {
     </Section>
 
     <Section title="Shortcuts" icon="M1.5 4h13v8h-13zM4 6.5h.01M6.5 6.5h.01M9 6.5h.01M11.5 6.5h.01M5 9.5h6">
-      <SettingRow label="Open this window"><kbd class="rounded border border-light bg-dark px-1.5 py-0.5 text-xs">Alt+E</kbd></SettingRow>
+      <SettingRow label="Open or hide this window"><kbd class="rounded border border-light bg-dark px-1.5 py-0.5 text-xs">Alt+E</kbd></SettingRow>
       <SettingRow label="Hide or show every overlay"><kbd class="rounded border border-light bg-dark px-1.5 py-0.5 text-xs">Alt+Shift+E</kbd></SettingRow>
     </Section>
 

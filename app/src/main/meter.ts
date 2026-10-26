@@ -149,9 +149,13 @@ async function pvpDetails(source: Extract<DetailsSource, { kind: 'pvp' }>): Prom
   const dealt = (id: number): DetailsSkill[] => skills.filter((s) => s.actor === id)
   const sum = (list: DetailsSkill[], f: (s: DetailsSkill) => number): number => list.reduce((n, s) => n + f(s), 0)
   const total = Math.max(1, sum(skills, (s) => s.damage))
+  // Servers are 1xxx Elyos, 2xxx Asmodian: a player of the other thousand is an enemy.
+  const faction = (side: PvpSide): number | null => (side.server ? Math.floor(side.server / 1000) : null)
+  const enemy = (side: PvpSide): boolean =>
+    side.entity === fight.opponent.entity || (faction(side) !== null && faction(fight.me) !== null && faction(side) !== faction(fight.me))
   const actor = (side: PvpSide, you: boolean): DetailsActor => {
     const damage = sum(dealt(side.entity), (s) => s.damage)
-    return { id: side.entity, name: side.name, className: side.className, damage, dps: damage / seconds, share: (damage / total) * 100, heal: 0, combatPower: side.combatPower ?? 0, you }
+    return { id: side.entity, name: side.name, className: side.className, damage, dps: damage / seconds, share: (damage / total) * 100, heal: 0, combatPower: side.combatPower ?? 0, you, enemy: !you && enemy(side) }
   }
   const others = fight.others ?? []
   const defense: Record<number, DetailsDefense> = {}

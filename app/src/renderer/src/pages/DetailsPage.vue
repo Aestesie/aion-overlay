@@ -209,7 +209,7 @@ onBeforeUnmount(() => {
             <span class="w-4 text-right text-[10px] tabular-nums text-darker">{{ i + 1 }}</span>
             <img v-if="icon(a.className)" :src="icon(a.className)!" class="size-4 shrink-0" alt="" />
             <span v-else class="size-4 shrink-0" />
-            <span :class="['min-w-0 flex-1 truncate font-medium', a.you ? 'text-accent' : 'text-default']">{{ a.name }}</span>
+            <span :class="['min-w-0 flex-1 truncate font-medium', a.you ? 'text-accent' : a.enemy ? 'text-red' : 'text-default']">{{ a.name }}</span>
             <span class="w-14 text-right font-semibold tabular-nums">{{ short(a.dps) }}</span>
             <span class="w-11 text-right tabular-nums text-dark">{{ a.share.toFixed(1) }}%</span>
             <span class="w-14 text-right tabular-nums text-dark">{{ short(a.damage) }}</span>
@@ -223,7 +223,7 @@ onBeforeUnmount(() => {
           <img v-if="icon(actor.className)" :src="icon(actor.className)!" class="size-9 shrink-0" alt="" />
           <div class="min-w-0">
             <div class="flex items-center gap-2">
-              <span :class="['truncate text-lg font-semibold', actor.you ? 'text-accent' : 'text-default']">{{ actor.name }}</span>
+              <span :class="['truncate text-lg font-semibold', actor.you ? 'text-accent' : actor.enemy ? 'text-red' : 'text-default']">{{ actor.name }}</span>
               <span v-if="actor.you" class="rounded bg-accent/20 px-1.5 text-[10px] font-bold text-accent">ME</span>
             </div>
             <div class="text-xs text-darker">
