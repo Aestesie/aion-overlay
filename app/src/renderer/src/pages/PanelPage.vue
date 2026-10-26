@@ -5,6 +5,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import BossesView from '@/components/dashboard/BossesView.vue'
 import ChangelogView from '@/components/dashboard/ChangelogView.vue'
+import UpdatesView from '@/components/dashboard/UpdatesView.vue'
 import BuffsView from '@/components/dashboard/BuffsView.vue'
 import EventsView from '@/components/dashboard/EventsView.vue'
 import HistoryView from '@/components/dashboard/HistoryView.vue'
@@ -27,7 +28,7 @@ import { serverName } from '@shared/servers.ts'
 import { TIMERS, type TimerId } from '@shared/timers.ts'
 import type { UpdateState } from '@shared/update.ts'
 
-type PageId = 'home' | 'meter' | 'training' | 'map' | 'pets' | 'pvp' | 'buffs' | 'events' | 'bosses' | 'history' | 'session' | 'settings' | 'changes'
+type PageId = 'home' | 'meter' | 'training' | 'map' | 'pets' | 'pvp' | 'buffs' | 'events' | 'bosses' | 'history' | 'session' | 'settings' | 'updates' | 'changes'
 interface Page {
   id: PageId
   label: string
@@ -47,6 +48,7 @@ const PAGES: Record<PageId, Page> = {
   bosses: { id: 'bosses', label: 'Field Bosses', icon: 'M8 2a5 5 0 0 0-3.5 8.5V13h7v-2.5A5 5 0 0 0 8 2zM6 8.5h.01M10 8.5h.01M7 13v-1.5M9 13v-1.5' },
   history: { id: 'history', label: 'History', icon: 'M2 8a6 6 0 1 0 1.8-4.3M2 2.5v3h3M8 5v3l2 1.5' },
   session: { id: 'session', label: 'Session', icon: 'M2.5 11.5 6 8l2.5 2.5 5-5M10 5.5h3.5V9' },
+  updates: { id: 'updates', label: 'Updates', icon: 'M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 13.5h11' },
   changes: { id: 'changes', label: "What's new", icon: 'M8 1.5 9.8 6l4.7.4-3.6 3 1.1 4.6L8 11.6 4 14l1.1-4.6-3.6-3L6.2 6z' },
   settings: { id: 'settings', label: 'Settings', icon: 'M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM13 8a5 5 0 0 0-.1-.9l1.4-1.1-1.4-2.4-1.7.6a5 5 0 0 0-1.5-.9L9.4 1.5H6.6l-.3 1.8a5 5 0 0 0-1.5.9l-1.7-.6-1.4 2.4 1.4 1.1a5 5 0 0 0 0 1.8l-1.4 1.1 1.4 2.4 1.7-.6a5 5 0 0 0 1.5.9l.3 1.8h2.8l.3-1.8a5 5 0 0 0 1.5-.9l1.7.6 1.4-2.4-1.4-1.1c.1-.3.1-.6.1-.9Z' },
 }
@@ -54,6 +56,7 @@ const SECTIONS: { title: string | null; pages: PageId[] }[] = [
   { title: null, pages: ['home'] },
   { title: 'In game', pages: ['meter', 'training', 'map', 'pets', 'pvp', 'buffs', 'events', 'bosses'] },
   { title: 'Records', pages: ['history', 'session'] },
+  { title: 'App', pages: ['updates', 'changes'] },
 ]
 /** The pages kept as they were (their old tabs), with the title and text above them. */
 const ABOUT: Partial<Record<PageId, string>> = {
@@ -131,6 +134,8 @@ const badge = computed<Partial<Record<PageId, string>>>(() => {
     events: nextAlert.value ?? undefined,
     bosses: up ? String(up) : undefined,
     pets: store.sessionSouls ? `+${store.sessionSouls}` : undefined,
+    updates:
+      update.value?.status === 'downloading' ? `${update.value.percent}%` : update.value && ['available', 'ready'].includes(update.value.status) ? 'New' : undefined,
   }
 })
 
@@ -192,7 +197,7 @@ onBeforeUnmount(() => {
           v-if="update && ['available', 'downloading', 'ready'].includes(update.status)"
           type="button"
           class="no-drag ml-auto rounded-full border border-accent/50 bg-accent/15 px-2.5 py-0.5 text-xs font-medium text-accent hover:bg-accent/25"
-          @click="go('settings')"
+          @click="go('updates')"
         >
           {{ update.status === 'ready' ? `Restart to update to ${update.latest}` : update.status === 'downloading' ? `Downloading ${update.latest}… ${update.percent}%` : `Update ${update.latest} available` }}
         </button>
@@ -254,17 +259,17 @@ onBeforeUnmount(() => {
           <button
             v-if="version"
             type="button"
-            :class="['px-2.5 pt-2 text-[11px] hover:text-default hover:underline', page === 'changes' ? 'text-default' : 'text-darkest']"
-            title="What's new"
-            @click="go('changes')"
+            :class="['px-2.5 pt-2 text-[11px] hover:text-default hover:underline', page === 'updates' ? 'text-default' : 'text-darkest']"
+            title="Updates"
+            @click="go('updates')"
           >
-            v{{ version }} · What's new
+            v{{ version }}
           </button>
         </div>
       </nav>
 
       <main ref="main" class="min-w-0 flex-1 overflow-y-auto">
-        <div :class="['mx-auto px-8 py-7', page === 'settings' ? 'max-w-4xl' : 'max-w-6xl']">
+        <div :class="['mx-auto px-8 py-7', ['settings', 'updates', 'changes'].includes(page) ? 'max-w-4xl' : 'max-w-6xl']">
           <div v-if="!store.ready" class="py-6 text-center text-sm text-darker">Loading…</div>
           <HomeView v-else-if="page === 'home'" @go="go" />
           <MeterView v-else-if="page === 'meter'" />
@@ -279,6 +284,7 @@ onBeforeUnmount(() => {
           <BossesView v-else-if="page === 'bosses'" />
           <HistoryView v-else-if="page === 'history'" />
           <SettingsView v-else-if="page === 'settings'" @go="go" />
+          <UpdatesView v-else-if="page === 'updates'" @go="go" />
           <ChangelogView v-else-if="page === 'changes'" :version="version" />
           <template v-else>
             <PageHeader :title="PAGES[page].label" :about="ABOUT[page]" />

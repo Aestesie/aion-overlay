@@ -184,6 +184,7 @@ export function registerIpc(): void {
     if (isPoint({ x: size?.width, y: size?.height })) resizeSkills(size)
   })
   handle('update:get', () => updater.get())
+  handle('update:peek', () => updater.peek())
   handle('update:check', () => updater.check())
   handle('update:download', () => updater.download())
   handle('update:install', () => updater.install())

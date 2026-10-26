@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// What's new: each version's changes, one line each (shared/changelog.ts), newest first. Opened from
-// the version number at the bottom of the sidebar. A version past the one running is the next
+// What's new: each version's changes, one line each (shared/changelog.ts), newest first. In the
+// sidebar's App group, under Updates. A version past the one running is the next
 // update, still to come.
 import { computed } from 'vue'
 import PageHeader from '@/components/ui/PageHeader.vue'

@@ -1,7 +1,7 @@
 /**
  * What changed in each version, newest first: one short line per change, shown on the dashboard's
- * What's new page (the version number in the sidebar opens it). Add the next version's lines at the
- * top as they land; the release takes them as they are (updates.md).
+ * What's new page (the sidebar's App group), and this version's on the Updates page. Add the next
+ * version's lines at the top as they land; the release takes them as they are (updates.md).
  */
 export interface ChangelogEntry {
   version: string
@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.3.5',
+    items: [
+      'Check for updates now downloads, installs and restarts by itself, the portable copy included.',
+      'Updates and What\'s new have their own place in the sidebar.',
+    ],
+  },
   {
     version: '0.3.4',
     items: [

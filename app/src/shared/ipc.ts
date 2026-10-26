@@ -97,6 +97,8 @@ export interface InvokeChannels {
   'sounds:custom': { args: [slot: SoundSlot]; result: Uint8Array | null }
   /** App updates, by hand: the state, look for one, download it, restart to install it. */
   'update:get': { args: []; result: UpdateState }
+  /** The newest release's version, nothing downloaded (the Updates page opened). */
+  'update:peek': { args: []; result: void }
   'update:check': { args: []; result: void }
   'update:download': { args: []; result: void }
   'update:install': { args: []; result: void }
@@ -221,7 +223,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'meter:get', 'meter:reset', 'meter:moveTo', 'meter:dragEnd', 'meter:resize',
   'minimap:moveTo', 'minimap:dragEnd', 'minimap:resize',
   'skills:get', 'skills:moveTo', 'skills:dragEnd', 'skills:resize',
-  'buffs:get', 'buffs:moveTo', 'buffs:dragEnd', 'buffs:resize', 'cc:moveTo', 'cc:dragEnd', 'cc:resize', 'enemies:moveTo', 'enemies:dragEnd', 'enemies:resize', 'training:moveTo', 'training:dragEnd', 'training:resize', 'overlays:toggle', 'overlays:hidden', 'recordings:get', 'recordings:set', 'recordings:open', 'packets:get', 'packets:set', 'packets:mark', 'packets:show', 'sounds:pickCustom', 'sounds:custom', 'update:get', 'update:check', 'update:download', 'update:install', 'dummy:get', 'dummy:start', 'dummy:stop', 'dummy:newGroup', 'dummy:delete',
+  'buffs:get', 'buffs:moveTo', 'buffs:dragEnd', 'buffs:resize', 'cc:moveTo', 'cc:dragEnd', 'cc:resize', 'enemies:moveTo', 'enemies:dragEnd', 'enemies:resize', 'training:moveTo', 'training:dragEnd', 'training:resize', 'overlays:toggle', 'overlays:hidden', 'recordings:get', 'recordings:set', 'recordings:open', 'packets:get', 'packets:set', 'packets:mark', 'packets:show', 'sounds:pickCustom', 'sounds:custom', 'update:get', 'update:peek', 'update:check', 'update:download', 'update:install', 'dummy:get', 'dummy:start', 'dummy:stop', 'dummy:newGroup', 'dummy:delete',
   'details:open', 'details:get', 'details:close', 'details:moveTo', 'details:dragEnd', 'history:list', 'history:delete',
 ]
 

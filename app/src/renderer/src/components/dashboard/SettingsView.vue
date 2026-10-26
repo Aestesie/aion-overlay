@@ -16,7 +16,6 @@ import { bridge } from '@/lib/bridge.ts'
 import { useApp } from '@/stores/app.ts'
 import type { SyncResult } from '@shared/lokthar.ts'
 import { NO_PACKET_LOG, type PacketLog } from '@shared/meter.ts'
-import type { UpdateState } from '@shared/update.ts'
 import { serverLabel } from '@shared/servers.ts'
 
 const store = useApp()
@@ -73,14 +72,6 @@ const ago = (at: number): string => new Date(at).toLocaleTimeString([], { hour: 
 
 const emit = defineEmits<{ go: [page: string] }>()
 
-// Updates: checked only when asked, from the overlay's GitHub releases.
-const update = ref<UpdateState | null>(null)
-let offUpdate: (() => void) | null = null
-onMounted(async () => {
-  offUpdate = bridge().on('update:state', (s) => (update.value = s))
-  update.value = await bridge().invoke('update:get')
-})
-onBeforeUnmount(() => offUpdate?.())
 
 // Developer: the packet log, every game message as a text line, and marks to find them by.
 const packetLog = ref<PacketLog>({ ...NO_PACKET_LOG })
@@ -96,29 +87,6 @@ function addMark(): void {
   void bridge().invoke('packets:mark', markText.value.trim())
   markText.value = ''
 }
-const updateLine = computed(() => {
-  const u = update.value
-  if (!u) return ''
-  switch (u.status) {
-    case 'dev':
-      return 'Running from source: updates are for the installed app.'
-    case 'idle':
-      return 'Not checked yet.'
-    case 'checking':
-      return 'Checking GitHub for a newer version…'
-    case 'current':
-      return `You have the latest version (${u.latest ?? u.current}).`
-    case 'available':
-      return `Version ${u.latest} is out${u.releasedAt ? ` (${new Date(u.releasedAt).toLocaleDateString()})` : ''}.${u.portable ? ' This is the portable copy: get the new zip, unpack it over this folder (your settings and data stay).' : ''}`
-    case 'downloading':
-      return `Downloading version ${u.latest}… ${u.percent}%`
-    case 'ready':
-      return `Version ${u.latest} is downloaded: restart to install it.`
-    case 'error':
-      return `Could not update: ${u.error ?? 'unknown error'}`
-  }
-  return ''
-})
 const OVERLAY_PAGES = [
   { page: 'meter', name: 'Damage meter and My skills', where: 'Combat Meter' },
   { page: 'buffs', name: 'Buffs', where: 'Buffs' },
@@ -160,26 +128,6 @@ const lastPacket = computed(() => {
       <SettingRow label="Hide from screen recordings" hint="Keeps the overlays and this window out of OBS, Discord and screenshots.">
         <Toggle :model-value="store.settings.hideFromCapture" @update:model-value="store.set('hideFromCapture', $event)" />
       </SettingRow>
-    </Section>
-
-    <Section title="Updates" icon="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 13.5h11">
-      <SettingRow :label="`Version ${update?.current ?? info?.version ?? '…'}`" :hint="updateLine" :warning="update?.status === 'error' ? 'Try again in a moment; the log has the details.' : undefined">
-        <div class="flex items-center gap-2">
-          <Button v-if="update?.status === 'available'" size="sm" intent="primary" @click="bridge().invoke('update:download')">{{ update.portable ? `Get the ${update.latest} zip` : `Download ${update.latest}` }}</Button>
-          <Button v-else-if="update?.status === 'ready'" size="sm" intent="primary" @click="bridge().invoke('update:install')">Restart and install</Button>
-          <Button
-            v-else
-            size="sm"
-            :loading="update?.status === 'checking' || update?.status === 'downloading'"
-            :disabled="update?.status === 'dev'"
-            @click="bridge().invoke(update?.status === 'error' && update.latest ? 'update:download' : 'update:check')"
-          >{{ update?.status === 'error' && update.latest ? 'Retry download' : 'Check for updates' }}</Button>
-        </div>
-      </SettingRow>
-      <div v-if="update?.status === 'downloading'" class="py-3">
-        <div class="h-1.5 overflow-hidden rounded-full bg-dark"><div class="h-full bg-accent transition-[width]" :style="{ width: `${update.percent}%` }" /></div>
-      </div>
-      <div v-if="update?.notes && (update.status === 'available' || update.status === 'downloading' || update.status === 'ready')" class="max-h-40 overflow-y-auto whitespace-pre-line py-3 text-xs text-darker">{{ update.notes.replace(/<[^>]+>/g, '') }}</div>
     </Section>
 
     <Section title="Overlays" icon="M8 1.5 14.5 5 8 8.5 1.5 5zM1.5 8 8 11.5 14.5 8M1.5 11 8 14.5 14.5 11">
