@@ -581,6 +581,7 @@ pub fn player(frame: &[u8]) -> Option<Player> {
             break;
         }
     }
+    let server = server.or_else(|| unguilded_server(b, end));
     let faction = server.and_then(server_faction).or_else(|| b.get(end + 4).copied().filter(|f| [ELYOS, ASMODIAN].contains(f)));
     let class = u32_at(b, end).filter(|&c| roster_class(c).is_some());
     let place = place_at(b, end + 8);
@@ -588,17 +589,31 @@ pub fn player(frame: &[u8]) -> Option<Player> {
     Some(Player { entity, name, server, legion, faction, class, place, combat_power })
 }
 
+/// What every item of a player's gear in their spawn ends with.
+const SPAWN_ITEM_TAIL: [u8; 14] = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x80, 0x75, 0xd5, 0x2a, 0xbb, 0x03];
+
+/// The server of a player in no legion: there, the server is not repeated around a legion's name
+/// but sits once before their gear, `<server u16> <count u8> <10, 11 or 13> ...`, the first such
+/// past the stats with the faction the spawn states (Dæps 2406 and Elyos of the 2026-10-26 logs).
+fn unguilded_server(b: &[u8], name_end: usize) -> Option<u16> {
+    let faction = *b.get(name_end + 4)?;
+    let tail = name_end + b.get(name_end..)?.windows(SPAWN_ITEM_TAIL.len()).position(|w| w == SPAWN_ITEM_TAIL)?;
+    (name_end + 40..tail.saturating_sub(4))
+        .filter(|&k| (1..=40).contains(&b[k + 2]) && [0x10, 0x11, 0x13].contains(&b[k + 3]))
+        .find_map(|k| u16_at(b, k).filter(|&v| server_faction(v) == Some(faction)))
+}
+
 /// The mark the combat power follows in a player's spawn, at its last place after the name.
 const SPAWN_CP_MARK: [u8; 3] = [0xf4, 0xcb, 0x1f];
 
 /// A spawn's combat power: after the last `f4 cb 1f` past the name, two u32, sometimes one more
-/// byte, then the combat power as a u64 and a zero byte. Taken only when the two readings (with
+/// byte, then the combat power as a u64 (and a byte, mostly 0: 1 and 2 seen too). Taken only when the two readings (with
 /// and without that byte) agree on one believable value. From another overlay's author (MarceUY,
 /// `FindSpawnCombatPower`), checked on SquarX in the owner's 2026-10-26 log: 115485, shown 115.4k.
 fn spawn_combat_power(b: &[u8], name_end: usize) -> Option<u32> {
     let rest = b.get(name_end..)?;
     let mark = name_end + rest.windows(3).rposition(|w| w == SPAWN_CP_MARK)?;
-    let read = |at: usize| u64_at(b, at).filter(|v| (1_000..=10_000_000).contains(v) && b.get(at + 8) == Some(&0));
+    let read = |at: usize| u64_at(b, at).filter(|v| (1_000..=10_000_000).contains(v));
     let at = mark + 3 + 8;
     match (read(at), read(at + 1)) {
         (Some(a), Some(b)) if a != b => None,
@@ -843,6 +858,10 @@ mod tests {
         // SquarX (2308 gear score, 115.4k combat power in game), from the 2026-10-26 15:07 log.
         let squarx = player(&frame(OP_PLAYER, &hex(include_str!("testdata/spawn-squarx.hex")))).unwrap();
         assert_eq!((squarx.name.as_str(), squarx.combat_power), ("SquarX", Some(115_485)));
+        // An Asmodian whose spawn ends at the combat power's zero byte (2026-10-26 15:32 log).
+        let daeps = player(&frame(OP_PLAYER, &hex(include_str!("testdata/spawn-daeps.hex")))).unwrap();
+        assert_eq!((daeps.name.as_str(), daeps.faction, daeps.combat_power), ("Dæps", Some(ASMODIAN), Some(86_671)));
+        assert_eq!(daeps.server, Some(2406));
         // Cut before the mark: none.
         let b = hex(include_str!("testdata/spawn-squarx.hex"));
         assert_eq!(player(&frame(OP_PLAYER, &b[..200])).map(|p| p.combat_power), Some(None));
