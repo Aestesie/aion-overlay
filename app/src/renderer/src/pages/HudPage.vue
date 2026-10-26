@@ -11,7 +11,7 @@ import LevelBar from '@/components/LevelBar.vue'
 import PetIcon from '@/components/PetIcon.vue'
 import Sparkline from '@/components/Sparkline.vue'
 import { bridge } from '@/lib/bridge.ts'
-import { playChime } from '@/lib/chime.ts'
+import { playSound } from '@/lib/sound.ts'
 import { cubeBearings, meters } from '@/lib/cubes.ts'
 import { displayName, GENUS_LABEL, petInfo } from '@/lib/petDb.ts'
 import { nearbyPets, useSpawns, type NearbyPet } from '@/lib/spawns.ts'
@@ -81,14 +81,14 @@ const kinaText = computed(() => {
 })
 /** The Hidden Cubes in view, nearest first, with how far and which way. */
 const cubeRows = computed(() => (hud.value.cubes ? cubeBearings(store.cubes, store.nearby.position) : []))
-// A cube coming into view chimes, once per cube.
+// A cube coming into view plays its sound (Settings → HUD), once per cube.
 const chimed = new Set<number>()
 watch(
   () => store.cubes,
   (list) => {
     const fresh = list.filter((c) => !chimed.has(c.id))
     for (const c of fresh) chimed.add(c.id)
-    if (fresh.length && store.ready && hud.value.cubes && hud.value.cubeSound) playChime(store.settings.timers.volume)
+    if (fresh.length && store.ready && hud.value.cubes && hud.value.cubeSound) void playSound('cube', hud.value.cubeSoundId, hud.value.cubeVolume)
   },
 )
 // "spawned 3 min ago", kept current.
@@ -188,7 +188,6 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </div>
-          <div v-if="morePinned > 0" class="mt-1.5 text-center text-[11px] text-darker">… {{ morePinned }} more pinned</div>
         </section>
 
         <div v-if="nearRows.length || kinaText" class="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
@@ -244,6 +243,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </div>
+          <div v-if="morePinned > 0" class="mt-1.5 text-center text-[11px] text-darker">… {{ morePinned }} more pinned</div>
         </section>
 
         <p v-if="store.hudEditing && !nearRows.length && !rows.length" class="text-xs text-darker">

@@ -1,0 +1,53 @@
+/**
+ * What changed in each version, newest first: one short line per change, shown on the dashboard's
+ * What's new page (the version number in the sidebar opens it). Add the next version's lines at the
+ * top as they land; the release takes them as they are (updates.md).
+ */
+export interface ChangelogEntry {
+  version: string
+  items: string[]
+}
+
+export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.3.3',
+    items: [
+      'New Enemies nearby overlay: enemy players around you, with class, server and combat power.',
+      'Sound alert when an enemy comes into view (Enemy spotted by default).',
+      'Your target under the kill feed: class icon, name, server and combat power.',
+      'Class icons on the kill feed, the PvP page and the Enemies list.',
+      'Kill feed and Enemies: background opacity down to none, with glowing text.',
+      'Kill feed and Enemies can be minimized from their header.',
+      'All PvP overlay settings are now on the PvP page.',
+      'Choose the Hidden Cube sound, test it, or add your own mp3.',
+      'Pin as many pets as you like; the HUD shows the first 15 and counts the rest.',
+      'Pin or unpin a pet from its own page.',
+      'HUD mode (this session or pinned) can be switched from the Pets page.',
+      'The map overlay always shows your pinned pets that spawn in your zone.',
+      'Pets page: "only in Verteron/Altgard" and "only in Reshanta" labels per faction filter.',
+      'Bigger, square map on a pet\'s page.',
+      'Fixed: pets jumping to "max" before reaching Lv3.',
+      'This What\'s new page.',
+    ],
+  },
+  {
+    version: '0.3.2',
+    items: [
+      'Portable zip: run without installing.',
+      'Sync now button for field boss timers.',
+      'Field Bosses page shows time left and exact respawn times.',
+      'Packet log for debugging, in Settings → Developer.',
+    ],
+  },
+  {
+    version: '0.3.1',
+    items: [
+      'Minimize buttons on the damage meter, map and training overlays.',
+      'The dashboard hides when you click back into the game.',
+      'Fixed: clicks ignored on the meter and map overlays.',
+      'Fixed: the CC overlay could not be dragged.',
+      'Centre on me button on the map overlay; the map stays shown when you fly.',
+      'Training runs keep a full skill breakdown, with Details.',
+    ],
+  },
+]

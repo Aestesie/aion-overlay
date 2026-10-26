@@ -668,6 +668,23 @@ export const resizeCc = ccOverlay.resize
 export const moveCc = ccOverlay.move
 export const ccDragEnded = ccOverlay.dragEnded
 
+/** Enemies nearby: top centre, under where the CC banner sits. */
+const enemiesOverlay = measuredOverlay({
+  route: 'enemies',
+  enabled: () => settings.get('enemies').enabled,
+  saved: () => settings.get('enemies').position,
+  fallback: () => {
+    const area = screen.getPrimaryDisplay().workArea
+    return { x: Math.round(area.x + area.width / 2 - 130), y: Math.round(area.y + area.height * 0.12) }
+  },
+  save: (position) => settings.set('enemies', { ...settings.get('enemies'), position }),
+  clickThrough: true,
+})
+export const createEnemies = enemiesOverlay.create
+export const resizeEnemies = enemiesOverlay.resize
+export const moveEnemies = enemiesOverlay.move
+export const enemiesDragEnded = enemiesOverlay.dragEnded
+
 const trainingOverlay = measuredOverlay({
   route: 'training',
   enabled: () => settings.get('dummy').overlay,
@@ -683,7 +700,7 @@ export const resizeTraining = trainingOverlay.resize
 export const moveTraining = trainingOverlay.move
 export const trainingDragEnded = trainingOverlay.dragEnded
 
-const MEASURED = [skillsOverlay, miniMapOverlay, buffsOverlay, ccOverlay, trainingOverlay]
+const MEASURED = [skillsOverlay, miniMapOverlay, buffsOverlay, ccOverlay, enemiesOverlay, trainingOverlay]
 /** The measured overlays that are open. */
 const measuredWins = (): BrowserWindow[] => MEASURED.map((m) => m.win()).filter((w): w is BrowserWindow => w !== null)
 
@@ -960,6 +977,8 @@ export function applyWindowSettings(): void {
   else if (alive(bubble)) createBuffs()
   if (!settings.get('buffs').cc) ccOverlay.close()
   else if (alive(bubble)) createCc()
+  if (!settings.get('enemies').enabled) enemiesOverlay.close()
+  else if (alive(bubble)) createEnemies()
   if (!settings.get('dummy').overlay) trainingOverlay.close()
   else if (alive(bubble)) createTraining()
   // Turned on: with the other overlays, while they are up (the bubble is, awake).
@@ -1021,7 +1040,7 @@ export function rebuildWindow(win: BrowserWindow): string | null {
     showMerchant()
     return 'merchant'
   }
-  for (const [m, route] of [[skillsOverlay, 'skills'], [miniMapOverlay, 'minimap'], [buffsOverlay, 'buffs'], [ccOverlay, 'cc'], [trainingOverlay, 'training']] as const) {
+  for (const [m, route] of [[skillsOverlay, 'skills'], [miniMapOverlay, 'minimap'], [buffsOverlay, 'buffs'], [ccOverlay, 'cc'], [enemiesOverlay, 'enemies'], [trainingOverlay, 'training']] as const) {
     if (win !== m.win()) continue
     m.close()
     m.create()

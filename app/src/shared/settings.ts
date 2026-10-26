@@ -4,6 +4,7 @@
  */
 
 import { DUMMY_DAMAGE_GOALS, DUMMY_LIMITS, type DummyGoal } from './dummy.ts'
+import { isSound, type SoundId } from './sounds.ts'
 import { TARGET_MODES, type MeterPlayers, type MeterStat, type TargetMode } from './meter.ts'
 import { defaultShown, leadChoices, REGIONS, TIMERS, type Region, type TimerId } from './timers.ts'
 
@@ -58,8 +59,13 @@ export interface Settings {
     kina: boolean
     /** Hidden Cubes in view at the top, with how far and which way. */
     cubes: boolean
-    /** A chime when a Hidden Cube comes into view. */
+    /** A sound when a Hidden Cube comes into view. */
     cubeSound: boolean
+    /** Which one (shared/sounds.ts), and how loud (0-1). */
+    cubeSoundId: SoundId
+    cubeVolume: number
+    /** The name of your own mp3, once one is chosen (the file is in the data folder). */
+    cubeCustomName: string | null
   }
 
   /** The map overlay: your zone around you, your tracked pets' spawns and the Hidden Cubes. */
@@ -74,7 +80,23 @@ export interface Settings {
   timerBar: { enabled: boolean; position: Point | null; opacity: number }
 
   /** The kill feed over the game: open (from the PvP page), and where (null = top right). */
-  killFeed: { open: boolean; position: Point | null }
+  /** The kill feed overlay; `opacity` is its background's (0: none, the text glows on the game); `target`: your target under it. */
+  killFeed: { open: boolean; position: Point | null; opacity: number; collapsed: boolean; target: boolean }
+  /**
+   * The Enemies overlay: players of the other faction in view, and a sound when one comes. Its
+   * background's opacity (0: none), minimized, and its sound: on, which (shared/sounds.ts), how
+   * loud (0-1), your own mp3's name.
+   */
+  enemies: {
+    enabled: boolean
+    position: Point | null
+    opacity: number
+    collapsed: boolean
+    sound: boolean
+    soundId: SoundId
+    volume: number
+    customName: string | null
+  }
 
   /**
    * Your buffs and debuffs over the game: each one's icon, stacks and time left (A2Tools DPS
@@ -204,12 +226,16 @@ export const SETTINGS_DEFAULTS: Settings = {
     kina: true,
     cubes: true,
     cubeSound: true,
+    cubeSoundId: 'chime',
+    cubeVolume: 0.6,
+    cubeCustomName: null,
   },
   minimap: { enabled: true, position: null, size: 260, opacity: 0.92, zoom: 6, collapsed: false },
   merchantWindow: null,
   detailsWindow: null,
   timerBar: { enabled: true, position: null, opacity: 0.92 },
-  killFeed: { open: false, position: null },
+  killFeed: { open: false, position: null, opacity: 0.9, collapsed: false, target: true },
+  enemies: { enabled: true, position: null, opacity: 0.75, collapsed: false, sound: true, soundId: 'enemy-spotted', volume: 0.7, customName: null },
   skills: { enabled: true, position: null, rows: 6, opacity: 0.92 },
   dummy: { overlay: true, position: null, autoStart: true, goal: 'time', limitMs: 60_000, damageGoal: 10e6, collapsed: false },
   buffs: { enabled: true, position: null, opacity: 0.92, size: 34, perRow: 10, debuffs: true, passives: false, consumables: false, cc: true, ccPosition: null, ccDebuffs: false },
@@ -285,6 +311,9 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         kina: bool(v.kina, d.hud.kina),
         cubes: bool(v.cubes, d.hud.cubes),
         cubeSound: bool(v.cubeSound, d.hud.cubeSound),
+        cubeSoundId: isSound(v.cubeSoundId) ? v.cubeSoundId : d.hud.cubeSoundId,
+        cubeVolume: num(v.cubeVolume, 0, 1, d.hud.cubeVolume),
+        cubeCustomName: typeof v.cubeCustomName === 'string' && v.cubeCustomName ? v.cubeCustomName.slice(0, 200) : null,
       } as Settings[K]
     }
     case 'timers': {
@@ -325,9 +354,28 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         opacity: num(v.opacity, 0.3, 1, d.timerBar.opacity),
       } as Settings[K]
     }
+    case 'enemies': {
+      const v = (value ?? {}) as Partial<Settings['enemies']>
+      return {
+        enabled: bool(v.enabled, d.enemies.enabled),
+        position: point(v.position),
+        opacity: num(v.opacity, 0, 1, d.enemies.opacity),
+        collapsed: bool(v.collapsed, d.enemies.collapsed),
+        sound: bool(v.sound, d.enemies.sound),
+        soundId: isSound(v.soundId) ? v.soundId : d.enemies.soundId,
+        volume: num(v.volume, 0, 1, d.enemies.volume),
+        customName: typeof v.customName === 'string' && v.customName ? v.customName.slice(0, 200) : null,
+      } as Settings[K]
+    }
     case 'killFeed': {
       const v = (value ?? {}) as Partial<Settings['killFeed']>
-      return { open: bool(v.open, d.killFeed.open), position: point(v.position) } as Settings[K]
+      return {
+        open: bool(v.open, d.killFeed.open),
+        position: point(v.position),
+        opacity: num(v.opacity, 0, 1, d.killFeed.opacity),
+        collapsed: bool(v.collapsed, d.killFeed.collapsed),
+        target: bool(v.target, d.killFeed.target),
+      } as Settings[K]
     }
     case 'skills': {
       const v = (value ?? {}) as Partial<Settings['skills']>

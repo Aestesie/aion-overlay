@@ -7,17 +7,21 @@ import { meterState } from './meter.ts'
 import { lokthar } from './lokthar.ts'
 import { packets } from './packets.ts'
 import { settings } from './settings.ts'
+import { sounds } from './sounds.ts'
 import { timers } from './timers.ts'
 import { logPath, tracker } from './tracker.ts'
 import {
   bubbleDragEnded,
   buffsDragEnded,
   ccDragEnded,
+  enemiesDragEnded,
   moveTraining,
   resizeTraining,
   trainingDragEnded,
   moveCc,
+  moveEnemies,
   resizeCc,
+  resizeEnemies,
   moveBuffs,
   resizeBuffs,
   closeDetails,
@@ -95,7 +99,7 @@ export function registerIpc(): void {
     settings.set(key as SettingKey, value)
   })
 
-  handle('tracker:get', () => ({ status: tracker.status(), pets: tracker.pets(), nearby: tracker.nearby(), shop: tracker.shop(), kina: tracker.kina(), fieldBosses: tracker.fieldBosses(), pvp: tracker.pvp(), cubes: tracker.cubes() }))
+  handle('tracker:get', () => ({ status: tracker.status(), pets: tracker.pets(), nearby: tracker.nearby(), shop: tracker.shop(), kina: tracker.kina(), fieldBosses: tracker.fieldBosses(), pvp: tracker.pvp(), cubes: tracker.cubes(), enemies: tracker.enemies(), target: tracker.target() }))
   handle('tracker:clearPvp', () => tracker.clearPvp())
   handle('timerbar:moveTo', (to) => {
     if (isPoint(to)) moveTimerBar(to)
@@ -202,6 +206,8 @@ export function registerIpc(): void {
   handle('packets:set', (on) => packets.set(on === true))
   handle('packets:mark', (text) => packets.mark(typeof text === 'string' ? text : ''))
   handle('packets:show', () => packets.show())
+  handle('sounds:pickCustom', (slot) => sounds.pickCustom(slot))
+  handle('sounds:custom', (slot) => sounds.custom(slot))
   handle('recordings:set', (on) => meterState.record(on === true))
   handle('recordings:open', async () => {
     const dir = meterState.recordingsDir()
@@ -216,6 +222,13 @@ export function registerIpc(): void {
     if (isPoint(to)) moveCc(to)
   })
   handle('cc:dragEnd', () => ccDragEnded())
+  handle('enemies:moveTo', (to) => {
+    if (isPoint(to)) moveEnemies(to)
+  })
+  handle('enemies:dragEnd', () => enemiesDragEnded())
+  handle('enemies:resize', (size) => {
+    if (isPoint({ x: size?.width, y: size?.height })) resizeEnemies(size)
+  })
   handle('cc:resize', (size) => {
     if (isPoint({ x: size?.width, y: size?.height })) resizeCc(size)
   })

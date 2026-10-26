@@ -117,6 +117,12 @@ pub struct Tracker {
     cubes: HashMap<u32, p::ObjectSpawn>,
     /// Players in view and their legions, for the kill feed; cleared on each zone load.
     players: HashMap<u32, p::Player>,
+    /// Players of the other faction in view: in on `45 36`, out on `42 36` or a new zone.
+    enemies: HashMap<u32, p::Player>,
+    /// Player cards (`30 97`, target info `50 36`) by name and server: level, gear score, combat power.
+    cards: HashMap<(String, u16), Card>,
+    /// When target info last had no believable combat power (logged once a minute, to fix the reader).
+    target_unread: i64,
     legions: HashMap<u32, String>,
     /// Your entity in this zone (from your own record).
     self_entity: Option<u32>,
@@ -162,6 +168,9 @@ impl Tracker {
             nearby_dirty: false,
             cubes: HashMap::new(),
             players: HashMap::new(),
+            enemies: HashMap::new(),
+            cards: HashMap::new(),
+            target_unread: 0,
             legions: HashMap::new(),
             self_entity: None,
             pvp_seen: HashMap::new(),
@@ -248,6 +257,81 @@ impl Tracker {
 
     fn cubes_changed(&self, ts: i64) {
         (self.emit)(json!({ "type": "cubes", "ts": ts, "cubes": self.cubes() }));
+    }
+
+    /// A player card read: kept, its combat power through `steady_cp`. An enemy in view it names
+    /// gets the numbers on the list.
+    fn player_card(&mut self, ts: i64, card: p::PlayerCard) {
+        if self.cards.len() >= MAX_CARDS {
+            self.cards.clear();
+        }
+        let entry = self.cards.entry((card.name.clone(), card.server)).or_default();
+        entry.level = card.level;
+        entry.gear_score = card.gear_score;
+        entry.class = p::roster_class(card.class).or(entry.class);
+        steady_cp(entry, card.combat_power);
+        let shown = self.enemies.values().any(|e| e.name == card.name && e.server == Some(card.server));
+        if shown {
+            self.enemies_changed(ts);
+        }
+    }
+
+    /// A player you targeted: their sheet. It goes on their card (the Enemies overlay shows it), and
+    /// to the app as your target.
+    fn target_info(&mut self, ts: i64, t: p::TargetInfo, raw: &[u8]) {
+        if !CP_RANGE.contains(&t.combat_power) && ts - self.target_unread > 60_000 {
+            self.target_unread = ts;
+            let tail: String = raw.iter().rev().take(64).rev().map(|b| format!("{b:02x}")).collect();
+            tracing::warn!("target info: no combat power read for {} ({}): tail {tail}", t.name, t.combat_power);
+        }
+        if self.cards.len() >= MAX_CARDS {
+            self.cards.clear();
+        }
+        let card = self.cards.entry((t.name.clone(), t.server)).or_default();
+        card.level = t.level;
+        card.gear_score = t.gear_score;
+        card.class = p::roster_class(t.class);
+        steady_cp(card, t.combat_power);
+        let cp = card.cp;
+        let class = card.class;
+        let enemy = matches!((p::server_faction(t.server), self.my_faction()), (Some(theirs), Some(mine)) if theirs != mine);
+        (self.emit)(json!({
+            "type": "target", "ts": ts, "name": t.name, "server": t.server, "level": t.level,
+            "gearScore": t.gear_score, "combatPower": cp, "className": class, "legion": t.legion, "enemy": enemy,
+        }));
+        if self.enemies.values().any(|e| e.name == t.name && e.server == Some(t.server)) {
+            self.enemies_changed(ts);
+        }
+    }
+
+    /// Your faction, from the server of the character playing.
+    fn my_faction(&self) -> Option<u8> {
+        let name = self.store.current.as_ref()?;
+        self.store.characters.get(name)?.server.and_then(p::server_faction)
+    }
+
+    fn enemies_changed(&self, ts: i64) {
+        let mut list: Vec<&p::Player> = self.enemies.values().collect();
+        list.sort_by(|a, b| a.name.cmp(&b.name));
+        let players: Vec<Value> =
+            list.iter()
+                .map(|e| {
+                    let card = e.server.and_then(|s| self.cards.get(&(e.name.clone(), s)));
+                    json!({
+                        "entity": e.entity, "name": e.name, "server": e.server, "legion": e.legion,
+                        "level": card.map(|c| c.level), "gearScore": card.map(|c| c.gear_score), "combatPower": card.and_then(|c| c.cp),
+                        "className": card.and_then(|c| c.class),
+                    })
+                })
+                .collect();
+        (self.emit)(json!({ "type": "enemies", "ts": ts, "players": players }));
+    }
+
+    fn clear_enemies(&mut self, ts: i64) {
+        if !self.enemies.is_empty() {
+            self.enemies.clear();
+            self.enemies_changed(ts);
+        }
     }
 
     fn clear_cubes(&mut self) {
@@ -367,6 +451,10 @@ impl Tracker {
                     if self.visible.remove(&entity).is_some() {
                         self.nearby_dirty = true;
                     }
+                    // A player too: an enemy gone from view (or dead) is off the list.
+                    if self.enemies.remove(&entity).is_some() {
+                        self.enemies_changed(ts);
+                    }
                     if flag == p::DEATH_FLAG_COMBAT && self.mob_code.contains_key(&entity) {
                         self.push_recent(ts, entity);
                     }
@@ -385,6 +473,7 @@ impl Tracker {
                     self.visible.clear();
                     self.players.clear();
                     self.legions.clear();
+                    self.clear_enemies(ts);
                     self.nearby_dirty = true;
                 }
             }
@@ -467,8 +556,23 @@ impl Tracker {
                     (self.emit)(json!({ "type": "shop", "ts": ts, "tab": tab, "nextAt": next, "items": items }));
                 }
             }
+            p::OP_TARGET_INFO => {
+                if let Some(t) = p::target_info(f) {
+                    self.target_info(ts, t, f);
+                }
+            }
+            p::OP_PLAYER_CARD => {
+                if let Some(card) = p::player_card(f) {
+                    self.player_card(ts, card);
+                }
+            }
             p::OP_PLAYER => {
                 if let Some(player) = p::player(f) {
+                    let enemy = matches!((player.faction, self.my_faction()), (Some(theirs), Some(mine)) if theirs != mine);
+                    if enemy && self.enemies.insert(player.entity, player.clone()).is_none() {
+                        tracing::info!("enemy in view: {} ({:?})", player.name, player.server);
+                        self.enemies_changed(ts);
+                    }
                     self.players.insert(player.entity, player);
                 }
             }
@@ -519,6 +623,8 @@ impl Tracker {
         self.store.adopt_unknown();
         let changed = old.as_deref() != Some(who.name.as_str()) || old_key != self.store.key();
         if changed {
+            // Another character, maybe on the other side: who counts as an enemy changes.
+            self.clear_enemies(ts);
             self.save();
             tracing::info!("character: {} on {}{}", who.name, who.server, old.as_ref().map(|o| format!(" (was {o})")).unwrap_or_default());
             (self.emit)(json!({
@@ -745,15 +851,68 @@ impl Tracker {
         };
         let legion = ours(killer_legion.as_deref(), Some(credit.server as u64))
             || victim.as_ref().is_some_and(|v| ours(v["guild"].as_str(), v["server"].as_u64()));
+        let class_of = |name: &str, server: Option<u64>| -> Option<&'static str> {
+            let server = u16::try_from(server?).ok()?;
+            self.cards.get(&(name.to_string(), server))?.class
+        };
+        let victim = victim.map(|mut v| {
+            let class = v["name"].as_str().and_then(|n| class_of(n, v["server"].as_u64()));
+            v["className"] = json!(class);
+            v
+        });
         (self.emit)(json!({
             "type": "pvpKill", "ts": ts,
-            "killer": { "name": credit.name, "server": credit.server, "guild": killer_legion },
+            "killer": { "name": credit.name, "server": credit.server, "guild": killer_legion, "className": class_of(&credit.name, Some(credit.server as u64)) },
             "victim": victim,
             "mine": me.as_deref() == Some(credit.name.as_str())
                 && mine_entry.server.is_none_or(|s| s == credit.server),
             "died": died,
             "legion": legion,
         }));
+    }
+}
+
+/// A player's card, as last read.
+#[derive(Debug, Clone, Default)]
+struct Card {
+    level: u32,
+    gear_score: u32,
+    /// By its number in target info (`50 36`) or the card (`30 97`).
+    class: Option<&'static str>,
+    /// Combat power as shown: a believable value, held against odd jumps (`steady_cp`).
+    cp: Option<u32>,
+    /// A value far from the shown one, seen once: taken if the next read agrees.
+    pending: Option<u32>,
+}
+
+/// Cards kept at most: past it they start over (a long session among crowds).
+const MAX_CARDS: usize = 5000;
+/// Combat power players have (late 2026: most 90k-175k, some past 200k); outside it, a misread.
+const CP_RANGE: std::ops::RangeInclusive<u32> = 20_000..=400_000;
+/// A change bigger than this share of the shown value is a jump, until a second read confirms it.
+const CP_JUMP: f64 = 0.25;
+
+/// The combat power a card shows: values out of range are dropped; one far from the last (a jump
+/// another tool saw now and then) is held until a second read close to it agrees, as a real
+/// change (new gear) would.
+fn steady_cp(card: &mut Card, value: u32) {
+    if !CP_RANGE.contains(&value) {
+        return;
+    }
+    let near = |a: u32, b: u32| (a as f64 - b as f64).abs() <= b as f64 * CP_JUMP;
+    match card.cp {
+        Some(shown) if !near(value, shown) => {
+            if card.pending.is_some_and(|p| near(value, p)) {
+                card.cp = Some(value);
+                card.pending = None;
+            } else {
+                card.pending = Some(value);
+            }
+        }
+        _ => {
+            card.cp = Some(value);
+            card.pending = None;
+        }
     }
 }
 
@@ -955,5 +1114,24 @@ mod tests {
         assert_eq!(pet(&t, 1006).souls, 0, "waiting for the character record");
         t.frame(1000 + SYNC_WAIT_MS + 1, &frame([0x99, 0x99], &[]));
         assert_eq!(pet(&t, 1006).souls, 7);
+    }
+
+    #[test]
+    fn combat_power_drops_misreads_and_holds_a_jump_until_confirmed() {
+        let mut c = Card::default();
+        steady_cp(&mut c, 5);
+        assert_eq!(c.cp, None);
+        steady_cp(&mut c, 123_186);
+        assert_eq!(c.cp, Some(123_186));
+        // A jump: held, the shown value stays.
+        steady_cp(&mut c, 390_000);
+        assert_eq!(c.cp, Some(123_186));
+        // Back to normal: the jump is forgotten.
+        steady_cp(&mut c, 124_000);
+        assert_eq!((c.cp, c.pending), (Some(124_000), None));
+        // A real change, read twice: taken.
+        steady_cp(&mut c, 170_000);
+        steady_cp(&mut c, 171_000);
+        assert_eq!(c.cp, Some(171_000));
     }
 }

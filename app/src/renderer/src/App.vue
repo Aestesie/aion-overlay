@@ -5,6 +5,7 @@ import { onMounted } from 'vue'
 import BubblePage from './pages/BubblePage.vue'
 import BuffsPage from './pages/BuffsPage.vue'
 import CcPage from './pages/CcPage.vue'
+import EnemiesPage from './pages/EnemiesPage.vue'
 import TrainingPage from './pages/TrainingPage.vue'
 import DetailsPage from './pages/DetailsPage.vue'
 import HudPage from './pages/HudPage.vue'
@@ -34,6 +35,7 @@ onMounted(() => void store.init())
   <MiniMapPage v-else-if="page === 'minimap'" />
   <BuffsPage v-else-if="page === 'buffs'" />
   <CcPage v-else-if="page === 'cc'" />
+  <EnemiesPage v-else-if="page === 'enemies'" />
   <TrainingPage v-else-if="page === 'training'" />
   <PanelPage v-else />
 </template>

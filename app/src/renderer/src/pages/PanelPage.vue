@@ -4,6 +4,7 @@
 // Settings at the bottom), and the page. Each page says what it is, and holds its overlay's settings.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import BossesView from '@/components/dashboard/BossesView.vue'
+import ChangelogView from '@/components/dashboard/ChangelogView.vue'
 import BuffsView from '@/components/dashboard/BuffsView.vue'
 import EventsView from '@/components/dashboard/EventsView.vue'
 import HistoryView from '@/components/dashboard/HistoryView.vue'
@@ -26,7 +27,7 @@ import { serverName } from '@shared/servers.ts'
 import { TIMERS, type TimerId } from '@shared/timers.ts'
 import type { UpdateState } from '@shared/update.ts'
 
-type PageId = 'home' | 'meter' | 'training' | 'map' | 'pets' | 'pvp' | 'buffs' | 'events' | 'bosses' | 'history' | 'session' | 'settings'
+type PageId = 'home' | 'meter' | 'training' | 'map' | 'pets' | 'pvp' | 'buffs' | 'events' | 'bosses' | 'history' | 'session' | 'settings' | 'changes'
 interface Page {
   id: PageId
   label: string
@@ -46,6 +47,7 @@ const PAGES: Record<PageId, Page> = {
   bosses: { id: 'bosses', label: 'Field Bosses', icon: 'M8 2a5 5 0 0 0-3.5 8.5V13h7v-2.5A5 5 0 0 0 8 2zM6 8.5h.01M10 8.5h.01M7 13v-1.5M9 13v-1.5' },
   history: { id: 'history', label: 'History', icon: 'M2 8a6 6 0 1 0 1.8-4.3M2 2.5v3h3M8 5v3l2 1.5' },
   session: { id: 'session', label: 'Session', icon: 'M2.5 11.5 6 8l2.5 2.5 5-5M10 5.5h3.5V9' },
+  changes: { id: 'changes', label: "What's new", icon: 'M8 1.5 9.8 6l4.7.4-3.6 3 1.1 4.6L8 11.6 4 14l1.1-4.6-3.6-3L6.2 6z' },
   settings: { id: 'settings', label: 'Settings', icon: 'M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM13 8a5 5 0 0 0-.1-.9l1.4-1.1-1.4-2.4-1.7.6a5 5 0 0 0-1.5-.9L9.4 1.5H6.6l-.3 1.8a5 5 0 0 0-1.5.9l-1.7-.6-1.4 2.4 1.4 1.1a5 5 0 0 0 0 1.8l-1.4 1.1 1.4 2.4 1.7-.6a5 5 0 0 0 1.5.9l.3 1.8h2.8l.3-1.8a5 5 0 0 0 1.5-.9l1.7.6 1.4-2.4-1.4-1.1c.1-.3.1-.6.1-.9Z' },
 }
 const SECTIONS: { title: string | null; pages: PageId[] }[] = [
@@ -249,7 +251,15 @@ onBeforeUnmount(() => {
             </svg>
             Settings
           </button>
-          <div v-if="version" class="px-2.5 pt-2 text-[11px] text-darkest">v{{ version }}</div>
+          <button
+            v-if="version"
+            type="button"
+            :class="['px-2.5 pt-2 text-[11px] hover:text-default hover:underline', page === 'changes' ? 'text-default' : 'text-darkest']"
+            title="What's new"
+            @click="go('changes')"
+          >
+            v{{ version }} · What's new
+          </button>
         </div>
       </nav>
 
@@ -269,6 +279,7 @@ onBeforeUnmount(() => {
           <BossesView v-else-if="page === 'bosses'" />
           <HistoryView v-else-if="page === 'history'" />
           <SettingsView v-else-if="page === 'settings'" @go="go" />
+          <ChangelogView v-else-if="page === 'changes'" :version="version" />
           <template v-else>
             <PageHeader :title="PAGES[page].label" :about="ABOUT[page]" />
             <PvpLogTab v-if="page === 'pvp'" class="-mx-3" />

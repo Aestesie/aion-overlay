@@ -71,3 +71,17 @@
     outline-offset: 1px;
   }
 }
+
+@layer utilities {
+  /* A dark glow behind light text: readable straight on the game, with no background (the PvP overlays at None). */
+  .text-glow {
+    text-shadow:
+      0 0 2px rgb(0 0 0 / 0.95),
+      0 0 5px rgb(0 0 0 / 0.85),
+      0 1px 2px rgb(0 0 0 / 0.9);
+  }
+  /* Icons too (a text shadow does not reach them). */
+  .text-glow svg {
+    filter: drop-shadow(0 0 1.5px rgb(0 0 0 / 0.95)) drop-shadow(0 0 3px rgb(0 0 0 / 0.8));
+  }
+}

@@ -64,6 +64,35 @@ export const NO_NEARBY: Nearby = { world: null, position: null, positionAt: null
 /** A pet the collection has no record of yet (seen nearby, or opened from the map). */
 export const blankPet = (id: number): Pet => ({ id, name: null, souls: 0, level: 0, levelEstimated: true, crystals: 0, session: 0 })
 
+/** A player of the other faction in view (the engine's list: in when they load, out when gone). */
+export interface Enemy {
+  entity: number
+  name: string
+  server: number | null
+  legion: string | null
+  /** From their player card (the game sends it now and then: a target, a fight), when one was read. */
+  level?: number | null
+  gearScore?: number | null
+  combatPower?: number | null
+  className?: string | null
+}
+
+/** The player you last targeted: their sheet as the game sends it (`50 36`). */
+export interface TargetPlayer {
+  name: string
+  server: number
+  level: number
+  gearScore: number
+  /** Null when no believable value was read (out of range, or an odd jump not yet confirmed). */
+  combatPower: number | null
+  className: string | null
+  legion: string | null
+  /** Of the other faction. */
+  enemy: boolean
+  /** When it was targeted (ms since epoch). */
+  at: number
+}
+
 /** A Hidden Cube in view (the server sends one within about 100 m of you). */
 export interface Cube {
   id: number
@@ -80,9 +109,10 @@ export interface Cube {
 /** A player killed by a player around you, as the game credits it (the killing blow). */
 export interface PvpKill {
   at: number
-  killer: { name: string; server: number; guild: string | null }
+  /** `className` when a player card or target info named it (shared/tracker.ts Enemy). */
+  killer: { name: string; server: number; guild: string | null; className?: string | null }
   /** Null when the victim was never in view (no name to give). */
-  victim: { name: string; server: number | null; guild?: string | null } | null
+  victim: { name: string; server: number | null; guild?: string | null; className?: string | null } | null
   /** You were the killer. */
   mine: boolean
   /** You were the victim. */

@@ -62,6 +62,8 @@ having no `Uninstall Lokthar.exe` next to it). It checks the same way, but **Dow
    ```json
    "version": "0.3.1"
    ```
+   and check that `app/src/shared/changelog.ts` has that version at the top, one short line per
+   change (the app's What's new page shows it).
 2. Commit it, then tag the same version and push the tag:
    ```sh
    git commit -am "0.3.1"

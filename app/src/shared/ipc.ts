@@ -9,9 +9,10 @@ import type { UpdateState } from './update.ts'
 import type { KinaSession } from './kina.ts'
 import type { DetailsSource, DetailsView, FightSummary, MeterData, PacketLog, PersonalView, Recordings } from './meter.ts'
 import type { SyncResult } from './lokthar.ts'
+import type { CustomSoundResult, SoundSlot } from './sounds.ts'
 import type { Point, SettingKey, Settings } from './settings.ts'
 import type { FieldBosses, TimerAlert, TimerId } from './timers.ts'
-import type { Cube, Nearby, Pet, PvpKill, ShopStock, SoulToast, TrackerStatus } from './tracker.ts'
+import type { Cube, Enemy, Nearby, TargetPlayer, Pet, PvpKill, ShopStock, SoulToast, TrackerStatus } from './tracker.ts'
 
 /** Renderer → main, request/response. */
 export interface InvokeChannels {
@@ -22,7 +23,7 @@ export interface InvokeChannels {
   'settings:all': { args: []; result: Settings }
   'settings:set': { args: [key: SettingKey, value: unknown]; result: void }
 
-  'tracker:get': { args: []; result: { status: TrackerStatus; pets: Pet[]; nearby: Nearby; shop: ShopStock[]; kina: KinaSession; fieldBosses: FieldBosses; pvp: PvpKill[]; cubes: Cube[] } }
+  'tracker:get': { args: []; result: { status: TrackerStatus; pets: Pet[]; nearby: Nearby; shop: ShopStock[]; kina: KinaSession; fieldBosses: FieldBosses; pvp: PvpKill[]; cubes: Cube[]; enemies: Enemy[]; target: TargetPlayer | null } }
   /** Empty the PvP log. */
   'tracker:clearPvp': { args: []; result: void }
   'tracker:setSouls': { args: [pet: number, souls: number]; result: void }
@@ -90,6 +91,10 @@ export interface InvokeChannels {
   'packets:set': { args: [on: boolean]; result: void }
   'packets:mark': { args: [text: string]; result: void }
   'packets:show': { args: []; result: void }
+  /** Choose an mp3 for an alert's sound: it is copied into the data folder. */
+  'sounds:pickCustom': { args: [slot: SoundSlot]; result: CustomSoundResult }
+  /** That mp3's bytes, to play (null: none chosen). */
+  'sounds:custom': { args: [slot: SoundSlot]; result: Uint8Array | null }
   /** App updates, by hand: the state, look for one, download it, restart to install it. */
   'update:get': { args: []; result: UpdateState }
   'update:check': { args: []; result: void }
@@ -113,6 +118,9 @@ export interface InvokeChannels {
   'training:resize': { args: [size: { width: number; height: number }]; result: void }
   /** The CC / Debuffs banner. */
   'cc:moveTo': { args: [to: Point]; result: void }
+  'enemies:moveTo': { args: [to: Point]; result: void }
+  'enemies:dragEnd': { args: []; result: void }
+  'enemies:resize': { args: [size: { width: number; height: number }]; result: void }
   'cc:dragEnd': { args: []; result: void }
   'cc:resize': { args: [size: { width: number; height: number }]; result: void }
   /** Open the Details window on a fight (a meter row, a saved fight), or what it shows now. */
@@ -143,6 +151,8 @@ export interface EventChannels {
   'tracker:nearby': Nearby
   /** The Hidden Cubes in view, whenever they change. */
   'tracker:cubes': Cube[]
+  'tracker:enemies': Enemy[]
+  'tracker:target': TargetPlayer | null
   /** You killed something (at most every 5 s): keeps the HUD up between souls. */
   'tracker:combat': number
   /** The merchant's stock: the latest of each tab opened, until its restock. */
@@ -211,10 +221,10 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'meter:get', 'meter:reset', 'meter:moveTo', 'meter:dragEnd', 'meter:resize',
   'minimap:moveTo', 'minimap:dragEnd', 'minimap:resize',
   'skills:get', 'skills:moveTo', 'skills:dragEnd', 'skills:resize',
-  'buffs:get', 'buffs:moveTo', 'buffs:dragEnd', 'buffs:resize', 'cc:moveTo', 'cc:dragEnd', 'cc:resize', 'training:moveTo', 'training:dragEnd', 'training:resize', 'overlays:toggle', 'overlays:hidden', 'recordings:get', 'recordings:set', 'recordings:open', 'packets:get', 'packets:set', 'packets:mark', 'packets:show', 'update:get', 'update:check', 'update:download', 'update:install', 'dummy:get', 'dummy:start', 'dummy:stop', 'dummy:newGroup', 'dummy:delete',
+  'buffs:get', 'buffs:moveTo', 'buffs:dragEnd', 'buffs:resize', 'cc:moveTo', 'cc:dragEnd', 'cc:resize', 'enemies:moveTo', 'enemies:dragEnd', 'enemies:resize', 'training:moveTo', 'training:dragEnd', 'training:resize', 'overlays:toggle', 'overlays:hidden', 'recordings:get', 'recordings:set', 'recordings:open', 'packets:get', 'packets:set', 'packets:mark', 'packets:show', 'sounds:pickCustom', 'sounds:custom', 'update:get', 'update:check', 'update:download', 'update:install', 'dummy:get', 'dummy:start', 'dummy:stop', 'dummy:newGroup', 'dummy:delete',
   'details:open', 'details:get', 'details:close', 'details:moveTo', 'details:dragEnd', 'history:list', 'history:delete',
 ]
 
 export const EVENT_CHANNELS: readonly EventChannel[] = [
-  'settings:changed', 'tracker:status', 'tracker:pets', 'tracker:pet', 'tracker:soul', 'tracker:nearby', 'tracker:cubes', 'tracker:combat', 'tracker:shop', 'tracker:kina', 'tracker:fieldBosses', 'tracker:pvp', 'tracker:pvpKill', 'panel:showPet', 'panel:showTimers', 'timers:alert', 'timers:alerting', 'hud:editing', 'panel:visible', 'panel:maximized', 'meter:dps', 'details:source', 'history:changed', 'buffs:list', 'overlays:hidden', 'recordings:changed', 'packets:state', 'dummy:state', 'update:state',
+  'settings:changed', 'tracker:status', 'tracker:pets', 'tracker:pet', 'tracker:soul', 'tracker:nearby', 'tracker:cubes', 'tracker:enemies', 'tracker:target', 'tracker:combat', 'tracker:shop', 'tracker:kina', 'tracker:fieldBosses', 'tracker:pvp', 'tracker:pvpKill', 'panel:showPet', 'panel:showTimers', 'timers:alert', 'timers:alerting', 'hud:editing', 'panel:visible', 'panel:maximized', 'meter:dps', 'details:source', 'history:changed', 'buffs:list', 'overlays:hidden', 'recordings:changed', 'packets:state', 'dummy:state', 'update:state',
 ]

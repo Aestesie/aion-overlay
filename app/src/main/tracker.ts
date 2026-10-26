@@ -25,7 +25,7 @@ import { fieldBosses } from './fieldBosses.ts'
 import type { FieldBosses } from '../shared/timers.ts'
 import { pvpLog } from './pvpLog.ts'
 import { serverFaction, serverRegion } from '../shared/servers.ts'
-import { GAME_ACTIVE_S, NO_NEARBY, type Cube, type Nearby, type Pet, type PvpKill, type ShopItem, type ShopStock, type SoulToast, type TrackerStatus } from '../shared/tracker.ts'
+import { GAME_ACTIVE_S, NO_NEARBY, type Cube, type Enemy, type Nearby, type TargetPlayer, type Pet, type PvpKill, type ShopItem, type ShopStock, type SoulToast, type TrackerStatus } from '../shared/tracker.ts'
 
 const RESTART_DELAYS_MS = [1000, 3000, 10000, 30000]
 const EXE = process.platform === 'win32' ? 'lokthar-engine.exe' : 'lokthar-engine'
@@ -41,6 +41,10 @@ const pets = new Map<number, Pet>()
 let nearby: Nearby = NO_NEARBY
 /** The Hidden Cubes in view, as the engine last listed them. */
 let cubes: Cube[] = []
+/** Players of the other faction in view, as the engine last listed them. */
+let enemies: Enemy[] = []
+/** The player you last targeted. */
+let target: TargetPlayer | null = null
 /** The Black Cloud Merchant's stock: the latest of each tab opened, kept until its restock. */
 const shopTabs = new Map<number, ShopStock>()
 const currentShop = (): ShopStock[] => {
@@ -212,6 +216,9 @@ function handleLine(line: string): void {
   switch (ev['type']) {
     case 'ready':
       restarts = 0
+      // A (re)started engine knows no one in view yet.
+      enemies = []
+      broadcast('tracker:enemies', enemies)
       replacePets(ev['pets'] as Pet[])
       setStatus({
         character: (ev['character'] as { name: string } | null)?.name ?? null,
@@ -299,6 +306,28 @@ function handleLine(line: string): void {
       cubes = (ev['cubes'] as Omit<Cube, 'seenAt'>[]).map((c) => ({ ...c, seenAt: before.get(c.id) ?? now }))
       for (const c of cubes) if (!before.has(c.id)) log(`hidden cube ${c.id} (template ${c.template}) at ${c.position.join(', ')}`)
       broadcast('tracker:cubes', cubes)
+      break
+    }
+    case 'enemies': {
+      const before = new Set(enemies.map((e) => e.entity))
+      enemies = (ev['players'] as Enemy[] | undefined) ?? []
+      for (const e of enemies) if (!before.has(e.entity)) log(`enemy in view: ${e.name}${e.server ? ` (${e.server})` : ''}${e.legion ? ` <${e.legion}>` : ''}`)
+      broadcast('tracker:enemies', enemies)
+      break
+    }
+    case 'target': {
+      target = {
+        name: ev['name'] as string,
+        server: ev['server'] as number,
+        level: ev['level'] as number,
+        gearScore: ev['gearScore'] as number,
+        combatPower: (ev['combatPower'] as number | null) ?? null,
+        className: (ev['className'] as string | null) ?? null,
+        legion: (ev['legion'] as string | null) ?? null,
+        enemy: ev['enemy'] === true,
+        at: Date.now(),
+      }
+      broadcast('tracker:target', target)
       break
     }
     case 'pvpKill': {
@@ -392,6 +421,8 @@ export const tracker = {
   pets: (): Pet[] => [...pets.values()],
   nearby: (): Nearby => nearby,
   cubes: (): Cube[] => cubes,
+  enemies: (): Enemy[] => enemies,
+  target: (): TargetPlayer | null => target,
   shop: (): ShopStock[] => currentShop(),
   kina: (): KinaSession => kina,
   fieldBosses: (): FieldBosses => fieldBosses.all(),

@@ -25,6 +25,8 @@ pub const OP_PLAYER: [u8; 2] = [0x45, 0x36];
 pub const OP_LEGION: [u8; 2] = [0x33, 0x8A];
 pub const OP_OBJECT_SPAWN: [u8; 2] = [0x34, 0x36];
 pub const OP_OBJECT_REMOVED: [u8; 2] = [0x35, 0x36];
+pub const OP_PLAYER_CARD: [u8; 2] = [0x30, 0x97];
+pub const OP_TARGET_INFO: [u8; 2] = [0x50, 0x36];
 
 /// `42 36`'s flag for a monster killed in combat (1: out of range, 7: gone).
 pub const DEATH_FLAG_COMBAT: u32 = 3;
@@ -516,14 +518,30 @@ pub fn object_removed(frame: &[u8]) -> Option<(u32, u8)> {
 }
 
 /// A player coming into view: `45 36 <entity varint> <4 bytes> 17 <len><name>
-/// <u32> <faction 01 02 01 | 02 02 02> ...`, and some 100-120 bytes on
-/// `<server u16> <2 bytes> 00 00 00 00 <server u16> <len><legion>` (Nyerk 0.2.17).
+/// <u32> <faction u8> ...`, and some 100-120 bytes on `<server u16> <2 bytes>
+/// 00 00 00 00 <server u16> <len><legion>` (Nyerk 0.2.17). The faction byte is
+/// 1 Elyos, 2 Asmodian, as the server's thousands are (1406 Elyos, 2406
+/// Asmodian: the 2026-10-21 and 10-25 packet logs).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Player {
     pub entity: u32,
     pub name: String,
     pub server: Option<u16>,
     pub legion: Option<String>,
+    /// 1 Elyos, 2 Asmodian: the server's, else the byte after the name's u32.
+    pub faction: Option<u8>,
+}
+
+pub const ELYOS: u8 = 1;
+pub const ASMODIAN: u8 = 2;
+
+/// A server's faction: 1xxx Elyos, 2xxx Asmodian.
+pub fn server_faction(server: u16) -> Option<u8> {
+    match server / 1000 {
+        1 => Some(ELYOS),
+        2 => Some(ASMODIAN),
+        _ => None,
+    }
 }
 
 pub fn player(frame: &[u8]) -> Option<Player> {
@@ -544,7 +562,96 @@ pub fn player(frame: &[u8]) -> Option<Player> {
             break;
         }
     }
-    Some(Player { entity, name, server, legion })
+    let faction = server.and_then(server_faction).or_else(|| b.get(end + 4).copied().filter(|f| [ELYOS, ASMODIAN].contains(f)));
+    Some(Player { entity, name, server, legion, faction })
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayerCard {
+    pub name: String,
+    pub server: u16,
+    /// The class number (`roster_class`).
+    pub class: u32,
+    pub level: u32,
+    pub gear_score: u32,
+    pub combat_power: u32,
+}
+
+/// `30 97 <character u32> 00 00 <server u16> <class u32> <level u32> <gear score u32>
+/// <len><name> <server u16> 00 00 00 00 <combat power u32> ...`: a player's
+/// card, its numbers as the game shows them (Shiggly 1406, Lv45, 2630 gear
+/// score, 123186 combat power: the owner's 2026-10-26 packet log). The
+/// character id is not the one players in view go by: the card is matched by
+/// name and server.
+pub fn player_card(frame: &[u8]) -> Option<PlayerCard> {
+    let b = body(frame, OP_PLAYER_CARD)?;
+    let server = u16_at(b, 6)?;
+    let level = u32_at(b, 12)?;
+    let gear_score = u32_at(b, 16)?;
+    let name = name_at(b, 20)?;
+    let end = 21 + name.len();
+    let valid = (1000..=9999).contains(&server) && (1..=99).contains(&level) && gear_score < 100_000 && u16_at(b, end) == Some(server);
+    valid.then_some(PlayerCard { name, server, class: u32_at(b, 8)?, level, gear_score, combat_power: u32_at(b, end + 6)? })
+}
+
+/// A class by the number party records and target info carry: four values a class, which differ
+/// by something else about the character (A2Tools' `JobClass::from_roster_class`, matched
+/// against 14 players; Wolf's 13 and Shiggly's 14 both Rangers, as the owner confirmed). Named as
+/// the meter names them.
+pub fn roster_class(value: u32) -> Option<&'static str> {
+    Some(match value {
+        5..=8 => "Gladiator",
+        9..=12 => "Templar",
+        13..=16 => "Ranger",
+        17..=20 => "Assassin",
+        21..=24 => "Spiritmaster",
+        25..=28 => "Sorcerer",
+        29..=32 => "Cleric",
+        33..=36 => "Chanter",
+        _ => return None,
+    })
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TargetInfo {
+    pub name: String,
+    pub server: u16,
+    pub level: u32,
+    pub gear_score: u32,
+    /// The class number (`roster_class`).
+    pub class: u32,
+    pub legion: Option<String>,
+    /// As read: the tracker keeps only believable values (`steady_cp`).
+    pub combat_power: u32,
+}
+
+/// The combat power's place in target info: this many bytes before the end of the body.
+const TARGET_CP_FROM_END: usize = 33;
+
+/// `50 36 00 00 <u8> <len><name> <class u32> 01 01 <level u32> <u32> <gear score
+/// u32> <server u16> <server u16> ... <server u16> <len><legion> ... <combat
+/// power u32> <29 bytes>`, some 3 KB: a player you target, their sheet as the
+/// game shows it (Wolf 1406, Lv45, 2429 gear score, 125122 combat power, the
+/// owner's 2026-10-26 packet log). Read from one capture: the combat power is
+/// where it was there, counted from the end.
+pub fn target_info(frame: &[u8]) -> Option<TargetInfo> {
+    let b = body(frame, OP_TARGET_INFO)?;
+    let (name, at) = (2..6).find_map(|p| name_at(b, p).map(|n| (n, p)))?;
+    let end = at + 1 + name.len();
+    let class = u32_at(b, end)?;
+    let level = u32_at(b, end + 6)?;
+    let gear_score = u32_at(b, end + 14)?;
+    let server = u16_at(b, end + 18)?;
+    if !(1000..=9999).contains(&server) || u16_at(b, end + 20) != Some(server) || !(1..=99).contains(&level) || gear_score >= 100_000 {
+        return None;
+    }
+    let legion = (end + 22..(end + 60).min(b.len().saturating_sub(2)))
+        .find(|&k| u16_at(b, k) == Some(server))
+        .and_then(|k| text(b, k + 2, 48))
+        .map(|(s, _)| s)
+        .filter(|s| !s.is_empty());
+    let combat_power = u32_at(b, b.len().checked_sub(TARGET_CP_FROM_END)?)?;
+    Some(TargetInfo { name, server, level, gear_score, class, legion, combat_power })
 }
 
 /// `33 8A <entity varint> <legion id u48> <server u16> <len><name>`: a player's
@@ -669,5 +776,33 @@ mod tests {
         body.extend(1_792_350_000_000u64.to_le_bytes());
         let (tab, items, next) = shop(&frame(OP_SHOP, &body)).unwrap();
         assert_eq!((tab, items.len(), items[0].price, next), (104, 1, 900, Some(1_792_350_000_000)));
+    }
+
+    #[test]
+    fn a_player_in_view_reads_its_faction() {
+        // Two players from the 2026-10-25 packet log, their first 200 bytes: an Asmodian (2406) and an Elyos (1406).
+        let asmo = player(&frame(OP_PLAYER, &hex("b1490320a401070a4c6f706572616d69646117000000020100d20cda5f48765c52c800a027456d948b4383c601826e826ef40e0000f40e00000000000000000000c80d0200c80d020000000000f049020001000000a0860100a0860100d04e0900d04e090002a467650250e56302cdd84f01660914020000000066090a53796e646963617465330200020000000000000000000000000000000a1126815ffd09ffffffffffffffff8075d52abb030000b1490f006cc35f4825d051c8001028451127017a030affff"))).unwrap();
+        assert_eq!((asmo.name.as_str(), asmo.server, asmo.faction), ("Loperamida", Some(2406), Some(ASMODIAN)));
+        let ely = player(&frame(OP_PLAYER, &hex("ab620320a001070659616b617a6506000000010280d214746148345c52c8bddc1e4553c57e432cb50000b3ca01dc0e0000dc0e000000000000000000005c0602004833020080890000f049020001000000a0860100a08601004a11090070d50a000100000001084ecb0138d6cc01ee1753027e052400000000007e05084f6c6450617274790100020000000000000000000000000000000d11122bc4c901ffffffffffffffff8075d52abb030000ab620100c8fb3e478ef8144800c4b94611133fc4c901ffffffff"))).unwrap();
+        assert_eq!((ely.server, ely.faction), (Some(1406), Some(ELYOS)));
+    }
+
+    #[test]
+    fn a_player_card_reads_level_gear_score_and_combat_power() {
+        let card = player_card(&frame(OP_PLAYER_CARD, &hex("58b00300 0000 7e05 0e000000 2d000000 460a0000 0753686967676c79 7e05 00000000 32e10100 00000000 01000000 007c415e76a1010000"))).unwrap();
+        assert_eq!(card, PlayerCard { name: "Shiggly".into(), server: 1406, class: 14, level: 45, gear_score: 2630, combat_power: 123_186 });
+        // Not a card: a level of 0.
+        assert_eq!(player_card(&frame(OP_PLAYER_CARD, &hex("58b00300 0000 7e05 0e000000 00000000 460a0000 0753686967676c79 7e05 00000000 32e10100"))), None);
+    }
+
+    #[test]
+    fn target_info_reads_a_players_sheet() {
+        let wolf = include_str!("testdata/target-info-wolf.hex");
+        let t = target_info(&frame(OP_TARGET_INFO, &hex(wolf))).unwrap();
+        assert_eq!(
+            t,
+            TargetInfo { name: "Wolf".into(), server: 1406, level: 45, gear_score: 2429, class: 13, legion: Some("Flexq".into()), combat_power: 125_122 }
+        );
+        assert_eq!(roster_class(t.class), Some("Ranger"));
     }
 }

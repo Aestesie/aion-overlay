@@ -6,9 +6,15 @@
 // servers carry their server's tag ([LUM]).
 import { computed, onBeforeUnmount, ref } from 'vue'
 import Button from '@/components/Button.vue'
+import ClassIcon from '@/components/ClassIcon.vue'
+import SettingRow from '@/components/SettingRow.vue'
+import Slider from '@/components/Slider.vue'
+import SoundPicker from '@/components/SoundPicker.vue'
+import Toggle from '@/components/Toggle.vue'
 import { bridge } from '@/lib/bridge.ts'
 import { useApp } from '@/stores/app.ts'
 import { serverTag } from '@shared/servers.ts'
+import type { Settings } from '@shared/settings.ts'
 import type { PvpKill } from '@shared/tracker.ts'
 
 const store = useApp()
@@ -55,6 +61,12 @@ const clear = (): void => void bridge().invoke('tracker:clearPvp')
 /** The kill feed over the game (its own small window). */
 const hudOpen = computed(() => store.settings.killFeed.open)
 const toggleHud = (): void => void bridge().invoke(hudOpen.value ? 'killfeed:close' : 'killfeed:open')
+
+// The overlays over the game, set up here: the kill feed's look, and Enemies nearby.
+const setKillFeed = (patch: Partial<Settings['killFeed']>): void => void store.set('killFeed', { ...store.settings.killFeed, ...patch })
+const setEnemies = (patch: Partial<Settings['enemies']>): void => void store.set('enemies', { ...store.settings.enemies, ...patch })
+const background = (v: number): string => (v === 0 ? 'None' : `${Math.round(v * 100)}%`)
+const BACKGROUND_HINT = 'At None the text keeps a dark glow, readable on the game.'
 </script>
 
 <template>
@@ -87,11 +99,13 @@ const toggleHud = (): void => void bridge().invoke(hudOpen.value ? 'killfeed:clo
       <li v-for="(k, i) in shown" :key="`${k.at}-${i}`" :class="['flex items-center gap-2 px-3 py-2 text-sm', rowClass(k)]">
         <div class="min-w-0 flex-1">
           <div class="flex min-w-0 items-center gap-1.5">
+            <ClassIcon :class-name="k.killer.className" :size="16" />
             <span class="truncate font-medium" :class="k.mine && 'text-green'">{{ k.killer.name }}</span>
             <span v-if="tag(k.killer.server)" class="shrink-0 text-[11px] text-yellow">[{{ tag(k.killer.server) }}]</span>
             <svg viewBox="0 0 16 16" class="size-3.5 shrink-0 text-darker" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
               <path d="M3 8h9M9 4.5 12.5 8 9 11.5" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
+            <ClassIcon :class-name="k.victim?.className" :size="16" />
             <span class="truncate font-medium" :class="k.died && 'text-danger'">{{ k.victim?.name ?? 'a player out of view' }}</span>
             <span v-if="k.victim && tag(k.victim.server)" class="shrink-0 text-[11px] text-yellow">[{{ tag(k.victim.server) }}]</span>
           </div>
@@ -111,6 +125,35 @@ const toggleHud = (): void => void bridge().invoke(hudOpen.value ? 'killfeed:clo
     <p v-if="!filtered.length" class="rounded-lg border border-card bg-card px-3 py-6 text-center text-sm text-darker">
       {{ filters.find((f) => f.id === filter)?.empty ?? 'No player kills seen yet.' }}
     </p>
+
+    <section class="rounded-lg border border-card bg-card px-3">
+      <h3 class="pt-2.5 text-[11px] font-semibold uppercase tracking-wide text-darker">Overlays over the game</h3>
+      <div class="divide-y divide-[color:var(--line)]">
+        <SettingRow label="Kill feed" hint="This session's kills and deaths, and each player kill around you as it happens.">
+          <Toggle :model-value="hudOpen" @update:model-value="toggleHud" />
+        </SettingRow>
+        <template v-if="hudOpen">
+          <SettingRow label="Your target" hint="Under the kills and deaths: the player you last targeted, with level, server, class and combat power (enemies in red). For 2 minutes, or until you target another.">
+            <Toggle :model-value="store.settings.killFeed.target" @update:model-value="setKillFeed({ target: $event })" />
+          </SettingRow>
+          <SettingRow label="Kill feed background" :hint="BACKGROUND_HINT">
+            <Slider :model-value="store.settings.killFeed.opacity" :min="0" :max="1" :step="0.05" :format="background" @update:model-value="setKillFeed({ opacity: $event })" />
+          </SettingRow>
+        </template>
+        <SettingRow label="Enemies nearby" hint="Players of the other faction your game has loaded around you, with server, combat power and legion. Hidden while there are none; drag it while this window is open.">
+          <Toggle :model-value="store.settings.enemies.enabled" @update:model-value="setEnemies({ enabled: $event })" />
+        </SettingRow>
+        <template v-if="store.settings.enemies.enabled">
+          <SettingRow label="Enemies background" :hint="BACKGROUND_HINT">
+            <Slider :model-value="store.settings.enemies.opacity" :min="0" :max="1" :step="0.05" :format="background" @update:model-value="setEnemies({ opacity: $event })" />
+          </SettingRow>
+          <SettingRow label="Sound for an enemy" hint="When one comes into view (the same player at most once a minute).">
+            <Toggle :model-value="store.settings.enemies.sound" @update:model-value="setEnemies({ sound: $event })" />
+          </SettingRow>
+          <SoundPicker v-if="store.settings.enemies.sound" kind="enemy" label="Enemy sound" />
+        </template>
+      </div>
+    </section>
 
     <p class="text-[11px] text-darkest">
       Player kills around you, as the game credits them: the killing blow only, so an assist is not

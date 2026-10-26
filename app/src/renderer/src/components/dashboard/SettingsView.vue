@@ -6,6 +6,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Button from '@/components/Button.vue'
 import StatusDot, { statusText } from '@/components/StatusDot.vue'
 import SettingRow from '@/components/SettingRow.vue'
+import SoundPicker from '@/components/SoundPicker.vue'
 import Slider from '@/components/Slider.vue'
 import Toggle from '@/components/Toggle.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
@@ -123,8 +124,9 @@ const OVERLAY_PAGES = [
   { page: 'buffs', name: 'Buffs', where: 'Buffs' },
   { page: 'map', name: 'Map', where: 'Map' },
   { page: 'events', name: 'Countdown bar', where: 'Event Alerts' },
-  { page: 'pvp', name: 'Kill feed', where: 'PvP' },
+  { page: 'pvp', name: 'Kill feed and Enemies nearby', where: 'PvP' },
 ]
+
 const HUD_MODES = [
   { id: 'recent' as const, label: "This session's pets" },
   { id: 'pinned' as const, label: 'Pinned pets' },
@@ -215,9 +217,12 @@ const lastPacket = computed(() => {
         <SettingRow label="Hidden Cubes" hint="A cube in view (the game tells you within about 100 m) at the top of the HUD, with how far and which way.">
           <Toggle :model-value="store.settings.hud.cubes" @update:model-value="store.setHud({ cubes: $event })" />
         </SettingRow>
-        <SettingRow v-if="store.settings.hud.cubes" label="Chime for a cube" hint="When one comes into view (at the alerts' volume).">
+        <SettingRow v-if="store.settings.hud.cubes" label="Sound for a cube" hint="When one comes into view.">
           <Toggle :model-value="store.settings.hud.cubeSound" @update:model-value="store.setHud({ cubeSound: $event })" />
         </SettingRow>
+        <template v-if="store.settings.hud.cubes && store.settings.hud.cubeSound">
+          <SoundPicker kind="cube" label="Cube sound" />
+        </template>
         <SettingRow label="Hide without game traffic" hint="When the game has sent nothing for 15 seconds.">
           <Toggle :model-value="store.settings.hud.hideWithoutGame" @update:model-value="store.setHud({ hideWithoutGame: $event })" />
         </SettingRow>
