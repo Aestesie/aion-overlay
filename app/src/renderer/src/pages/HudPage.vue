@@ -3,6 +3,7 @@
 // main sizes the window to fit (an empty HUD is a hidden window). In edit mode it takes the mouse
 // so it can be dragged; Escape or Done ends that.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { HUD_PINNED_ROWS } from '@shared/settings.ts'
 import CubeIcon from '@/components/CubeIcon.vue'
 import GenusPill from '@/components/GenusPill.vue'
 import LevelBadge from '@/components/LevelBadge.vue'
@@ -48,12 +49,18 @@ const nearRows = computed<Pet[]>(() => {
  * Middle section: this fight's pets, or the pinned ones. A pet the Nearby section shows already is
  * left out (it was listed twice), and the next one takes its row.
  */
+const pinnedRows = computed<Pet[]>(() => {
+  const shown = new Set(nearRows.value.map((p) => p.id))
+  return hud.value.pinned.map((id) => store.pets.find((p) => p.id === id)).filter((p): p is Pet => !!p && !shown.has(p.id))
+})
 const rows = computed<Pet[]>(() => {
   const shown = new Set(nearRows.value.map((p) => p.id))
   return hud.value.mode === 'pinned'
-    ? hud.value.pinned.map((id) => store.pets.find((p) => p.id === id)).filter((p): p is Pet => !!p && !shown.has(p.id))
+    ? pinnedRows.value.slice(0, HUD_PINNED_ROWS)
     : store.recentPets.filter((p) => !shown.has(p.id)).slice(0, hud.value.recentCount)
 })
+/** Pinned pets past the HUD's rows: counted under them. */
+const morePinned = computed(() => (hud.value.mode === 'pinned' ? pinnedRows.value.length - rows.value.length : 0))
 const toasts = computed(() => (hud.value.toasts ? store.toasts : []))
 /** The count towards the next level, against what it needs: 0/5 at Lv0, 5/25 at Lv1, 9/75 at Lv2. */
 const progressText = (pet: Pet): string => {
@@ -181,6 +188,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </div>
+          <div v-if="morePinned > 0" class="mt-1.5 text-center text-[11px] text-darker">… {{ morePinned }} more pinned</div>
         </section>
 
         <div v-if="nearRows.length || kinaText" class="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">

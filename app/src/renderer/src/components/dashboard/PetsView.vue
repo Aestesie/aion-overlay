@@ -11,10 +11,11 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import Segmented from '@/components/ui/Segmented.vue'
 import SelectBox from '@/components/ui/SelectBox.vue'
 import { bridge } from '@/lib/bridge.ts'
-import { CONTINENTS, formatDistance, nearbyPets, petContinents, petDistance, useSpawns, type NearbyPet } from '@/lib/spawns.ts'
+import { CONTINENTS, formatDistance, nearbyPets, petContinents, petDistance, petWorlds, useSpawns, type NearbyPet } from '@/lib/spawns.ts'
 import { displayName, GENERA, GENUS_LABEL, monsterName, PET_DB_DATE, PET_DB_SIZE, PET_DB_SOURCE, petInfo, type Genus } from '@/lib/petDb.ts'
 import { useApp } from '@/stores/app.ts'
 import { blankPet, MAX_LEVEL, nextLevelSouls, type Pet } from '@shared/tracker.ts'
+import { MAX_PINNED, type Settings } from '@shared/settings.ts'
 
 const store = useApp()
 // In the store, so they survive the tab being rebuilt (after a pet's map closes).
@@ -27,6 +28,11 @@ const SORTS = [
   { id: 'recent', label: 'This session' },
   { id: 'range', label: 'Nearest spawn' },
 ] as const
+/** What the HUD lists below Nearby (Settings → HUD), switched from here too. */
+const HUD_MODES: { id: Settings['hud']['mode']; label: string }[] = [
+  { id: 'recent', label: 'HUD: this session' },
+  { id: 'pinned', label: 'HUD: pinned' },
+]
 
 // Around you: the pets whose soul monsters the tracker sees loaded near you.
 const spawns = useSpawns()
@@ -34,6 +40,24 @@ const spawns = useSpawns()
 /** The continents each pet's soul monsters spawn on (Elyos, Asmodian, Abyss). */
 const continents = computed(() => (spawns.value ? petContinents(spawns.value) : new Map<number, Set<string>>()))
 const onContinent = (id: number): boolean => !continent.value || !!continents.value.get(id)?.has(continent.value)
+/** The zones each pet's soul monsters spawn in. */
+const worlds = computed(() => (spawns.value ? petWorlds(spawns.value) : new Map<number, Set<number>>()))
+/**
+ * With a continent chosen: for a pet whose souls drop there only, where they drop. Elyos or
+ * Asmodian: none on the other side ("only in Altgard"; the Abyss as well is fine). Abyss: one zone
+ * of it, whatever the pet drops outside the Abyss ("only in Chaotic Middle Reshanta", not open to
+ * everyone yet).
+ */
+const onlyZone = (id: number): string | null => {
+  const data = spawns.value
+  const side = continent.value
+  if (!data || !side) return null
+  const groups = continents.value.get(id) ?? new Set<string>()
+  const names = [...(worlds.value.get(id) ?? [])].filter((w) => data.worlds[w]?.group === side).map((w) => data.worlds[w]!.name)
+  if (side === 'abyss') return names.length === 1 ? names[0]! : null
+  if (groups.has(side === 'elyos' ? 'asmodians' : 'elyos')) return null
+  return names.length ? names.join(' & ') : null
+}
 const ofGenus = (id: number): boolean => !genus.value || petInfo(id)?.genus === genus.value
 
 /** Pets per genus on the chosen continent, for the genus chips. */
@@ -91,6 +115,7 @@ const nearLine = (n: NearbyPet): string =>
   n.monsters.map((m) => `${m.count > 1 ? `${m.count}× ` : ''}${m.name} (Lv${m.level})`).join(', ')
 
 const pinned = computed(() => new Set(store.settings.hud.pinned))
+const pinsFull = computed(() => pinned.value.size >= MAX_PINNED)
 const list = computed(() => {
   const q = query.value.trim().toLowerCase()
   // A pet nearby that the collection has never seen (no souls yet) still belongs in the list.
@@ -212,6 +237,12 @@ const syncedAgo = computed(() => {
         class="ml-auto h-8 w-64 rounded-md border border-light bg-default px-2.5 text-sm placeholder:text-darkest focus:border-accent"
       />
       <SelectBox v-model="sort" :options="SORTS" />
+      <SelectBox
+        :model-value="store.settings.hud.mode"
+        :options="HUD_MODES"
+        title="What the HUD lists below Nearby"
+        @update:model-value="store.setHud({ mode: $event })"
+      />
     </div>
     <div class="mb-4 flex flex-wrap items-center gap-1.5">
       <button
@@ -283,6 +314,9 @@ const syncedAgo = computed(() => {
                         {{ displayName(pet) }}
                       </button>
                       <GenusPill :id="pet.id" />
+                      <span v-if="onlyZone(pet.id)" class="shrink-0 whitespace-nowrap rounded border border-light px-1.5 text-[10px] text-darker">
+                        only in {{ onlyZone(pet.id) }}
+                      </span>
                     </template>
                   </div>
                   <div v-if="near.get(pet.id)" class="truncate text-xs text-green" :title="nearLine(near.get(pet.id)!)">nearby: {{ nearLine(near.get(pet.id)!) }}</div>
@@ -324,9 +358,10 @@ const syncedAgo = computed(() => {
             <td class="pr-3 text-right">
               <button
                 type="button"
-                :title="pinned.has(pet.id) ? 'Unpin from the HUD' : 'Pin to the HUD'"
+                :title="pinned.has(pet.id) ? 'Unpin from the HUD' : pinsFull ? `${MAX_PINNED} pets pinned already: unpin one first` : 'Pin to the HUD'"
+                :disabled="!pinned.has(pet.id) && pinsFull"
                 :class="[
-                  'inline-flex size-7 items-center justify-center rounded-md transition hover:bg-light',
+                  'inline-flex size-7 items-center justify-center rounded-md transition hover:bg-light disabled:cursor-not-allowed disabled:hover:bg-transparent',
                   pinned.has(pet.id) ? 'text-accent' : 'text-darkest opacity-0 hover:text-default group-hover:opacity-100',
                 ]"
                 @click.stop="store.togglePin(pet.id)"

@@ -34,14 +34,18 @@ const worldId = computed(() => (spawns.value ? (currentWorld(store.nearby, spawn
 watch(worldId, (id) => id !== null && (lastWorld.value = id))
 const world = computed(() => (spawns.value && worldId.value !== null ? (spawns.value.worlds[worldId.value] ?? null) : null))
 
-/** Tracked pets: pinned ones, then those whose soul monsters are around you; each its colour. */
+/**
+ * Tracked pets with spawns in this zone: pinned ones (all of them), then those whose soul monsters
+ * are around you; each its colour, the colours going round again past the palette.
+ */
 const tracked = computed(() => {
-  if (!spawns.value) return []
-  const ids = [...store.settings.hud.pinned, ...nearbyPets(store.nearby, spawns.value).map((n) => n.pet)]
+  const data = spawns.value
+  if (!data) return []
+  const here = (id: number): boolean => (data.pets[id] ?? []).some((d) => d.worlds.some((w) => w.world === worldId.value))
+  const ids = [...store.settings.hud.pinned, ...nearbyPets(store.nearby, data).map((n) => n.pet)]
   return [...new Set(ids)]
-    .filter((id) => !store.hiddenPet(id))
-    .slice(0, PALETTE.length)
-    .map((id, i) => ({ id, color: PALETTE[i]! }))
+    .filter((id) => !store.hiddenPet(id) && here(id))
+    .map((id, i) => ({ id, color: PALETTE[i % PALETTE.length]! }))
 })
 
 const layers = computed<MapLayer[]>(() =>
@@ -52,10 +56,8 @@ const layers = computed<MapLayer[]>(() =>
     }),
   ),
 )
-/** Only the tracked pets with spawns in this zone, for the legend. */
-const legend = computed(() =>
-  tracked.value.filter(({ id }) => (spawns.value?.pets[id] ?? []).some((d) => d.worlds.some((w) => w.world === worldId.value))),
-)
+/** The legend: the tracked pets (all with spawns in this zone). */
+const legend = tracked
 const cubes = computed(() => store.cubes.map((c) => c.position))
 const pet = (id: number) => store.pets.find((p) => p.id === id) ?? blankPet(id)
 

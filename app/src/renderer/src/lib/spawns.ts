@@ -178,6 +178,15 @@ export function petContinents(data: SpawnData): Map<number, Set<string>> {
   return out
 }
 
+/** Each pet's zones: every world one of its soul monsters spawns in. */
+export function petWorlds(data: SpawnData): Map<number, Set<number>> {
+  const out = new Map<number, Set<number>>()
+  for (const [pet, droppers] of Object.entries(data.pets)) {
+    out.set(Number(pet), new Set(droppers.flatMap((d) => d.worlds.map((w) => w.world)).filter((w) => data.worlds[w])))
+  }
+  return out
+}
+
 /**
  * How far `at` is from the nearest spawn of a pet's soul monsters in `world`, in game units; null
  * when none spawns there. `at` is in the spawn points' convention (x, -y), as Nearby reports it.

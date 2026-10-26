@@ -12,6 +12,12 @@ export interface Point {
   y: number
 }
 
+/** The most pets pinned at once: past it, a pin is refused (a bound for the saved list, not a
+ * limit anyone farms into). */
+export const MAX_PINNED = 250
+/** The pinned pets the HUD lists: the rest are counted on a line below them. */
+export const HUD_PINNED_ROWS = 15
+
 export interface Settings {
   /** Where the floating icon sits, in screen DIPs; null = bottom right of the primary display. */
   bubble: Point | null
@@ -268,7 +274,7 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         mode: v.mode === 'pinned' ? 'pinned' : 'recent',
         nearby: bool(v.nearby, d.hud.nearby),
         nearbyCount: Math.round(num(v.nearbyCount, 1, 8, d.hud.nearbyCount)),
-        pinned: Array.isArray(v.pinned) ? [...new Set(v.pinned.filter((n) => Number.isInteger(n)))].slice(0, 12) : [],
+        pinned: Array.isArray(v.pinned) ? [...new Set(v.pinned.filter((n) => Number.isInteger(n)))].slice(0, MAX_PINNED) : [],
         recentCount: Math.round(num(v.recentCount, 1, 8, d.hud.recentCount)),
         toasts: bool(v.toasts, d.hud.toasts),
         opacity: num(v.opacity, 0.3, 1, d.hud.opacity),

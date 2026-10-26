@@ -644,6 +644,12 @@ impl Tracker {
                 let pet_genus = self.pets.genus.get(&pet).map(String::as_str);
                 (genus.is_none() || pet_genus.is_none() || pet_genus == genus).then_some((ago, code, pet))
             })
+            // A pet the game said is below Lv3 (login sync, its level up) still gets souls, not
+            // crystals: it is not this crystal's, however near its monster died.
+            .filter(|&(_, _, pet)| {
+                let known = self.store.pets().and_then(|p| p.get(&pet)).filter(|p| p.level.is_some() && !p.level_estimated);
+                known.is_none_or(|p| p.level >= Some(MAX_LEVEL))
+            })
             .collect();
         candidates.sort();
         let maxed: Vec<_> = candidates.iter().filter(|c| self.maxed(c.2)).copied().collect();
@@ -824,6 +830,29 @@ mod tests {
         assert_eq!(souls.len(), 2);
         assert!(souls.iter().all(|s| s["levelUp"] == true));
         assert_eq!(souls[1]["pet"]["session"], 2);
+    }
+
+    #[test]
+    fn a_crystal_never_maxes_a_pet_the_game_says_is_below_lv3() {
+        let (mut t, events) = tracker();
+        let (&code, &id) = t.pets.droppers.iter().min().unwrap();
+        t.frame(1000, &character(5, "Ksix", 1104));
+        t.frame(1100, &collection(&[(id, 2, 65)]));
+        t.frame(1200, &character(5, "Ksix", 1104));
+        // Its monster died just before a crystal (another pet's, maxed, whose kill was not seen).
+        t.mob_code.insert(77, code);
+        t.credits.push_back((2000, 77, 5));
+        t.crystal(2100, &p::Crystal { genus: 9, amount: 1, raw: vec![] });
+        let now = pet(&t, id);
+        assert_eq!((now.level, now.souls, now.crystals), (Some(2), 65, 0));
+        let ev = events.lock().unwrap().iter().rfind(|e| e["type"] == "crystal").cloned().unwrap();
+        assert_eq!(ev["pet"], Value::Null);
+        // Not known from the game: the crystal says it is maxed.
+        let (mut t, _) = tracker();
+        t.mob_code.insert(77, code);
+        t.credits.push_back((2000, 77, 5));
+        t.crystal(2100, &p::Crystal { genus: 9, amount: 1, raw: vec![] });
+        assert_eq!((pet(&t, id).level, pet(&t, id).crystals), (Some(MAX_LEVEL), 1));
     }
 
     #[test]
