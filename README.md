@@ -86,6 +86,9 @@ anywhere and run `Aion2DropTracker.exe` (Npcap is still needed). Settings → Up
 new version is out and opens its release page: unpack the new zip over the old folder. Your settings
 and data live in `%APPDATA%\Lokthar` either way.
 
+If your browser or chat blocks downloading an `.exe`, take `Lokthar-<version>-installer.zip`
+instead: it holds the same installer.
+
 The overlay draws over **borderless or windowed** mode, not exclusive fullscreen. To update,
 use **Settings → Updates → Check for updates**: it installs the latest release over your copy,
 only when you ask. How it works and how to publish a release: [updates.md](updates.md).
