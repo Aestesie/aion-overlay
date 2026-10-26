@@ -34,6 +34,7 @@
 //!   {"type": "historyChanged", "count": 1}            boss fights were saved (every 30 s, and before a reset)
 //!   {"type": "history", "fights": [FightSummary]}     answer to "history"
 //!   {"type": "fight", "id", "fight": FightRecord}     answer to "fight"
+//!   {"type": "pvpFight", "id", "fight": Fight|null}   answer to "pvpFight" (tracker/pvp.rs)
 //!   {"type": "focus", "game": true, "app": false}     what is in front, when it changes (Windows):
 //!                                                     the game, the app's own window (--app-pid), or neither
 //!   {"type": "details", "target": 123, ...TargetDetailsResponse, "fightBuffs": {"startTimeMs", "durationMs", "buffs"} | null}
@@ -54,6 +55,7 @@
 //!   {"cmd": "buffs", "on": true}       send your buffs (the buffs overlay is on) or stop
 //!   {"cmd": "training", "on": true}    send the meter (its `train`) even while it is off: training runs
 //!   {"cmd": "dpsReset"} · {"cmd": "targetMode", "mode": "bossTargets"} · {"cmd": "details", "target": 123, "actors"?: [..]}
+//!   {"cmd": "pvpFight", "id": "..."}   a PvP fight saved on a kill or death of yours
 //!   {"cmd": "history"} · {"cmd": "fight", "id": "..."} · {"cmd": "deleteFight", "id": "..."}
 //!                                      the saved boss fights (in <data folder>/history)
 //!   {"cmd": "record", "on": true}      record the game's traffic (<data folder>/recordings), or stop
@@ -72,6 +74,7 @@ use std::time::{Duration, Instant};
 
 use a2tools_dps_meter_lib::capture::captured_payload::CapturedPayload;
 use a2tools_dps_meter_lib::capture::frame_tap;
+use a2tools_dps_meter_lib::combat::damage_tap;
 use a2tools_dps_meter_lib::clock;
 use parking_lot::Mutex;
 use serde_json::{Value, json};
@@ -212,6 +215,9 @@ pub fn run(opts: Options) -> Result<(), String> {
             frame_log.lock().note(ts, frame);
             tracker.lock().frame(ts, frame);
         })));
+        // Every hit too: those between you and other players make the PvP fights (tracker/pvp.rs).
+        let tracker = sidecar.tracker.clone();
+        damage_tap::set(Some(Arc::new(move |pdp| tracker.lock().hit(clock::now_ms(), pdp))));
     }
 
     {
@@ -250,6 +256,7 @@ pub fn run(opts: Options) -> Result<(), String> {
     }
     sidecar.set_capture(false);
     frame_tap::set(None);
+    damage_tap::set(None);
     Ok(())
 }
 
@@ -513,6 +520,19 @@ impl Sidecar {
                 "history" => {
                     let fights = self.meter.history.get().map(|h| h.list_fights()).unwrap_or_default();
                     emit(&event("history", json!({ "fights": fights })));
+                }
+                "pvpFight" => {
+                    let id = msg["id"].as_str().ok_or("no id")?;
+                    let fight = self.tracker.lock().pvp_fight(id);
+                    let mut fight = serde_json::to_value(fight).unwrap_or(Value::Null);
+                    // Each skill's name, from the meter's skill list.
+                    if let Some(skills) = fight.get_mut("skills").and_then(Value::as_array_mut) {
+                        for s in skills {
+                            let name = s["code"].as_i64().map(|c| self.meter.skill_name(c as i32));
+                            s["name"] = json!(name);
+                        }
+                    }
+                    emit(&event("pvpFight", json!({ "id": id, "fight": fight })));
                 }
                 "fight" => {
                     let id = msg["id"].as_str().ok_or("no id")?;

@@ -9,6 +9,7 @@
 
 pub mod data;
 pub mod protocol;
+pub mod pvp;
 pub mod store;
 
 use std::collections::{HashMap, VecDeque};
@@ -16,6 +17,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use a2tools_dps_meter_lib::combat::data_storage::DataStorage;
+use a2tools_dps_meter_lib::entity::damage_packet::ParsedDamagePacket;
+use a2tools_dps_meter_lib::entity::special_damage::SpecialDamage;
 use a2tools_dps_meter_lib::i18n::lookup::NpcLookup;
 use serde_json::{Value, json};
 
@@ -119,6 +122,9 @@ pub struct Tracker {
     players: HashMap<u32, p::Player>,
     /// Players of the other faction in view: in on `45 36`, out on `42 36` or a new zone.
     enemies: HashMap<u32, p::Player>,
+    /// Hits between you and other players, and the fights saved from them (`pvp`).
+    pvp_hits: pvp::Hits,
+    pvp_fights: pvp::Fights,
     /// Player cards (`30 97`, target info `50 36`) by name and server: level, gear score, combat power.
     cards: HashMap<(String, u16), Card>,
     /// When target info last had no believable combat power (logged once a minute, to fix the reader).
@@ -143,6 +149,7 @@ fn pet_view(id: u32, pet: &Pet, name: Option<&str>, session: u32) -> Value {
 
 impl Tracker {
     pub fn new(store: Store, path: Option<PathBuf>, npcs: Arc<NpcLookup>, storage: Arc<DataStorage>, emit: Emit) -> Self {
+        let pvp_fights = pvp::Fights::load(path.as_ref().map(|p| p.with_file_name("pvp-fights.json")));
         Self {
             store,
             path,
@@ -170,6 +177,8 @@ impl Tracker {
             players: HashMap::new(),
             enemies: HashMap::new(),
             cards: HashMap::new(),
+            pvp_hits: pvp::Hits::default(),
+            pvp_fights,
             target_unread: 0,
             legions: HashMap::new(),
             self_entity: None,
@@ -302,6 +311,73 @@ impl Tracker {
         if self.enemies.values().any(|e| e.name == t.name && e.server == Some(t.server)) {
             self.enemies_changed(ts);
         }
+    }
+
+    /// A hit as the parser read it: kept when it is between you and another player.
+    pub fn hit(&mut self, ts: i64, pdp: &ParsedDamagePacket) {
+        let (Ok(actor), Ok(target)) = (u32::try_from(pdp.actor_id()), u32::try_from(pdp.target_id())) else { return };
+        let Some(me) = self.me() else { return };
+        let other = if actor == me { target } else if target == me { actor } else { return };
+        if other == me || !self.players.contains_key(&other) {
+            return;
+        }
+        let has = |s: SpecialDamage| pdp.specials().contains(&s);
+        self.pvp_hits.push(pvp::Hit {
+            ts,
+            actor,
+            target,
+            skill: pdp.skill_code(),
+            damage: i64::from(pdp.total_damage()),
+            crit: pdp.is_crit(),
+            dot: pdp.is_dot(),
+            back: has(SpecialDamage::Back),
+            perfect: has(SpecialDamage::Perfect),
+            double: has(SpecialDamage::Double),
+            parry: has(SpecialDamage::Parry),
+            multi: u32::try_from(pdp.multi_hit_count()).unwrap_or(0),
+        });
+    }
+
+    /// A saved PvP fight, by id.
+    pub fn pvp_fight(&self, id: &str) -> Option<pvp::Fight> {
+        self.pvp_fights.get(id).cloned()
+    }
+
+    /// One side of a PvP fight: what is known of that player.
+    fn pvp_side(&self, entity: u32, name: &str, server: Option<u16>, legion: Option<String>) -> pvp::Side {
+        let card = server.and_then(|s| self.cards.get(&(name.to_string(), s)));
+        pvp::Side {
+            entity,
+            name: name.to_string(),
+            server,
+            class_name: card.and_then(|c| c.class).map(str::to_string),
+            combat_power: card.and_then(|c| c.cp),
+            legion,
+        }
+    }
+
+    /// Your kill or death: the fight with that player, saved from your hits on each other. None
+    /// when there were none (a kill seen without a fight on record).
+    fn save_pvp_fight(&mut self, ts: i64, credit: &p::KillCredit, died: bool, my_legion: Option<String>, my_server: Option<u16>) -> Option<String> {
+        let me = self.me()?;
+        let my_name = self.store.current.clone()?;
+        let opponent = if died { credit.killer } else { credit.victim };
+        let hits = self.pvp_hits.between(me, opponent, ts);
+        if hits.is_empty() {
+            return None;
+        }
+        let them = if died {
+            self.pvp_side(opponent, &credit.name, Some(credit.server), credit.legion.clone().or_else(|| self.legions.get(&opponent).cloned()))
+        } else {
+            let v = self.players.get(&opponent)?.clone();
+            self.pvp_side(opponent, &v.name, v.server, v.legion.or_else(|| self.legions.get(&opponent).cloned()))
+        };
+        let mine = self.pvp_side(me, &my_name, my_server, my_legion);
+        let id = format!("pvp-{ts}-{opponent}");
+        let fight = pvp::fight(id.clone(), ts, if died { "death" } else { "kill" }, mine, them, &hits);
+        tracing::info!("pvp fight saved: {} vs {} ({}, {} hits)", fight.me.name, fight.opponent.name, fight.outcome, hits.len());
+        self.pvp_fights.add(fight);
+        Some(id)
     }
 
     /// Your faction, from the server of the character playing.
@@ -556,6 +632,15 @@ impl Tracker {
                     (self.emit)(json!({ "type": "shop", "ts": ts, "tab": tab, "nextAt": next, "items": items }));
                 }
             }
+            p::OP_PLAYER_GONE => {
+                // Out of view: off the enemies' list (kept among the players, for names on a late
+                // kill credit; a new zone clears those).
+                if let Some(entity) = p::player_gone(f) {
+                    if self.enemies.remove(&entity).is_some() {
+                        self.enemies_changed(ts);
+                    }
+                }
+            }
             p::OP_TARGET_INFO => {
                 if let Some(t) = p::target_info(f) {
                     self.target_info(ts, t, f);
@@ -611,6 +696,10 @@ impl Tracker {
         }
         if credit.player_victim && (1000..=9999).contains(&credit.server) {
             self.pvp_kill(ts, credit);
+            // Dead: not a threat until they come back (a new `45 36` lists them again).
+            if self.enemies.remove(&credit.victim).is_some() {
+                self.enemies_changed(ts);
+            }
         }
     }
 
@@ -851,6 +940,8 @@ impl Tracker {
         };
         let legion = ours(killer_legion.as_deref(), Some(credit.server as u64))
             || victim.as_ref().is_some_and(|v| ours(v["guild"].as_str(), v["server"].as_u64()));
+        let mine = me.as_deref() == Some(credit.name.as_str()) && mine_entry.server.is_none_or(|s| s == credit.server);
+        let fight = if mine || died { self.save_pvp_fight(ts, credit, died, my_legion.clone(), mine_entry.server) } else { None };
         let class_of = |name: &str, server: Option<u64>| -> Option<&'static str> {
             let server = u16::try_from(server?).ok()?;
             self.cards.get(&(name.to_string(), server))?.class
@@ -861,11 +952,10 @@ impl Tracker {
             v
         });
         (self.emit)(json!({
-            "type": "pvpKill", "ts": ts,
+            "type": "pvpKill", "ts": ts, "fight": fight,
             "killer": { "name": credit.name, "server": credit.server, "guild": killer_legion, "className": class_of(&credit.name, Some(credit.server as u64)) },
             "victim": victim,
-            "mine": me.as_deref() == Some(credit.name.as_str())
-                && mine_entry.server.is_none_or(|s| s == credit.server),
+            "mine": mine,
             "died": died,
             "legion": legion,
         }));
@@ -1133,5 +1223,37 @@ mod tests {
         steady_cp(&mut c, 170_000);
         steady_cp(&mut c, 171_000);
         assert_eq!(c.cp, Some(171_000));
+    }
+
+    /// `45 36` for a player of `faction` (1 Elyos, 2 Asmodian), with no server record: the faction
+    /// byte after the name's u32 says it.
+    fn player_frame(entity: u8, name: &str, faction: u8) -> Vec<u8> {
+        let mut body = vec![entity, 0, 0, 0, 0, name.len() as u8];
+        body.extend(name.as_bytes());
+        body.extend([0, 0, 0, 0, faction]);
+        frame(p::OP_PLAYER, &body)
+    }
+
+    fn enemy_names(events: &Arc<std::sync::Mutex<Vec<Value>>>) -> Vec<String> {
+        let list = events.lock().unwrap();
+        let last = list.iter().rev().find(|e| e["type"] == "enemies").cloned().unwrap_or(Value::Null);
+        last["players"].as_array().map(|ps| ps.iter().filter_map(|p| p["name"].as_str().map(str::to_string)).collect()).unwrap_or_default()
+    }
+
+    #[test]
+    fn an_enemy_leaves_the_list_when_out_of_view_or_in_a_new_zone() {
+        let (mut t, events) = tracker();
+        // You: Elyos (server 1104).
+        t.frame(1000, &character(5, "Ksix", 1104));
+        t.frame(1100, &player_frame(40, "Friend", 1));
+        t.frame(1200, &player_frame(41, "Loperamida", 2));
+        t.frame(1300, &player_frame(42, "Varkhen", 2));
+        assert_eq!(enemy_names(&events), vec!["Loperamida", "Varkhen"]);
+        // Out of view.
+        t.frame(2000, &frame(p::OP_PLAYER_GONE, &[41, 0x02, 0x00]));
+        assert_eq!(enemy_names(&events), vec!["Varkhen"]);
+        // A new zone: no one.
+        t.frame(3000, &frame(p::OP_MAP_LOAD, &[0u8; 28]));
+        assert!(enemy_names(&events).is_empty());
     }
 }

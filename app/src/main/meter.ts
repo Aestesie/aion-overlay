@@ -13,6 +13,9 @@ import {
   detailsView,
   meterData,
   NO_METER,
+  type DetailsActor,
+  type DetailsDefense,
+  type DetailsSkill,
   type DetailsSource,
   type DetailsView,
   type DpsEvent,
@@ -91,7 +94,7 @@ export function startMeter(): void {
     broadcast('buffs:list', buffs)
   })
   tracker.onEvent('historyChanged', () => broadcast('history:changed', Date.now()))
-  for (const type of ['details', 'history', 'fight', 'recordings']) tracker.onEvent(type, answer)
+  for (const type of ['details', 'history', 'fight', 'pvpFight', 'recordings']) tracker.onEvent(type, answer)
   // A recording started or stopped: the list again, with it.
   tracker.onEvent('recording', () => void meterState.recordings().then((r) => broadcast('recordings:changed', r)))
   let last = JSON.stringify([settings.get('meter').enabled, settings.get('meter').targetMode, settings.get('buffs').enabled, settings.get('buffs').cc])
@@ -106,6 +109,58 @@ export function startMeter(): void {
 /** Names and classes for a live fight: the meter's rows. */
 function liveNames(): Map<number, { name: string; className: string | null; combatPower: number; you: boolean }> {
   return new Map(meter.rows.map((r) => [r.id, { name: r.name, className: r.className, combatPower: r.combatPower, you: r.you }]))
+}
+
+/** A PvP fight as the engine saves it (tracker/pvp.rs), skill names added by the sidecar. */
+interface PvpSide {
+  entity: number
+  name: string
+  server: number | null
+  className: string | null
+  combatPower: number | null
+}
+interface PvpFight {
+  id: string
+  at: number
+  outcome: 'kill' | 'death'
+  me: PvpSide
+  opponent: PvpSide
+  startMs: number
+  durationMs: number
+  skills: (Omit<DetailsSkill, 'name'> & { name: string | null })[]
+}
+
+/**
+ * A PvP fight in the Details window: you and the other player as its two rows, each with the
+ * damage they did to the other and their skills, and the damage each took.
+ */
+async function pvpDetails(source: Extract<DetailsSource, { kind: 'pvp' }>): Promise<DetailsView | null> {
+  const ev = await ask({ cmd: 'pvpFight', id: source.id }, 'pvpFight', (e) => e['id'] === source.id)
+  const fight = ev?.['fight'] as PvpFight | null | undefined
+  if (!fight) return null
+  const seconds = Math.max(1, fight.durationMs / 1000)
+  const skills: DetailsSkill[] = fight.skills.map((s) => ({ ...s, name: s.name || `Skill ${s.code}` }))
+  const dealt = (id: number): DetailsSkill[] => skills.filter((s) => s.actor === id)
+  const sum = (list: DetailsSkill[], f: (s: DetailsSkill) => number): number => list.reduce((n, s) => n + f(s), 0)
+  const total = Math.max(1, sum(skills, (s) => s.damage))
+  const actor = (side: PvpSide, you: boolean): DetailsActor => {
+    const damage = sum(dealt(side.entity), (s) => s.damage)
+    return { id: side.entity, name: side.name, className: side.className, damage, dps: damage / seconds, share: (damage / total) * 100, heal: 0, combatPower: side.combatPower ?? 0, you }
+  }
+  const taken = (by: PvpSide): DetailsDefense => ({ taken: sum(dealt(by.entity), (s) => s.damage), hitsTaken: sum(dealt(by.entity), (s) => s.hits), heal: 0 })
+  return {
+    source,
+    buffs: null,
+    title: `${fight.me.name} vs ${fight.opponent.name} · ${fight.outcome === 'kill' ? 'you won' : 'you died'}`,
+    startedAt: fight.startMs,
+    battleTime: fight.durationMs,
+    totalDamage: sum(skills, (s) => s.damage),
+    maxHp: 0,
+    actors: [actor(fight.me, true), actor(fight.opponent, false)].sort((a, b) => b.damage - a.damage),
+    skills,
+    heals: [],
+    defense: { [fight.me.entity]: taken(fight.opponent), [fight.opponent.entity]: taken(fight.me) },
+  }
 }
 
 export const meterState = {
@@ -124,6 +179,7 @@ export const meterState = {
       const fightBuffs: FightBuffs | null = live ? { targetId: source.target, durationMs: live.durationMs, tracks: live.buffs } : null
       return { ...detailsView(source, title || 'Target', ev as unknown as TargetDetails, liveNames()), buffs: fightBuffs }
     }
+    if (source.kind === 'pvp') return pvpDetails(source)
     if (source.kind !== 'saved') return null
     const ev = await ask({ cmd: 'fight', id: source.id }, 'fight', (e) => e['id'] === source.id)
     const fight = ev?.['fight'] as FightRecord | undefined

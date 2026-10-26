@@ -226,6 +226,8 @@ export type DetailsSource =
   | { kind: 'saved'; id: string; actor?: number }
   /** A training dummy run (main/dummy.ts keeps its breakdown). */
   | { kind: 'run'; id: string; actor?: number }
+  /** A PvP fight of yours, saved by the engine on the kill or death (engine tracker/pvp.rs). */
+  | { kind: 'pvp'; id: string; actor?: number }
 
 /** One skill of one player (or one heal). */
 export interface DetailsSkill {

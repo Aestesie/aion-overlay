@@ -58,6 +58,12 @@ function ago(ms: number): string {
 const rowClass = (k: PvpKill): string =>
   k.mine ? 'bg-green/10 border-l-2 border-green' : k.died ? 'bg-danger/10 border-l-2 border-danger' : 'border-l-2 border-transparent'
 const clear = (): void => void bridge().invoke('tracker:clearPvp')
+/** Your kill or death, its fight in the Details window: each side's damage and skills. */
+const openFight = (k: PvpKill): void => {
+  if (k.fight) void bridge().invoke('details:open', { kind: 'pvp', id: k.fight })
+}
+const fightTitle = (k: PvpKill): string | undefined =>
+  k.fight ? 'Show the fight: damage and skills, yours and theirs' : k.mine || k.died ? 'No hits between you were seen before this one' : undefined
 /** The kill feed over the game (its own small window). */
 const hudOpen = computed(() => store.settings.killFeed.open)
 const toggleHud = (): void => void bridge().invoke(hudOpen.value ? 'killfeed:close' : 'killfeed:open')
@@ -96,7 +102,13 @@ const BACKGROUND_HINT = 'At None the text keeps a dark glow, readable on the gam
     </div>
 
     <ul v-if="filtered.length" class="divide-y divide-[color:var(--line)] overflow-hidden rounded-lg border border-card bg-card">
-      <li v-for="(k, i) in shown" :key="`${k.at}-${i}`" :class="['flex items-center gap-2 px-3 py-2 text-sm', rowClass(k)]">
+      <li
+        v-for="(k, i) in shown"
+        :key="`${k.at}-${i}`"
+        :class="['flex items-center gap-2 px-3 py-2 text-sm', rowClass(k), k.fight && 'cursor-pointer hover:bg-dark']"
+        :title="fightTitle(k)"
+        @click="openFight(k)"
+      >
         <div class="min-w-0 flex-1">
           <div class="flex min-w-0 items-center gap-1.5">
             <ClassIcon :class-name="k.killer.className" :size="16" />
@@ -111,6 +123,7 @@ const BACKGROUND_HINT = 'At None the text keeps a dark glow, readable on the gam
           </div>
           <div v-if="k.killer.guild" class="truncate text-[11px] text-darker">{{ k.killer.guild }}</div>
         </div>
+        <span v-if="k.fight" class="shrink-0 text-[11px] font-medium text-accent">Details ›</span>
         <span class="shrink-0 text-[11px] tabular-nums text-darker" :title="time(k.at)">{{ ago(k.at) }}</span>
       </li>
     </ul>

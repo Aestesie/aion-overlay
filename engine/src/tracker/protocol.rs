@@ -22,6 +22,7 @@ pub const OP_FIELD_BOSSES: [u8; 2] = [0x01, 0x91];
 pub const OP_SHOP: [u8; 2] = [0x91, 0x56];
 pub const OP_KILL: [u8; 2] = [0x04, 0x8D];
 pub const OP_PLAYER: [u8; 2] = [0x45, 0x36];
+pub const OP_PLAYER_GONE: [u8; 2] = [0x47, 0x36];
 pub const OP_LEGION: [u8; 2] = [0x33, 0x8A];
 pub const OP_OBJECT_SPAWN: [u8; 2] = [0x34, 0x36];
 pub const OP_OBJECT_REMOVED: [u8; 2] = [0x35, 0x36];
@@ -592,6 +593,15 @@ pub fn player_card(frame: &[u8]) -> Option<PlayerCard> {
     let end = 21 + name.len();
     let valid = (1000..=9999).contains(&server) && (1..=99).contains(&level) && gear_score < 100_000 && u16_at(b, end) == Some(server);
     valid.then_some(PlayerCard { name, server, class: u32_at(b, 8)?, level, gear_score, combat_power: u32_at(b, end + 6)? })
+}
+
+/// `47 36 <entity varint> <reason u16>`: a player out of your view (out of
+/// range 01, 02, a teleport 0a...). In every capture so far it follows only
+/// players' `45 36`, never a monster's (those leave with `42 36`).
+pub fn player_gone(frame: &[u8]) -> Option<u32> {
+    let b = body(frame, OP_PLAYER_GONE)?;
+    let (entity, n) = varint(b, 0)?;
+    (b.len() >= n + 2).then_some(entity)
 }
 
 /// A class by the number party records and target info carry: four values a class, which differ

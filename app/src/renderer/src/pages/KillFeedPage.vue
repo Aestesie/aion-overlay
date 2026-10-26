@@ -132,7 +132,14 @@ onBeforeUnmount(() => observer?.disconnect())
           name="toast"
           :class="['space-y-1 px-2.5 py-1.5', cfg.opacity > 0 && 'border-t border-card']"
         >
-          <div v-for="k in lines" :key="`${k.at}-${k.killer.name}`" class="flex min-w-0 items-center gap-1 text-xs">
+          <div
+            v-for="k in lines"
+            :key="`${k.at}-${k.killer.name}`"
+            :class="['flex min-w-0 items-center gap-1 text-xs', k.fight && 'cursor-pointer hover:underline']"
+            :title="k.fight ? 'Show the fight' : undefined"
+            @pointerdown.stop
+            @click="k.fight && bridge().invoke('details:open', { kind: 'pvp', id: k.fight })"
+          >
             <ClassIcon :class-name="k.killer.className" :size="14" />
             <span :class="['truncate font-semibold', k.mine ? 'text-green' : 'text-dark']">{{ k.killer.name }}</span>
             <span v-if="tag(k.killer.server)" class="shrink-0 text-[10px] text-yellow">[{{ tag(k.killer.server) }}]</span>

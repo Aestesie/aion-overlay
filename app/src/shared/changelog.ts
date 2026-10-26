@@ -10,6 +10,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.3.4',
+    items: [
+      'Click your PvP kills and deaths to see the fight: damage, DPS and skills on both sides.',
+      'Fixed: enemies stayed on the Enemies nearby list after leaving or dying.',
+    ],
+  },
+  {
     version: '0.3.3',
     items: [
       'New Enemies nearby overlay: enemy players around you, with class, server and combat power.',

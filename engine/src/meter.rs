@@ -59,6 +59,11 @@ impl Meter {
         }
     }
 
+    /// A skill's name, as the meter's skill list has it.
+    pub fn skill_name(&self, code: i32) -> String {
+        self.skills.get_skill_name(code)
+    }
+
     /// Save the boss fights (and training dummy sessions) on the meter to the
     /// history: those changed since their last save, or every one with
     /// `force` (before the combat data is cleared). How many were saved.

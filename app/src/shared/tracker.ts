@@ -119,6 +119,8 @@ export interface PvpKill {
   died: boolean
   /** Your legion was the killer's or the victim's (you included). */
   legion: boolean
+  /** Your kill or death: the fight's id, to open in Details (null when no hits between you were seen). */
+  fight?: string | null
 }
 
 /** A soul as the HUD toasts it. */

@@ -240,7 +240,7 @@ export function registerIpc(): void {
     if (isPoint({ x: size?.width, y: size?.height })) resizeBuffs(size)
   })
   handle('details:open', (source) => {
-    const ok = source?.kind === 'live' ? Number.isInteger(source.target) : (source?.kind === 'saved' || source?.kind === 'run') && isPlainId(source.id)
+    const ok = source?.kind === 'live' ? Number.isInteger(source.target) : (source?.kind === 'saved' || source?.kind === 'run' || source?.kind === 'pvp') && isPlainId(source.id)
     if (ok) openDetails(source)
   })
   handle('details:get', () => {
