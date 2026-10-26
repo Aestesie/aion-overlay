@@ -1,8 +1,9 @@
-//! PvP fights: every hit between you and another player (read by `damage`, a
-//! copy of A2Tools DPS Meter's reader: its meter takes a player's hit on a
-//! player for party healing and keeps none), and on a kill or a death of
-//! yours, the fight with that player saved: each side's skills, the damage they
-//! did and when. The PvP page opens one in the Details window.
+//! PvP fights: every hit between two players in view, you or others (read by
+//! `damage`, a copy of A2Tools DPS Meter's reader: its meter takes a player's
+//! hit on a player for party healing and keeps none), and on a kill, a death
+//! or an assist of yours, the fight around that player saved: everyone's hits
+//! on them and theirs on anyone, each player's skills, the damage they did and
+//! took, and when. The PvP page opens one in the Details window.
 
 use std::collections::{HashMap, VecDeque};
 use std::fs;
@@ -43,7 +44,7 @@ pub const GAP_MS: i64 = 30_000;
 /// Fights kept on disk, newest first.
 const MAX_FIGHTS: usize = 300;
 
-/// One hit between you and another player, as the parser read it.
+/// One hit of a player on another, as the parser read it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Hit {
     pub ts: i64,
@@ -90,6 +91,23 @@ impl Hits {
         out.reverse();
         out
     }
+
+    /// The fight around player `x` that ended by `end`: every hit they dealt or took, back from
+    /// the last one before it to the first pause longer than `GAP_MS`.
+    pub fn around(&self, x: u32, end: i64) -> Vec<Hit> {
+        let mut out: Vec<Hit> = Vec::new();
+        for h in self.list.iter().rev() {
+            if h.ts > end || (h.actor != x && h.target != x) {
+                continue;
+            }
+            if out.last().is_some_and(|later| later.ts - h.ts > GAP_MS) {
+                break;
+            }
+            out.push(h.clone());
+        }
+        out.reverse();
+        out
+    }
 }
 
 /// One player's skill in a fight, in the Details window's terms (shared/meter.ts `DetailsSkill`,
@@ -111,6 +129,15 @@ pub struct SkillLine {
     pub multi: u32,
     /// When each hit landed, ms from the fight's start.
     pub at: Vec<i64>,
+}
+
+/// The damage one player took in a fight, and in how many hits.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Taken {
+    pub entity: u32,
+    pub damage: i64,
+    pub hits: u32,
 }
 
 /// One side of a fight.
@@ -139,9 +166,15 @@ pub struct Fight {
     pub killer: Option<String>,
     pub me: Side,
     pub opponent: Side,
+    /// The other players in it: your allies who hit the opponent, theirs they hit.
+    #[serde(default)]
+    pub others: Vec<Side>,
     pub start_ms: i64,
     pub duration_ms: i64,
     pub skills: Vec<SkillLine>,
+    /// What each player took, from whom it may be (fights saved before it: none).
+    #[serde(default)]
+    pub taken: Vec<Taken>,
 }
 
 /// The fight from its hits: each side's skills, most damage first.
@@ -149,7 +182,11 @@ pub fn fight(id: String, at: i64, outcome: &str, me: Side, opponent: Side, hits:
     let start = hits.first().map_or(at, |h| h.ts);
     let end = hits.last().map_or(at, |h| h.ts);
     let mut lines: HashMap<(u32, i32), SkillLine> = HashMap::new();
+    let mut taken: HashMap<u32, Taken> = HashMap::new();
     for h in hits {
+        let t = taken.entry(h.target).or_insert_with(|| Taken { entity: h.target, ..Default::default() });
+        t.damage += h.damage;
+        t.hits += 1;
         let line = lines.entry((h.actor, h.skill)).or_insert_with(|| SkillLine { actor: h.actor, code: h.skill, ..Default::default() });
         line.damage += h.damage;
         line.hits += 1;
@@ -165,7 +202,9 @@ pub fn fight(id: String, at: i64, outcome: &str, me: Side, opponent: Side, hits:
     }
     let mut skills: Vec<SkillLine> = lines.into_values().collect();
     skills.sort_by(|a, b| b.damage.cmp(&a.damage));
-    Fight { id, at, outcome: outcome.to_string(), killer: None, me, opponent, start_ms: start, duration_ms: (end - start).max(1000), skills }
+    let mut taken: Vec<Taken> = taken.into_values().collect();
+    taken.sort_by_key(|t| t.entity);
+    Fight { id, at, outcome: outcome.to_string(), killer: None, me, opponent, others: Vec::new(), start_ms: start, duration_ms: (end - start).max(1000), skills, taken }
 }
 
 /// The fights saved, newest first.
@@ -222,5 +261,17 @@ mod tests {
         assert_eq!((mine.code, mine.damage, mine.hits, mine.max_hit, mine.at.clone()), (10, 1700, 2, 900, vec![0, 2000]));
         let theirs = f.skills.iter().find(|s| s.actor == 2).unwrap();
         assert_eq!((theirs.damage, theirs.crits), (1200, 1));
+        assert_eq!(f.taken, vec![Taken { entity: 1, damage: 1200, hits: 1 }, Taken { entity: 2, damage: 1700, hits: 2 }]);
+    }
+
+    #[test]
+    fn the_fight_around_a_player_has_everyones_hits_on_them_and_theirs() {
+        let mut hits = Hits::default();
+        hits.push(hit(0, 1, 2, 10, 500)); // you on them
+        hits.push(hit(1_000, 3, 2, 30, 700)); // an ally on them
+        hits.push(hit(1_500, 2, 3, 20, 400)); // them on the ally
+        hits.push(hit(2_000, 3, 4, 30, 999)); // the ally on someone else: another fight
+        let around = hits.around(2, 3_000);
+        assert_eq!(around.iter().map(|h| h.ts).collect::<Vec<_>>(), vec![0, 1_000, 1_500]);
     }
 }

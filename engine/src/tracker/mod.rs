@@ -370,9 +370,9 @@ impl Tracker {
                     }
                 }
             }
-            let Some(me) = me else { continue };
-            let other = if h.actor == me { h.target } else if h.target == me { h.actor } else { continue };
-            if other == me || !self.players.contains_key(&other) {
+            // A hit of a player on another, you or not: a fight's, should it end in a kill.
+            let player = |e: u32| Some(e) == me || self.players.contains_key(&e);
+            if h.actor == h.target || !player(h.actor) || !player(h.target) {
                 continue;
             }
             let has = |s: SpecialDamage| h.specials.contains(&s);
@@ -450,10 +450,11 @@ impl Tracker {
         if opponent == me {
             return None;
         }
-        let hits = self.pvp_hits.between(me, opponent, ts);
-        if hits.is_empty() {
+        // A fight you took part in: hits between you two. Then all of it: everyone's on them, theirs on anyone.
+        if self.pvp_hits.between(me, opponent, ts).is_empty() {
             return None;
         }
+        let hits = self.pvp_hits.around(opponent, ts);
         let them = if died {
             self.pvp_side(opponent, &credit.name, Some(credit.server), credit.legion.clone().or_else(|| self.legions.get(&opponent).cloned()))
         } else {
@@ -463,11 +464,22 @@ impl Tracker {
         let me_side = self.pvp_side(me, &my_name, my_server, my_legion);
         let id = format!("pvp-{ts}-{opponent}");
         let outcome = if died { "death" } else if mine { "kill" } else { "assist" };
+        let mut others: Vec<u32> = hits.iter().flat_map(|h| [h.actor, h.target]).filter(|&e| e != me && e != opponent).collect();
+        others.sort_unstable();
+        others.dedup();
+        let others: Vec<pvp::Side> = others
+            .into_iter()
+            .filter_map(|e| {
+                let p = self.players.get(&e)?.clone();
+                Some(self.pvp_side(e, &p.name, p.server, p.legion.or_else(|| self.legions.get(&e).cloned())))
+            })
+            .collect();
         let mut fight = pvp::fight(id.clone(), ts, outcome, me_side, them, &hits);
+        fight.others = others;
         if outcome == "assist" {
             fight.killer = Some(credit.name.clone());
         }
-        tracing::info!("pvp fight saved: {} vs {} ({}, {} hits)", fight.me.name, fight.opponent.name, fight.outcome, hits.len());
+        tracing::info!("pvp fight saved: {} vs {} ({}, {} hits, {} other players)", fight.me.name, fight.opponent.name, fight.outcome, hits.len(), fight.others.len());
         self.pvp_fights.add(fight);
         Some(id)
     }

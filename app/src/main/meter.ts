@@ -127,14 +127,18 @@ interface PvpFight {
   killer?: string
   me: PvpSide
   opponent: PvpSide
+  /** The other players in it: your allies who hit the opponent, theirs they hit (older fights: none). */
+  others?: PvpSide[]
   startMs: number
   durationMs: number
   skills: (Omit<DetailsSkill, 'name'> & { name: string | null })[]
+  /** What each player took (older fights: none, then it is what the other side dealt). */
+  taken?: { entity: number; damage: number; hits: number }[]
 }
 
 /**
- * A PvP fight in the Details window: you and the other player as its two rows, each with the
- * damage they did to the other and their skills, and the damage each took.
+ * A PvP fight in the Details window: you, the other player and everyone else who hit them or was
+ * hit by them as its rows, each with the damage they did and their skills, and the damage each took.
  */
 async function pvpDetails(source: Extract<DetailsSource, { kind: 'pvp' }>): Promise<DetailsView | null> {
   const ev = await ask({ cmd: 'pvpFight', id: source.id }, 'pvpFight', (e) => e['id'] === source.id)
@@ -149,7 +153,16 @@ async function pvpDetails(source: Extract<DetailsSource, { kind: 'pvp' }>): Prom
     const damage = sum(dealt(side.entity), (s) => s.damage)
     return { id: side.entity, name: side.name, className: side.className, damage, dps: damage / seconds, share: (damage / total) * 100, heal: 0, combatPower: side.combatPower ?? 0, you }
   }
-  const taken = (by: PvpSide): DetailsDefense => ({ taken: sum(dealt(by.entity), (s) => s.damage), hitsTaken: sum(dealt(by.entity), (s) => s.hits), heal: 0 })
+  const others = fight.others ?? []
+  const defense: Record<number, DetailsDefense> = {}
+  if (fight.taken) {
+    for (const t of fight.taken) defense[t.entity] = { taken: t.damage, hitsTaken: t.hits, heal: 0 }
+  } else {
+    // Saved before `taken`: only the two of you, each taking what the other dealt.
+    const by = (side: PvpSide): DetailsDefense => ({ taken: sum(dealt(side.entity), (s) => s.damage), hitsTaken: sum(dealt(side.entity), (s) => s.hits), heal: 0 })
+    defense[fight.me.entity] = by(fight.opponent)
+    defense[fight.opponent.entity] = by(fight.me)
+  }
   return {
     source,
     buffs: null,
@@ -158,10 +171,10 @@ async function pvpDetails(source: Extract<DetailsSource, { kind: 'pvp' }>): Prom
     battleTime: fight.durationMs,
     totalDamage: sum(skills, (s) => s.damage),
     maxHp: 0,
-    actors: [actor(fight.me, true), actor(fight.opponent, false)].sort((a, b) => b.damage - a.damage),
+    actors: [actor(fight.me, true), actor(fight.opponent, false), ...others.map((o) => actor(o, false))].sort((a, b) => b.damage - a.damage),
     skills,
     heals: [],
-    defense: { [fight.me.entity]: taken(fight.opponent), [fight.opponent.entity]: taken(fight.me) },
+    defense,
   }
 }
 
