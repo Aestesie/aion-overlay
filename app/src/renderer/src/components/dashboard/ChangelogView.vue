@@ -4,6 +4,7 @@
 // update, still to come.
 import { computed } from 'vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
+import { t } from '@/lib/i18n.ts'
 import { CHANGELOG } from '@shared/changelog.ts'
 
 const props = defineProps<{ version: string | null }>()
@@ -27,13 +28,13 @@ const entries = computed(() =>
       <section v-for="e in entries" :key="e.version" class="rounded-xl border border-card bg-card px-4 py-3">
         <h3 class="mb-2 flex items-center gap-2 text-sm font-semibold">
           v{{ e.version }}
-          <span v-if="e.current" class="rounded bg-accent/20 px-1.5 text-[10px] font-bold uppercase text-accent">This version</span>
-          <span v-else-if="e.upcoming" class="rounded bg-green/20 px-1.5 text-[10px] font-bold uppercase text-green">Next update</span>
+          <span v-if="e.current" class="rounded bg-accent/20 px-1.5 text-[10px] font-bold uppercase text-accent">{{ t('This version') }}</span>
+          <span v-else-if="e.upcoming" class="rounded bg-green/20 px-1.5 text-[10px] font-bold uppercase text-green">{{ t('Next update') }}</span>
         </h3>
         <ul class="space-y-1 text-sm text-dark">
           <li v-for="item in e.items" :key="item" class="flex gap-2">
             <span class="mt-[7px] size-1 shrink-0 rounded-full bg-darker" />
-            <span>{{ item }}</span>
+            <span>{{ t(item) }}</span>
           </li>
         </ul>
       </section>

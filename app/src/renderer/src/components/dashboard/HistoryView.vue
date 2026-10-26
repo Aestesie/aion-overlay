@@ -6,6 +6,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import Segmented from '@/components/ui/Segmented.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { loc, t } from '@/lib/i18n.ts'
 import { CLASS_NAMES, type FightSummary } from '@shared/meter.ts'
 
 const api = bridge()
@@ -28,7 +29,7 @@ const clock = (ms: number): string => {
   const s = Math.floor(ms / 1000)
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
-const when = (ms: number): string => new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+const when = (ms: number): string => new Date(ms).toLocaleString(loc(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 const shown = computed(() => {
   const q = query.value.trim().toLowerCase()
@@ -68,26 +69,26 @@ onBeforeUnmount(() => off?.())
       <input
         v-model="query"
         type="search"
-        placeholder="Search by boss"
+        :placeholder="t('Search by boss')"
         class="ml-auto h-8 w-60 rounded-md border border-light bg-default px-2.5 text-sm placeholder:text-darkest focus:border-accent"
       />
     </div>
 
-    <p v-if="fights === null" class="text-sm text-darker">Loading…</p>
+    <p v-if="fights === null" class="text-sm text-darker">{{ t('Loading…') }}</p>
     <div v-else-if="!shown.length" class="rounded-xl border border-dashed border-card px-4 py-10 text-center">
-      <div class="text-sm font-medium">No fights {{ query ? 'match' : 'saved yet' }}.</div>
-      <div class="mt-1 text-xs text-darker">Each boss fight is kept as it ends, and before the meter is cleared.</div>
+      <div class="text-sm font-medium">{{ query ? t('No fights match.') : t('No fights saved yet.') }}</div>
+      <div class="mt-1 text-xs text-darker">{{ t('Each boss fight is kept as it ends, and before the meter is cleared.') }}</div>
     </div>
     <div v-else class="overflow-hidden rounded-xl border border-card">
       <table class="w-full text-sm">
         <thead class="bg-card text-xs uppercase tracking-wide text-darker">
           <tr class="border-b border-card">
-            <th class="py-2.5 pl-4 text-left font-medium">Fight</th>
+            <th class="py-2.5 pl-4 text-left font-medium">{{ t('Fight') }}</th>
             <th class="px-3 text-left font-medium">Party</th>
-            <th class="w-20 px-3 text-right font-medium">Time</th>
-            <th class="w-24 px-3 text-right font-medium">Damage</th>
+            <th class="w-20 px-3 text-right font-medium">{{ t('Time') }}</th>
+            <th class="w-24 px-3 text-right font-medium">{{ t('Damage') }}</th>
             <th class="w-24 px-3 text-right font-medium">DPS</th>
-            <th class="w-36 px-3 text-left font-medium">When</th>
+            <th class="w-36 px-3 text-left font-medium">{{ t('When') }}</th>
             <th class="w-12 pr-3" />
           </tr>
         </thead>
@@ -95,7 +96,7 @@ onBeforeUnmount(() => off?.())
           <tr v-for="f in shown" :key="f.id" class="group cursor-pointer hover:bg-card" @click="open(f.id)">
             <td class="py-2 pl-4">
               <div class="flex items-center gap-2">
-                <span class="truncate font-medium">{{ f.bossName || 'Unknown target' }}</span>
+                <span class="truncate font-medium">{{ f.bossName || t('Unknown target') }}</span>
                 <span v-if="f.isTrain" class="shrink-0 rounded border border-light px-1 text-[10px] text-darker">dummy</span>
               </div>
             </td>
@@ -114,7 +115,7 @@ onBeforeUnmount(() => off?.())
               <button
                 type="button"
                 class="inline-flex size-7 items-center justify-center rounded-md text-darker opacity-0 hover:bg-light hover:text-danger group-hover:opacity-100"
-                title="Delete this fight"
+                :title="t('Delete this fight')"
                 @click.stop="remove(f.id)"
               >
                 <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M5 4.5l.5 8.5h5l.5-8.5" /></svg>

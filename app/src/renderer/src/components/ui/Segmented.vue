@@ -1,5 +1,7 @@
 <script setup lang="ts" generic="T extends string | number | null">
-// shadcn's tabs as a segmented control: the options in a muted track, the chosen one raised.
+// shadcn's tabs as a segmented control: the options in a muted track, the chosen one raised. Its
+// labels are shown translated (lib/i18n.ts).
+import { t } from '@/lib/i18n.ts'
 defineProps<{ modelValue: T; options: readonly { id: T; label: string; count?: number }[]; size?: 'sm' | 'md' }>()
 const emit = defineEmits<{ 'update:modelValue': [value: T] }>()
 </script>
@@ -17,7 +19,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: T] }>()
       ]"
       @click="emit('update:modelValue', o.id)"
     >
-      {{ o.label }}<span v-if="o.count !== undefined" class="ml-1 tabular-nums opacity-60">{{ o.count }}</span>
+      {{ t(o.label) }}<span v-if="o.count !== undefined" class="ml-1 tabular-nums opacity-60">{{ o.count }}</span>
     </button>
   </div>
 </template>

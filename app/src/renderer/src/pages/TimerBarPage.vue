@@ -5,6 +5,7 @@
 // short name. Moved by dragging; sized to what it shows, and hidden with nothing to show.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { bridge } from '@/lib/bridge.ts'
+import { loc, t } from '@/lib/i18n.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { useApp } from '@/stores/app.ts'
 import { nextStart, TIMERS, type TimerDef, type TimerId } from '@shared/timers.ts'
@@ -95,17 +96,17 @@ onBeforeUnmount(() => {
         v-if="items.length"
         class="m-1.5 flex w-max cursor-move items-center gap-3 whitespace-nowrap rounded-lg border border-card bg-darker px-2.5 py-1.5 shadow-card"
         :style="{ opacity: store.settings.timerBar.opacity }"
-        title="Drag to move"
+        :title="t('Drag to move')"
         @pointerdown="drag.onPointerDown"
       >
         <div
           v-for="{ def, at } in items"
           :key="def.id"
           class="flex shrink-0 items-center gap-1.5"
-          :title="`${def.name}: ${new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`"
+          :title="`${t(def.name)}: ${new Date(at).toLocaleTimeString(loc(), { hour: '2-digit', minute: '2-digit' })}`"
         >
           <img v-if="icon(def)" :src="icon(def)!" class="size-4 shrink-0 rounded-sm object-cover" alt="" draggable="false" />
-          <span v-else class="text-[11px] font-semibold uppercase tracking-wide text-darker">{{ LABELS[def.id] ?? def.name }}</span>
+          <span v-else class="text-[11px] font-semibold uppercase tracking-wide text-darker">{{ t(LABELS[def.id] ?? def.name) }}</span>
           <span v-if="alerting.has(def.id)" class="size-1.5 shrink-0 rounded-full bg-yellow" />
           <!-- As wide as its widest form, so the bar doesn't twitch as the seconds go by. -->
           <span

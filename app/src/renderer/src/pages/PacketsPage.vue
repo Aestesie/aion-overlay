@@ -4,6 +4,7 @@
 // Clicks go through to the game.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { bridge } from '@/lib/bridge.ts'
+import { plural, t } from '@/lib/i18n.ts'
 import { NO_PACKET_LOG, type PacketLog } from '@shared/meter.ts'
 
 const api = bridge()
@@ -54,16 +55,16 @@ onBeforeUnmount(() => {
       <div v-if="shown" class="m-1.5 flex items-center gap-2 rounded-full border border-light bg-black/80 px-3 py-1.5 text-xs">
         <template v-if="log.on">
           <span class="size-2 shrink-0 animate-pulse rounded-full bg-danger" />
-          <span class="font-semibold text-default">Recording packets</span>
+          <span class="font-semibold text-default">{{ t('Recording packets') }}</span>
           <span class="tabular-nums text-dark">{{ elapsed }}</span>
-          <span v-if="log.marks" class="text-dark">· {{ log.marks }} mark{{ log.marks === 1 ? '' : 's' }}</span>
-          <span class="text-darker">· Alt+Shift+M mark · Alt+Shift+R stop</span>
+          <span v-if="log.marks" class="text-dark">· {{ plural(log.marks, '{n} mark', '{n} marks') }}</span>
+          <span class="text-darker">· {{ t('Alt+Shift+M mark · Alt+Shift+R stop') }}</span>
         </template>
         <template v-else-if="log.path">
           <span class="size-2 shrink-0 rounded-full bg-green" />
-          <span class="font-semibold text-default">Packet log saved</span>
+          <span class="font-semibold text-default">{{ t('Packet log saved') }}</span>
           <span class="max-w-[260px] truncate text-dark">{{ fileName(log.path) }}</span>
-          <span class="tabular-nums text-darker">· {{ log.count.toLocaleString('en-US') }} messages</span>
+          <span class="tabular-nums text-darker">· {{ t('{n} messages', { n: log.count.toLocaleString('en-US') }) }}</span>
         </template>
       </div>
     </div>

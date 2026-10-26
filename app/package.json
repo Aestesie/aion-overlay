@@ -19,7 +19,8 @@
     "icon": "node scripts/make-icon.mjs",
     "build:engine": "node scripts/build-engine.mjs",
     "dist": "npm run build:engine && npm run build && electron-builder --win --publish never",
-    "pack": "npm run build && electron-builder --win --dir"
+    "pack": "npm run build && electron-builder --win --dir",
+    "i18n:check": "node scripts/i18n-check.mjs"
   },
   "dependencies": {
     "electron-store": "^11.0.2",

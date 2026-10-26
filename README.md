@@ -11,6 +11,8 @@ to keep opening the Pets menu.
   counts always match the Pets menu.
 - **In-game HUD:** a small click-through overlay with nearby soul monsters, this fight's pets and
   a feed of drops. It clears itself between fights.
+- **Spanish or English:** the whole app in Spanish (the default) or English, switched on Home or in
+  Settings. Game words stay as the community says them (PvP, DPS, skills, buffs, bosses, pets).
 - **Dashboard:** Alt+E (or the bubble) opens it, and Alt+E again puts it away: a Home page with every overlay's switch and a
   summary of each page, then Combat Meter, Map, Pets, PvP, Buffs, Event Alerts, Field Bosses,
   History and Session. Each overlay's settings are on its page.

@@ -6,6 +6,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { statusText, statusTone } from '@/components/StatusDot.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { t } from '@/lib/i18n.ts'
 import { playChime } from '@/lib/chime.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { useApp } from '@/stores/app.ts'
@@ -44,8 +45,8 @@ const drag = windowDrag({
 
 const title = computed(() =>
   store.alerting.length
-    ? 'A timer is up: click to see it'
-    : `${statusText(store.status)} · ${store.sessionSouls} souls this session`,
+    ? t('A timer is up: click to see it')
+    : `${statusText(store.status)} · ${t('{n} souls this session', { n: store.sessionSouls })}`,
 )
 </script>
 

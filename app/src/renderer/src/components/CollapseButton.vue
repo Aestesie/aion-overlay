@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // An overlay's minimize button, in its header: a dash shrinks it to that line, a square brings it
 // back. Stops the pointer so pressing it doesn't start dragging the window.
+import { t } from '@/lib/i18n.ts'
 defineProps<{ collapsed: boolean }>()
 defineEmits<{ toggle: [] }>()
 </script>
@@ -9,7 +10,7 @@ defineEmits<{ toggle: [] }>()
   <button
     type="button"
     class="flex size-5 shrink-0 items-center justify-center rounded text-darker hover:bg-dark hover:text-default"
-    :title="collapsed ? 'Restore' : 'Minimize'"
+    :title="collapsed ? t('Restore') : t('Minimize')"
     @pointerdown.stop
     @dblclick.stop
     @click="$emit('toggle')"

@@ -10,6 +10,7 @@ import Toggle from '@/components/Toggle.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import Section from '@/components/ui/Section.vue'
 import { buffName, hiddenBuff, remaining } from '@/lib/buffs.ts'
+import { plural, t } from '@/lib/i18n.ts'
 import { useApp } from '@/stores/app.ts'
 import type { Buff } from '@shared/buffs.ts'
 
@@ -30,7 +31,7 @@ const groups = computed(() => [
   { title: 'Buffs', rows: live.value.filter((b) => !b.debuff && !b.passive).sort(order) },
   { title: 'Passives and toggles', rows: live.value.filter((b) => !b.debuff && b.passive).sort(order) },
 ])
-const from = (b: Buff): string => (b.mine ? 'You' : b.debuff ? 'A monster' : b.by ? 'Another player' : '—')
+const from = (b: Buff): string => (b.mine ? t('You') : b.debuff ? t('A monster') : b.by ? t('Another player') : '—')
 const share = (b: Buff): number => (b.endsAt === null ? 1 : Math.max(0, Math.min(1, (b.endsAt - now.value) / Math.max(1, b.endsAt - b.startedAt))))
 const set = (patch: Partial<typeof cfg.value>): void => void store.set('buffs', { ...cfg.value, ...patch })
 const pct = (v: number): string => `${Math.round(v * 100)}%`
@@ -42,10 +43,10 @@ const pct = (v: number): string => `${Math.round(v * 100)}%`
 
     <Section title="On you now" icon="M8 1.5 9.8 6l4.7.4-3.6 3 1.1 4.6L8 11.6 4 14l1.1-4.6-3.6-3L6.2 6z" bare>
       <div v-if="!cfg.enabled && !cfg.cc" class="rounded-xl border border-dashed border-card px-4 py-8 text-center text-sm text-darker">
-        Turn on the buffs overlay or the CC panel below: your buffs are only read while one is on.
+        {{ t('Turn on the buffs overlay or the CC panel below: your buffs are only read while one is on.') }}
       </div>
       <div v-else-if="!live.length" class="rounded-xl border border-dashed border-card px-4 py-8 text-center text-sm text-darker">
-        Nothing on you yet. Buffs show up as the game applies them (after a zone change, everything on you is listed).
+        {{ t('Nothing on you yet. Buffs show up as the game applies them (after a zone change, everything on you is listed).') }}
       </div>
       <div v-else class="overflow-hidden rounded-xl border border-card">
         <table class="w-full text-sm">
@@ -53,13 +54,13 @@ const pct = (v: number): string => `${Math.round(v * 100)}%`
             <tr class="border-b border-card">
               <th class="py-2.5 pl-4 text-left font-medium">Buff</th>
               <th class="w-20 px-3 text-right font-medium">Stacks</th>
-              <th class="w-36 px-3 text-left font-medium">From</th>
-              <th class="w-48 pr-4 text-left font-medium">Time left</th>
+              <th class="w-36 px-3 text-left font-medium">{{ t('From') }}</th>
+              <th class="w-48 pr-4 text-left font-medium">{{ t('Time left') }}</th>
             </tr>
           </thead>
           <template v-for="g in groups" :key="g.title">
             <tbody v-if="g.rows.length" class="divide-y divide-[color:var(--line)]">
-              <tr class="bg-dark/50"><td colspan="4" class="py-1 pl-4 text-[11px] font-semibold uppercase tracking-wider text-darkest">{{ g.title }}</td></tr>
+              <tr class="bg-dark/50"><td colspan="4" class="py-1 pl-4 text-[11px] font-semibold uppercase tracking-wider text-darkest">{{ t(g.title) }}</td></tr>
               <tr v-for="b in g.rows" :key="`${b.id}-${b.by}`" class="hover:bg-card">
                 <td class="py-1.5 pl-4">
                   <div class="flex items-center gap-2.5">
@@ -76,14 +77,18 @@ const pct = (v: number): string => `${Math.round(v * 100)}%`
                     </div>
                     <span class="w-12 text-right text-xs tabular-nums">{{ remaining(b.endsAt - now) }}</span>
                   </div>
-                  <span v-else class="text-xs text-darkest">no timer</span>
+                  <span v-else class="text-xs text-darkest">{{ t('no timer') }}</span>
                 </td>
               </tr>
             </tbody>
           </template>
         </table>
         <button v-if="hiddenCount" type="button" class="w-full border-t border-card px-4 py-2 text-left text-xs text-darker hover:bg-card" @click="showHidden = !showHidden">
-          {{ showHidden ? 'Hide' : 'Show' }} {{ hiddenCount }} hidden effect{{ hiddenCount === 1 ? '' : 's' }} (internal ones with no name or icon, system regen, account rewards)
+          {{
+            showHidden
+              ? plural(hiddenCount, 'Hide {n} hidden effect (internal ones with no name or icon, system regen, account rewards)', 'Hide {n} hidden effects (internal ones with no name or icon, system regen, account rewards)')
+              : plural(hiddenCount, 'Show {n} hidden effect (internal ones with no name or icon, system regen, account rewards)', 'Show {n} hidden effects (internal ones with no name or icon, system regen, account rewards)')
+          }}
         </button>
       </div>
     </Section>

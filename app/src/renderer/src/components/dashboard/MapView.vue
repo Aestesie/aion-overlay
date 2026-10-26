@@ -15,6 +15,7 @@ import Section from '@/components/ui/Section.vue'
 import SelectBox from '@/components/ui/SelectBox.vue'
 import { displayName } from '@/lib/petDb.ts'
 import { currentWorld, nearbyPets, useSpawns } from '@/lib/spawns.ts'
+import { plural, t } from '@/lib/i18n.ts'
 import { useApp } from '@/stores/app.ts'
 import { blankPet, MAX_LEVEL } from '@shared/tracker.ts'
 
@@ -99,50 +100,50 @@ const pct = (v: number): string => `${Math.round(v * 100)}%`
       <SelectBox v-if="zones.length && worldId !== null" :model-value="worldId" :options="zones" @update:model-value="picked = $event" />
       <Button :disabled="!you" @click="findMe">
         <svg viewBox="0 0 16 16" class="size-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3" /><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2" /></svg>
-        Find me
+        {{ t('Find me') }}
       </Button>
     </PageHeader>
 
     <div class="mb-6 grid grid-cols-[15rem_1fr] gap-4">
       <aside class="space-y-4 rounded-xl border border-card bg-card p-3 text-sm">
         <div>
-          <div class="mb-1.5 text-xs font-semibold uppercase tracking-wider text-darker">Tracked pets</div>
-          <p v-if="!tracked.length" class="text-xs text-darker">Pin pets on the Pets page, or get near their soul monsters, and their spawns show here.</p>
+          <div class="mb-1.5 text-xs font-semibold uppercase tracking-wider text-darker">{{ t('Tracked pets') }}</div>
+          <p v-if="!tracked.length" class="text-xs text-darker">{{ t('Pin pets on the Pets page, or get near their soul monsters, and their spawns show here.') }}</p>
           <button
-            v-for="t in tracked"
-            :key="t.id"
+            v-for="tp in tracked"
+            :key="tp.id"
             type="button"
-            :class="['flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-dark', hidden.has(t.id) && 'opacity-40']"
-            :title="hidden.has(t.id) ? 'Show its spawns' : 'Hide its spawns'"
-            @click="flip(t.id)"
+            :class="['flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-dark', hidden.has(tp.id) && 'opacity-40']"
+            :title="hidden.has(tp.id) ? t('Show its spawns') : t('Hide its spawns')"
+            @click="flip(tp.id)"
           >
-            <span class="size-2.5 shrink-0 rounded-full" :style="{ background: t.color }" />
-            <PetIcon :id="t.id" :size="20" />
-            <span class="min-w-0 flex-1 truncate">{{ displayName(pet(t.id)) }}</span>
-            <span class="text-[10px] text-darkest">{{ t.pinned ? 'pinned' : 'nearby' }}</span>
+            <span class="size-2.5 shrink-0 rounded-full" :style="{ background: tp.color }" />
+            <PetIcon :id="tp.id" :size="20" />
+            <span class="min-w-0 flex-1 truncate">{{ displayName(pet(tp.id)) }}</span>
+            <span class="text-[10px] text-darkest">{{ tp.pinned ? t('pinned') : t('nearby') }}</span>
           </button>
         </div>
         <div class="space-y-2 border-t border-card pt-3">
           <label class="flex items-center justify-between gap-2">
-            <span class="flex items-center gap-2"><span class="size-2.5 rounded-full" :style="{ background: NEEDED }" />Pets you still need</span>
+            <span class="flex items-center gap-2"><span class="size-2.5 rounded-full" :style="{ background: NEEDED }" />{{ t('Pets you still need') }}</span>
             <Toggle v-model="showNeeded" />
           </label>
           <label class="flex items-center justify-between gap-2">
             <span class="flex items-center gap-2"><span class="size-2.5 rotate-45 bg-yellow" />Hidden Cubes</span>
             <Toggle v-model="showCubes" />
           </label>
-          <p v-if="showNeeded" class="text-xs text-darkest">{{ needed.length }} more pet{{ needed.length === 1 ? '' : 's' }} drop{{ needed.length === 1 ? 's' : '' }} souls in this zone.</p>
+          <p v-if="showNeeded" class="text-xs text-darkest">{{ plural(needed.length, '{n} more pet drops souls in this zone.', '{n} more pets drop souls in this zone.') }}</p>
         </div>
         <div class="border-t border-card pt-3 text-xs text-darker">
-          <template v-if="inZone && you">You are here: the blue ring.</template>
-          <template v-else-if="inZone">You are in this zone; where exactly is not known yet.</template>
-          <template v-else-if="here !== null">You are in {{ spawns?.worlds[here]?.name ?? 'another zone' }}.</template>
-          <template v-else>Where you are is not known yet: it is read as you enter a zone.</template>
+          <template v-if="inZone && you">{{ t('You are here: the blue ring.') }}</template>
+          <template v-else-if="inZone">{{ t('You are in this zone; where exactly is not known yet.') }}</template>
+          <template v-else-if="here !== null">{{ t('You are in {zone}.', { zone: spawns?.worlds[here]?.name ?? t('another zone') }) }}</template>
+          <template v-else>{{ t('Where you are is not known yet: it is read as you enter a zone.') }}</template>
         </div>
       </aside>
       <div class="h-[calc(100vh-15rem)] min-h-[420px] overflow-hidden rounded-xl border border-card">
         <WorldMap v-if="world" :world="world" :layers="layers" :focus="focus" :you="you" :cubes="cubes" />
-        <div v-else class="flex h-full items-center justify-center text-sm text-darker">Loading maps…</div>
+        <div v-else class="flex h-full items-center justify-center text-sm text-darker">{{ t('Loading maps…') }}</div>
       </div>
     </div>
 

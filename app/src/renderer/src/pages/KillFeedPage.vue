@@ -9,6 +9,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRaw, watch } fro
 import ClassIcon from '@/components/ClassIcon.vue'
 import CollapseButton from '@/components/CollapseButton.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { t } from '@/lib/i18n.ts'
 import { panelStyle } from '@/lib/overlayLook.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { useApp } from '@/stores/app.ts'
@@ -64,8 +65,8 @@ const clock = ref(Date.now())
 const ticker = setInterval(() => (clock.value = Date.now()), 5000)
 onBeforeUnmount(() => clearInterval(ticker))
 const target = computed(() => {
-  const t = store.target
-  return cfg.value.target && t && clock.value - t.at < TARGET_MS ? t : null
+  const tp = store.target
+  return cfg.value.target && tp && clock.value - tp.at < TARGET_MS ? tp : null
 })
 const cp = (v: number): string => (v >= 1000 ? `${(v / 1000).toFixed(1)}K` : String(v))
 
@@ -96,18 +97,18 @@ onBeforeUnmount(() => observer?.disconnect())
   <div class="inline-block">
     <div ref="root" class="inline-block">
       <div class="text-glow m-1.5 w-[300px] rounded-lg border" :style="panelStyle(cfg.opacity)">
-        <header class="flex cursor-move items-center gap-2 px-2.5 py-1.5" title="Drag to move" @pointerdown="drag.onPointerDown">
+        <header class="flex cursor-move items-center gap-2 px-2.5 py-1.5" :title="t('Drag to move')" @pointerdown="drag.onPointerDown">
           <svg viewBox="0 0 16 16" class="size-3.5 text-danger" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
             <path d="M3 13 13 3M9.5 3H13v3.5M3 3l4 4M13 13l-3-3" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
           <span class="text-[11px] font-semibold uppercase tracking-wide text-darker">PvP</span>
           <span class="text-xs tabular-nums"><span class="font-semibold text-green">{{ counts.kills }}</span> kills</span>
-          <span class="text-xs tabular-nums"><span class="font-semibold text-danger">{{ counts.deaths }}</span> deaths</span>
+          <span class="text-xs tabular-nums"><span class="font-semibold text-danger">{{ counts.deaths }}</span> {{ t('deaths') }}</span>
           <CollapseButton class="ml-auto" :collapsed="cfg.collapsed" @toggle="toggleCollapsed" />
           <button
             type="button"
             class="flex size-5 items-center justify-center rounded text-darker hover:bg-dark hover:text-default"
-            title="Close (the PvP page or Home opens it again)"
+            :title="t('Close (the PvP page or Home opens it again)')"
             @pointerdown.stop
             @click="close"
           >
@@ -119,7 +120,7 @@ onBeforeUnmount(() => observer?.disconnect())
         <div
           v-if="target && !cfg.collapsed"
           :class="['flex min-w-0 items-center gap-1.5 px-2.5 py-1.5', cfg.opacity > 0 && 'border-t border-card']"
-          :title="`Your target: ${target.className ?? 'class unknown'}, Lv${target.level}, gear score ${target.gearScore}${target.legion ? `, <${target.legion}>` : ''}`"
+          :title="t('Your target: {class}, Lv{level}, gear score {gs}', { class: target.className ?? t('class unknown'), level: target.level, gs: target.gearScore }) + (target.legion ? `, <${target.legion}>` : '')"
         >
           <ClassIcon :class-name="target.className" :size="20" />
           <span :class="['truncate text-sm font-semibold', target.enemy ? 'text-danger' : 'text-default']">{{ target.name }}</span>
@@ -136,7 +137,7 @@ onBeforeUnmount(() => observer?.disconnect())
             v-for="k in lines"
             :key="`${k.at}-${k.killer.name}`"
             :class="['flex min-w-0 items-center gap-1 text-xs', k.fight && 'cursor-pointer hover:underline']"
-            :title="k.fight ? 'Show the fight' : undefined"
+            :title="k.fight ? t('Show the fight') : undefined"
             @pointerdown.stop
             @click="k.fight && bridge().invoke('details:open', { kind: 'pvp', id: k.fight })"
           >
@@ -145,7 +146,7 @@ onBeforeUnmount(() => observer?.disconnect())
             <span v-if="tag(k.killer.server)" class="shrink-0 text-[10px] text-yellow">[{{ tag(k.killer.server) }}]</span>
             <span class="shrink-0 text-darker">→</span>
             <ClassIcon :class-name="k.victim?.className" :size="14" />
-            <span :class="['truncate font-semibold', k.died ? 'text-danger' : 'text-dark']">{{ k.victim?.name ?? 'a player' }}</span>
+            <span :class="['truncate font-semibold', k.died ? 'text-danger' : 'text-dark']">{{ k.victim?.name ?? t('a player') }}</span>
             <span v-if="k.victim && tag(k.victim.server)" class="shrink-0 text-[10px] text-yellow">[{{ tag(k.victim.server) }}]</span>
           </div>
         </TransitionGroup>

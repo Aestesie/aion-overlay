@@ -7,6 +7,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import BuffIcon from '@/components/BuffIcon.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { t } from '@/lib/i18n.ts'
 import { buffName, CC_LABEL, ccKind, remaining, type CcKind } from '@/lib/buffs.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { useApp } from '@/stores/app.ts'
@@ -82,7 +83,7 @@ onBeforeUnmount(() => {
             </div>
             <div class="min-w-0">
               <div class="truncate text-[26px] font-bold leading-tight text-[#f5d77a] drop-shadow" :title="main ? buffName(main.b.id) : ''">
-                {{ main ? CC_LABEL[main.kind] : 'Stunned' }}
+                {{ t(main ? CC_LABEL[main.kind] : 'Stunned') }}
               </div>
               <div class="text-lg leading-tight tabular-nums text-default drop-shadow">{{ main ? seconds(main.b) : '2.0 seconds' }}</div>
             </div>
@@ -93,7 +94,7 @@ onBeforeUnmount(() => {
           <div v-if="controls.length > 1" class="mt-1.5 flex justify-center gap-2 text-[11px] text-dark">
             <span v-for="c in controls.slice(1, 4)" :key="`${c.b.id}-${c.b.by}`">+ {{ CC_LABEL[c.kind] }} {{ remaining(left(c.b)) }}s</span>
           </div>
-          <div v-if="preview" class="mt-1 text-center text-[11px] text-darker">Preview while the dashboard is open: drag to move</div>
+          <div v-if="preview" class="mt-1 text-center text-[11px] text-darker">{{ t('Preview while the dashboard is open: drag to move') }}</div>
           <div class="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-transparent via-danger to-transparent" />
         </div>
         <div v-if="debuffs.length" class="mt-1.5 flex justify-center gap-1.5">

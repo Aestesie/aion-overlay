@@ -8,6 +8,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import CollapseButton from '@/components/CollapseButton.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { t } from '@/lib/i18n.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { useApp } from '@/stores/app.ts'
 import { NO_DUMMY, nextRunName, type DummyState } from '@shared/dummy.ts'
@@ -49,8 +50,8 @@ const progress = computed(() => {
 })
 const last = computed(() => state.value.runs[0] ?? null)
 const planText = computed(() => {
-  const goal = cfg.value.goal === 'time' ? (cfg.value.limitMs ? `${clock(cfg.value.limitMs)} run` : 'Untimed run') : `${short(cfg.value.damageGoal)} damage`
-  return `${goal} · ${cfg.value.autoStart ? 'starts on your first hit' : 'starts when you press Start'}`
+  const goal = cfg.value.goal === 'time' ? (cfg.value.limitMs ? t('{time} run', { time: clock(cfg.value.limitMs) }) : t('Untimed run')) : t('{n} damage', { n: short(cfg.value.damageGoal) })
+  return `${goal} · ${cfg.value.autoStart ? t('starts on your first hit') : t('starts when you press Start')}`
 })
 const shown = computed(
   () => !!active.value || store.panelVisible || (state.value.lastHitAt !== null && now.value - state.value.lastHitAt < SHOW_AFTER_HIT_MS),
@@ -95,7 +96,7 @@ onBeforeUnmount(() => {
       <div v-if="shown" class="m-1.5 w-[280px] rounded-xl border border-card bg-darker/95 shadow-card">
         <header
           :class="['flex cursor-move items-center gap-2 pl-3.5 pr-2', cfg.collapsed ? 'py-2' : 'pb-1 pt-2.5']"
-          title="Drag to move"
+          :title="t('Drag to move')"
           @pointerdown="drag.onPointerDown"
         >
           <span class="text-base font-semibold">Training</span>
@@ -108,7 +109,7 @@ onBeforeUnmount(() => {
           <button
             type="button"
             class="flex size-5 shrink-0 items-center justify-center rounded text-darker hover:bg-dark hover:text-default"
-            title="Close (the Training Dummy page turns it on again)"
+            :title="t('Close (the Training Dummy page turns it on again)')"
             @pointerdown.stop
             @click="set({ overlay: false })"
           >
@@ -122,7 +123,7 @@ onBeforeUnmount(() => {
         <template v-else-if="active">
           <div class="truncate px-3.5 text-center text-sm text-dark">{{ active.name }}</div>
           <div class="text-center text-5xl font-bold tabular-nums leading-tight">{{ shownTime }}</div>
-          <div v-if="!active.startedAt" class="px-3.5 text-center text-xs text-darker">Hit the dummy: the clock starts with your first hit.</div>
+          <div v-if="!active.startedAt" class="px-3.5 text-center text-xs text-darker">{{ t('Hit the dummy: the clock starts with your first hit.') }}</div>
           <div class="relative mx-3 mt-2 flex h-9 items-center overflow-hidden rounded-lg bg-dark px-3">
             <div class="absolute inset-y-0 left-0 bg-accent/30" :style="{ width: `${progress * 100}%` }" />
             <span class="relative text-sm text-dark">DPS</span>
@@ -134,8 +135,8 @@ onBeforeUnmount(() => {
               class="h-9 flex-1 rounded-lg bg-accent text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
               :disabled="!active.startedAt"
               @click="api.invoke('dummy:stop', true)"
-            >Stop and save</button>
-            <button type="button" class="h-9 rounded-lg px-3 text-sm text-dark hover:bg-dark" @click="api.invoke('dummy:stop', false)">Cancel</button>
+            >{{ t('Stop and save') }}</button>
+            <button type="button" class="h-9 rounded-lg px-3 text-sm text-dark hover:bg-dark" @click="api.invoke('dummy:stop', false)">{{ t('Cancel') }}</button>
           </div>
         </template>
 
@@ -143,8 +144,8 @@ onBeforeUnmount(() => {
           <div class="px-3.5 text-xs text-darker">{{ planText }}</div>
           <div v-if="last" class="mx-3 mt-2 rounded-lg bg-dark px-3 py-2 text-xs">
             <div class="flex text-darker">
-              Last: {{ last.name }}
-              <button v-if="last.details" type="button" class="ml-auto text-accent hover:underline" @click="api.invoke('details:open', { kind: 'run', id: last.id })">Details</button>
+              {{ t('Last: {name}', { name: last.name }) }}
+              <button v-if="last.details" type="button" class="ml-auto text-accent hover:underline" @click="api.invoke('details:open', { kind: 'run', id: last.id })">{{ t('Details') }}</button>
             </div>
             <div class="flex items-baseline gap-2">
               <span class="text-lg font-semibold tabular-nums text-accent">{{ short(last.dps) }}</span><span class="text-darker">DPS</span>
@@ -153,7 +154,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="p-3">
             <button type="button" class="h-9 w-full rounded-lg bg-accent text-sm font-medium text-white hover:bg-accent-hover" @click="api.invoke('dummy:start')">
-              Start {{ nextRunName(state) }}
+              {{ t('Start {name}', { name: nextRunName(state) }) }}
             </button>
           </div>
         </template>

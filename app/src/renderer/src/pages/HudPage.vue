@@ -11,6 +11,7 @@ import LevelBar from '@/components/LevelBar.vue'
 import PetIcon from '@/components/PetIcon.vue'
 import Sparkline from '@/components/Sparkline.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { t } from '@/lib/i18n.ts'
 import { playSound } from '@/lib/sound.ts'
 import { cubeBearings, meters } from '@/lib/cubes.ts'
 import { displayName, GENUS_LABEL, petInfo } from '@/lib/petDb.ts'
@@ -70,14 +71,14 @@ const progressText = (pet: Pet): string => {
 /** "Fera crystal": a maxed pet's drop is its genus's crystal. */
 const crystalLabel = (pet: number): string => {
   const genus = petInfo(pet)?.genus
-  return genus ? `${GENUS_LABEL[genus]} crystal` : 'crystal'
+  return genus ? t('{genus} crystal', { genus: GENUS_LABEL[genus] }) : t('crystal')
 }
 /** Kina per hour at the top right, once there is a rate. */
 const kinaText = computed(() => {
   if (!hud.value.kina) return null
   if (store.kinaRate !== null) return `${formatKina(store.kinaRate)} Kina/h`
   // Kina is coming in, but under a minute of it: no rate yet.
-  return store.kina.earned ? 'Kina/h measuring…' : null
+  return store.kina.earned ? t('Kina/h measuring…') : null
 })
 /** The Hidden Cubes in view, nearest first, with how far and which way. */
 const cubeRows = computed(() => (hud.value.cubes ? cubeBearings(store.cubes, store.nearby.position) : []))
@@ -96,7 +97,7 @@ const clock = ref(Date.now())
 const clockTimer = setInterval(() => (clock.value = Date.now()), 5000)
 function since(at: number): string {
   const min = Math.floor((clock.value - at) / 60_000)
-  return min < 1 ? 'just now' : min < 60 ? `${min} min ago` : `${Math.floor(min / 60)} h ago`
+  return min < 1 ? t('just now') : min < 60 ? t('{n} min ago', { n: min }) : t('{n} h ago', { n: Math.floor(min / 60) })
 }
 
 /** Between fights (idle timeout): nothing to show, so the HUD hides; pinned pets included. A cube in view shows all the same. */
@@ -157,21 +158,21 @@ onBeforeUnmount(() => {
         @pointerdown="store.hudEditing && drag.onPointerDown($event)"
       >
         <div v-if="store.hudEditing" class="mb-2 flex items-center justify-between gap-2 text-xs">
-          <span class="text-accent">Drag to move the HUD</span>
+          <span class="text-accent">{{ t('Drag to move the HUD') }}</span>
           <button
             type="button"
             class="rounded bg-accent px-2 py-0.5 font-semibold text-white"
             @pointerdown.stop
             @click="done"
           >
-            Done
+            {{ t('Done') }}
           </button>
         </div>
 
         <section v-if="cubeRows.length" :class="['rounded-md border border-yellow/40 bg-yellow/10 px-2 py-1.5', (nearRows.length || kinaText || rows.length) && 'mb-2.5']">
           <div class="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-yellow">
             <span class="size-1.5 animate-pulse rounded-full bg-yellow" />
-            Hidden cube{{ cubeRows.length > 1 ? `s · ${cubeRows.length}` : '' }} nearby
+            {{ cubeRows.length > 1 ? t('Hidden Cubes · {n} nearby', { n: cubeRows.length }) : t('Hidden Cube nearby') }}
           </div>
           <div class="space-y-1.5">
             <div v-for="c in cubeRows" :key="c.cube.id" class="flex items-center gap-2">
@@ -179,11 +180,11 @@ onBeforeUnmount(() => {
               <div class="min-w-0 flex-1">
                 <div class="flex items-center justify-between gap-2 text-[13px]">
                   <span class="font-medium text-dark">Hidden Cube</span>
-                  <span v-if="c.distance !== null" class="shrink-0 font-semibold tabular-nums text-yellow">{{ meters(c.distance) }} {{ c.direction }}</span>
-                  <span v-else class="shrink-0 text-xs text-darker">within ~100 m</span>
+                  <span v-if="c.distance !== null" class="shrink-0 font-semibold tabular-nums text-yellow">{{ meters(c.distance) }} {{ c.direction ? t(c.direction) : '' }}</span>
+                  <span v-else class="shrink-0 text-xs text-darker">{{ t('within ~100 m') }}</span>
                 </div>
                 <div class="text-[11px] text-darker">
-                  {{ c.cube.createdAt ? `spawned ${since(c.cube.createdAt)}` : `seen ${since(c.cube.seenAt)}` }}
+                  {{ c.cube.createdAt ? t('spawned {when}', { when: since(c.cube.createdAt) }) : t('seen {when}', { when: since(c.cube.seenAt) }) }}
                 </div>
               </div>
             </div>
@@ -191,14 +192,14 @@ onBeforeUnmount(() => {
         </section>
 
         <div v-if="nearRows.length || kinaText" class="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
-          <template v-if="nearRows.length"><span class="size-1.5 rounded-full bg-green" /><span class="text-green">Nearby</span></template>
+          <template v-if="nearRows.length"><span class="size-1.5 rounded-full bg-green" /><span class="text-green">{{ t('Nearby') }}</span></template>
           <Sparkline
             v-if="kinaText && store.kinaTimeline.length"
             :values="store.kinaTimeline.map((p) => p.perHour)"
             :stroke="1.5"
             class="mx-1 h-3 min-w-0 flex-1 text-yellow opacity-80"
           />
-          <span v-if="kinaText" class="ml-auto shrink-0 normal-case tabular-nums text-yellow" title="This session's Kina per hour">{{ kinaText }}</span>
+          <span v-if="kinaText" class="ml-auto shrink-0 normal-case tabular-nums text-yellow" :title="t('This session\'s Kina per hour')">{{ kinaText }}</span>
         </div>
         <section v-if="nearRows.length">
           <div class="space-y-2">
@@ -243,14 +244,14 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </div>
-          <div v-if="morePinned > 0" class="mt-1.5 text-center text-[11px] text-darker">… {{ morePinned }} more pinned</div>
+          <div v-if="morePinned > 0" class="mt-1.5 text-center text-[11px] text-darker">… {{ t('{n} more pinned', { n: morePinned }) }}</div>
         </section>
 
         <p v-if="store.hudEditing && !nearRows.length && !rows.length" class="text-xs text-darker">
           {{
             hud.mode === 'pinned'
-              ? 'Nothing nearby, and no pinned pets: pin some on the Pets page.'
-              : 'Soul monsters around you, and pets you gain souls for, show up here.'
+              ? t('Nothing nearby, and no pinned pets: pin some on the Pets page.')
+              : t('Soul monsters around you, and pets you gain souls for, show up here.')
           }}
         </p>
 
@@ -260,12 +261,12 @@ onBeforeUnmount(() => {
           name="toast"
           :class="['space-y-1', (nearRows.length || rows.length) && 'mt-2.5 border-t border-card pt-2']"
         >
-          <div v-for="t in toasts" :key="t.at + '-' + t.pet.id" class="flex items-center gap-2 text-xs">
-            <span :class="['font-bold', t.crystal ? 'text-yellow' : 'text-accent']">+{{ t.amount }}</span>
-            <PetIcon :id="t.pet.id" :size="18" />
-            <span class="truncate">{{ displayName(t.pet) }}<span v-if="t.crystal" class="text-yellow"> · {{ crystalLabel(t.pet.id) }}</span></span>
-            <span v-if="t.levelUp" class="shrink-0 rounded bg-green/20 px-1 text-[10px] font-bold text-green">Lv{{ t.pet.level }}!</span>
-            <span class="ml-auto tabular-nums text-darker">{{ t.crystal ? t.pet.crystals : progressText(t.pet) }}</span>
+          <div v-for="toast in toasts" :key="toast.at + '-' + toast.pet.id" class="flex items-center gap-2 text-xs">
+            <span :class="['font-bold', toast.crystal ? 'text-yellow' : 'text-accent']">+{{ toast.amount }}</span>
+            <PetIcon :id="toast.pet.id" :size="18" />
+            <span class="truncate">{{ displayName(toast.pet) }}<span v-if="toast.crystal" class="text-yellow"> · {{ crystalLabel(toast.pet.id) }}</span></span>
+            <span v-if="toast.levelUp" class="shrink-0 rounded bg-green/20 px-1 text-[10px] font-bold text-green">Lv{{ toast.pet.level }}!</span>
+            <span class="ml-auto tabular-nums text-darker">{{ toast.crystal ? toast.pet.crystals : progressText(toast.pet) }}</span>
           </div>
         </TransitionGroup>
       </div>

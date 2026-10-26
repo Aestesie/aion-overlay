@@ -6,6 +6,7 @@
 // later it follows again. Hidden Cubes draw as golden cubes.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { mapImage, project, type World } from '@/lib/spawns.ts'
+import { t } from '@/lib/i18n.ts'
 
 export interface MapLayer {
   key: string | number
@@ -245,9 +246,9 @@ defineExpose({ fit, recentre })
         </g>
       </svg>
     </div>
-    <div v-if="!loaded" class="absolute inset-0 flex items-center justify-center text-xs text-black/60">Loading map…</div>
+    <div v-if="!loaded" class="absolute inset-0 flex items-center justify-center text-xs text-black/60">{{ t('Loading map…') }}</div>
     <div v-if="hint !== false" class="pointer-events-none absolute bottom-1.5 right-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] text-white/80">
-      scroll to zoom · drag to pan · double-click to fit
+      {{ t('scroll to zoom · drag to pan · double-click to fit') }}
     </div>
   </div>
 </template>

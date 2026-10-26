@@ -11,11 +11,14 @@ import Slider from '@/components/Slider.vue'
 import Toggle from '@/components/Toggle.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import Section from '@/components/ui/Section.vue'
+import Segmented from '@/components/ui/Segmented.vue'
 import SelectBox from '@/components/ui/SelectBox.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { loc, plural, t } from '@/lib/i18n.ts'
 import { useApp } from '@/stores/app.ts'
 import type { SyncResult } from '@shared/lokthar.ts'
 import { NO_PACKET_LOG, type PacketLog } from '@shared/meter.ts'
+import { LANGS } from '@shared/i18n.ts'
 import { serverLabel } from '@shared/servers.ts'
 
 const store = useApp()
@@ -68,7 +71,7 @@ const who = computed(() => {
   }
 })
 
-const ago = (at: number): string => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+const ago = (at: number): string => new Date(at).toLocaleTimeString(loc(), { hour: '2-digit', minute: '2-digit' })
 
 const emit = defineEmits<{ go: [page: string] }>()
 
@@ -101,13 +104,19 @@ const HUD_MODES = [
 ]
 const lastPacket = computed(() => {
   const ago = store.status?.lastPacketAgo
-  return ago === null || ago === undefined ? 'never' : ago < 5 ? 'just now' : `${Math.round(ago)} s ago`
+  return ago === null || ago === undefined ? t('never') : ago < 5 ? t('just now') : t('{n} s ago', { n: Math.round(ago) })
 })
 </script>
 
 <template>
   <div class="mx-auto max-w-3xl">
     <PageHeader title="Settings" />
+
+    <Section title="Language" icon="M2 8h12M8 2a9 9 0 0 1 0 12M8 2a9 9 0 0 0 0 12M8 2a6 6 0 1 1 0 12A6 6 0 0 1 8 2z">
+      <SettingRow label="Language" hint="Game words (PvP, DPS, skills, buffs, bosses, pets...) stay as the community says them.">
+        <Segmented :model-value="store.settings.language" :options="LANGS" @update:model-value="store.set('language', $event)" />
+      </SettingRow>
+    </Section>
 
     <Section title="General" icon="M2.5 3.5h11v9h-11zM2.5 6h11">
       <SettingRow label="Character" :hint="who.hint">
@@ -132,8 +141,8 @@ const lastPacket = computed(() => {
 
     <Section title="Overlays" icon="M8 1.5 14.5 5 8 8.5 1.5 5zM1.5 8 8 11.5 14.5 8M1.5 11 8 14.5 14.5 11">
       <button v-for="o in OVERLAY_PAGES" :key="o.page" type="button" class="flex w-full items-center justify-between gap-4 py-3 text-left hover:text-accent" @click="emit('go', o.page)">
-        <span class="text-sm">{{ o.name }}</span>
-        <span class="flex items-center gap-1 text-xs text-darker">on the {{ o.where }} page
+        <span class="text-sm">{{ t(o.name) }}</span>
+        <span class="flex items-center gap-1 text-xs text-darker">{{ t('on the {page} page', { page: t(o.where) }) }}
           <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="m6 4 4 4-4 4" /></svg>
         </span>
       </button>
@@ -180,7 +189,7 @@ const lastPacket = computed(() => {
             :min="0"
             :max="300"
             :step="15"
-            :format="(v: number) => (v ? `${v}s` : 'Off')"
+            :format="(v: number) => (v ? `${v}s` : t('Off'))"
             @update:model-value="store.setHud({ idleHideSeconds: $event })"
           />
         </SettingRow>
@@ -191,7 +200,7 @@ const lastPacket = computed(() => {
           <Slider :model-value="store.settings.hud.scale" :min="0.75" :max="1.75" :step="0.05" :format="pct" @update:model-value="store.setHud({ scale: $event })" />
         </SettingRow>
         <SettingRow label="Position" hint="While this window is open the HUD can be dragged anywhere; it goes back to click-through when you close it.">
-          <Button size="sm" @click="bridge().invoke('hud:setEditing', !store.hudEditing)">{{ store.hudEditing ? 'Done' : 'Move HUD' }}</Button>
+          <Button size="sm" @click="bridge().invoke('hud:setEditing', !store.hudEditing)">{{ store.hudEditing ? t('Done') : t('Move HUD') }}</Button>
         </SettingRow>
       </template>
       <SettingRow label="Hide maxed (Lv3) pets" hint="They earn no more souls: left out of the Pets page, Nearby and the HUD.">
@@ -213,7 +222,7 @@ const lastPacket = computed(() => {
       </SettingRow>
       <div class="grid grid-cols-2 gap-3 py-3 text-xs">
         <label class="block">
-          <span class="text-darker">Site</span>
+          <span class="text-darker">{{ t('Site') }}</span>
           <input v-model="siteUrl" class="mt-1 h-8 w-full rounded-md border border-light bg-default px-2.5 text-sm" placeholder="https://lokthar.com" @change="saveLokthar({ url: siteUrl.trim() })" />
         </label>
         <label class="block">
@@ -223,10 +232,10 @@ const lastPacket = computed(() => {
       </div>
       <div class="flex items-center justify-between gap-2 py-3 text-xs">
         <span v-if="syncResult" :class="['min-w-0 truncate', syncResult.ok ? 'text-darker' : 'text-red']" :title="syncResult.message">{{ ago(syncResult.at) }}: {{ syncResult.message }}</span>
-        <span v-else class="text-darkest">Not synced yet</span>
+        <span v-else class="text-darkest">{{ t('Not synced yet') }}</span>
         <div class="flex shrink-0 gap-2">
-          <Button size="sm" :disabled="testing" @click="testSync">{{ testing ? 'Testing…' : 'Test' }}</Button>
-          <Button size="sm" :disabled="syncing || !token.trim()" title="Send the field bosses as your map last listed them" @click="syncNow">{{ syncing ? 'Syncing…' : 'Sync now' }}</Button>
+          <Button size="sm" :disabled="testing" @click="testSync">{{ testing ? t('Testing…') : t('Test') }}</Button>
+          <Button size="sm" :disabled="syncing || !token.trim()" :title="t('Send the field bosses as your map last listed them')" @click="syncNow">{{ syncing ? t('Syncing…') : t('Sync now') }}</Button>
         </div>
       </div>
     </Section>
@@ -237,44 +246,44 @@ const lastPacket = computed(() => {
         hint="Writes every game message to a text file (time, message type, bytes) to share for debugging or to find data for new features. Add marks as you do things in game to find their messages by time. Alt+Shift+R starts and stops it from the game. It grows fast in fights: keep it short."
       >
         <Button size="sm" :intent="packetLog.on ? 'primary' : undefined" @click="bridge().invoke('packets:set', !packetLog.on)">
-          {{ packetLog.on ? 'Stop' : 'Start' }}
+          {{ packetLog.on ? t('Stop') : t('Start') }}
         </Button>
       </SettingRow>
       <div v-if="packetLog.on" class="flex items-center gap-2 py-3 text-xs">
         <span class="size-2 shrink-0 animate-pulse rounded-full bg-danger" />
-        <span class="shrink-0 text-darker">Recording{{ packetLog.marks ? ` · ${packetLog.marks} mark${packetLog.marks === 1 ? '' : 's'}` : '' }}</span>
+        <span class="shrink-0 text-darker">{{ t('Recording') }}{{ packetLog.marks ? ` · ${plural(packetLog.marks, '{n} mark', '{n} marks')}` : '' }}</span>
         <input
           v-model="markText"
           class="h-8 min-w-0 flex-1 rounded-md border border-light bg-default px-2.5 text-sm placeholder:text-darkest"
-          placeholder="What you did, e.g. opened the map (Alt+Shift+M marks from the game)"
+          :placeholder="t('What you did, e.g. opened the map (Alt+Shift+M marks from the game)')"
           @keydown.enter="addMark"
         />
-        <Button size="sm" @click="addMark">Mark</Button>
+        <Button size="sm" @click="addMark">{{ t('Mark') }}</Button>
       </div>
       <div v-else-if="packetLog.path" class="flex items-center justify-between gap-2 py-3 text-xs">
-        <span class="min-w-0 truncate text-darker" :title="packetLog.path">Last: {{ fileName(packetLog.path) }} · {{ packetLog.count.toLocaleString() }} messages</span>
-        <Button size="sm" @click="bridge().invoke('packets:show')">Show in folder</Button>
+        <span class="min-w-0 truncate text-darker" :title="packetLog.path">{{ t('Last: {file} · {n} messages', { file: fileName(packetLog.path), n: packetLog.count.toLocaleString('en-US') }) }}</span>
+        <Button size="sm" @click="bridge().invoke('packets:show')">{{ t('Show in folder') }}</Button>
       </div>
     </Section>
 
     <Section title="Engine" icon="M5.5 1.5v2M10.5 1.5v2M5.5 12.5v2M10.5 12.5v2M1.5 5.5h2M1.5 10.5h2M12.5 5.5h2M12.5 10.5h2M3.5 3.5h9v9h-9zM6 6h4v4H6z">
-      <SettingRow label="State" :hint="store.status?.detail ?? `Last game packet: ${lastPacket}`" :warning="store.status?.state === 'error' ? 'The game\'s traffic is not being read.' : undefined">
-        <span class="flex items-center gap-2 text-sm text-dark"><StatusDot :status="store.status" />{{ statusText(store.status) }}</span>
+      <SettingRow label="State" :hint="store.status?.detail ?? t('Last game packet: {when}', { when: lastPacket })" :warning="store.status?.state === 'error' ? 'The game\'s traffic is not being read.' : undefined">
+        <span class="flex items-center gap-2 text-sm text-dark"><StatusDot :status="store.status" />{{ t(statusText(store.status)) }}</span>
       </SettingRow>
       <SettingRow label="Collection file" hint="Your pets' souls and levels, kept on this computer.">
-        <Button v-if="store.status?.dataFile" size="sm" @click="bridge().invoke('app:openPath', store.status.dataFile)">Show in folder</Button>
+        <Button v-if="store.status?.dataFile" size="sm" @click="bridge().invoke('app:openPath', store.status.dataFile)">{{ t('Show in folder') }}</Button>
       </SettingRow>
       <SettingRow label="Restart the engine" hint="If the overlays stop updating.">
-        <Button size="sm" @click="bridge().invoke('tracker:restart')">Restart</Button>
+        <Button size="sm" @click="bridge().invoke('tracker:restart')">{{ t('Restart') }}</Button>
       </SettingRow>
     </Section>
 
     <section class="flex items-center justify-between pb-4 text-xs text-darkest">
-      <span>Version {{ info?.version ?? '…' }}</span>
+      <span>{{ t('Version {v}', { v: info?.version ?? '…' }) }}</span>
       <div class="flex gap-3">
-        <button v-if="info" type="button" class="hover:text-default" @click="bridge().invoke('app:openPath', info.logFile)">Show log</button>
-        <button v-if="info" type="button" class="hover:text-default" @click="bridge().invoke('app:openPath', info.settingsFile)">Settings file</button>
-        <button type="button" class="text-red hover:underline" @click="bridge().invoke('app:quit')">Quit</button>
+        <button v-if="info" type="button" class="hover:text-default" @click="bridge().invoke('app:openPath', info.logFile)">{{ t('Show log') }}</button>
+        <button v-if="info" type="button" class="hover:text-default" @click="bridge().invoke('app:openPath', info.settingsFile)">{{ t('Settings file') }}</button>
+        <button type="button" class="text-red hover:underline" @click="bridge().invoke('app:quit')">{{ t('Quit') }}</button>
       </div>
     </section>
   </div>

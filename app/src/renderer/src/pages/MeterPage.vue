@@ -8,6 +8,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import CollapseButton from '@/components/CollapseButton.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { t } from '@/lib/i18n.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { useApp } from '@/stores/app.ts'
 import {
@@ -85,10 +86,10 @@ const statusDot = computed(
     ],
 )
 const empty = computed(() => {
-  if (status.value.state === 'error' || status.value.state === 'exited') return status.value.detail ?? STATUS_TEXT[status.value.state]
-  if (status.value.state === 'locked' && !meter.value.meKnown) return 'Detecting character… change zone or log in so the meter knows who you are.'
-  if (meter.value.rows.length) return cfg.value.players === 'me' ? 'None of your damage on this target.' : 'Nothing of this on the target yet.'
-  return STATUS_TEXT[status.value.state]
+  if (status.value.state === 'error' || status.value.state === 'exited') return status.value.detail ?? t(STATUS_TEXT[status.value.state])
+  if (status.value.state === 'locked' && !meter.value.meKnown) return t('Detecting character… change zone or log in so the meter knows who you are.')
+  if (meter.value.rows.length) return cfg.value.players === 'me' ? t('None of your damage on this target.') : t('Nothing of this on the target yet.')
+  return t(STATUS_TEXT[status.value.state])
 })
 
 const drag = windowDrag({ move: 'meter:moveTo', end: 'meter:dragEnd' })
@@ -136,11 +137,11 @@ onBeforeUnmount(() => {
   <div class="inline-block">
     <div ref="root" class="inline-block">
       <div class="group m-1.5 w-[340px] rounded-xl border border-card bg-darker/95 shadow-card" :style="{ opacity: cfg.opacity }">
-        <header :class="['cursor-move px-3', cfg.collapsed ? 'py-1.5' : 'pb-1.5 pt-2.5']" title="Drag to move" @pointerdown="drag.onPointerDown">
+        <header :class="['cursor-move px-3', cfg.collapsed ? 'py-1.5' : 'pb-1.5 pt-2.5']" :title="t('Drag to move')" @pointerdown="drag.onPointerDown">
           <div class="flex items-center gap-2">
-            <span :class="['size-1.5 shrink-0 rounded-full', statusDot]" :title="status.detail ?? STATUS_TEXT[status.state]" />
+            <span :class="['size-1.5 shrink-0 rounded-full', statusDot]" :title="status.detail ?? t(STATUS_TEXT[status.state])" />
             <span class="min-w-0 flex-1 truncate text-[13px] font-semibold text-default">
-              {{ STAT_TITLE[cfg.stat][0] }}<span v-if="meter.battleTime" class="font-normal text-darker"> ({{ clock(meter.battleTime) }})</span>
+              {{ t(STAT_TITLE[cfg.stat][0]) }}<span v-if="meter.battleTime" class="font-normal text-darker"> ({{ clock(meter.battleTime) }})</span>
             </span>
             <span v-if="cfg.collapsed && all.length" class="shrink-0 text-[13px] font-bold tabular-nums text-accent">
               {{ short(totalPerSecond) }}<span class="ml-0.5 text-[10px] font-medium text-darker">{{ STAT_TITLE[cfg.stat][2] }}</span>
@@ -149,7 +150,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="flex size-5 shrink-0 items-center justify-center rounded text-darker hover:bg-dark hover:text-default"
-              title="Reset the meter"
+              :title="t('Reset the meter')"
               @pointerdown.stop
               @click="reset"
             >
@@ -160,7 +161,7 @@ onBeforeUnmount(() => {
             <CollapseButton :collapsed="cfg.collapsed" @toggle="set({ collapsed: !cfg.collapsed })" />
           </div>
           <div v-if="all.length && !cfg.collapsed" class="mt-0.5 flex items-baseline justify-between">
-            <span class="text-[12px] text-darker">{{ STAT_TITLE[cfg.stat][1] }} <span class="font-medium text-dark">{{ short(total) }}</span></span>
+            <span class="text-[12px] text-darker">{{ t(STAT_TITLE[cfg.stat][1]) }} <span class="font-medium text-dark">{{ short(total) }}</span></span>
             <span class="text-xl font-bold tabular-nums text-accent">{{ short(totalPerSecond) }}<span class="ml-0.5 text-[11px] font-medium text-darker">{{ STAT_TITLE[cfg.stat][2] }}</span></span>
           </div>
         </header>
@@ -175,15 +176,15 @@ onBeforeUnmount(() => {
               type="button"
               :class="['rounded px-1.5 py-0.5', cfg.targetMode === m.id ? 'bg-light text-default' : 'text-darker hover:text-default']"
               @click="set({ targetMode: m.id })"
-            >{{ m.label }}</button>
+            >{{ t(m.label) }}</button>
             <select
               :class="['rounded bg-transparent px-1 py-0.5', moreModes ? 'bg-light text-default' : 'text-darker']"
-              title="More ways to pick the target"
+              :title="t('More ways to pick the target')"
               :value="moreModes ? cfg.targetMode : ''"
               @change="set({ targetMode: ($event.target as HTMLSelectElement).value as TargetMode })"
             >
-              <option value="" disabled>More</option>
-              <option v-for="m in ['mostDamage', 'mostRecent', 'trainTargets'] as const" :key="m" :value="m">{{ TARGET_MODE_LABELS[m] }}</option>
+              <option value="" disabled>{{ t('More') }}</option>
+              <option v-for="m in ['mostDamage', 'mostRecent', 'trainTargets'] as const" :key="m" :value="m">{{ t(TARGET_MODE_LABELS[m]) }}</option>
             </select>
           </div>
           <div class="flex rounded-md bg-dark p-0.5">
@@ -193,7 +194,7 @@ onBeforeUnmount(() => {
               type="button"
               :class="['rounded px-1.5 py-0.5', cfg.players === p.id ? 'bg-light text-default' : 'text-darker hover:text-default']"
               @click="set({ players: p.id as MeterPlayers })"
-            >{{ p.label }}</button>
+            >{{ t(p.label) }}</button>
           </div>
           <div class="flex rounded-md bg-dark p-0.5">
             <button
@@ -202,7 +203,7 @@ onBeforeUnmount(() => {
               type="button"
               :class="['rounded px-1.5 py-0.5', cfg.stat === s.id ? 'bg-light text-default' : 'text-darker hover:text-default']"
               @click="set({ stat: s.id as MeterStat })"
-            >{{ s.label }}</button>
+            >{{ t(s.label) }}</button>
           </div>
         </div>
 
@@ -210,17 +211,17 @@ onBeforeUnmount(() => {
           <div class="relative h-3.5 overflow-hidden rounded bg-dark">
             <div class="h-full bg-danger/70" :style="{ width: `${hpShare * 100}%` }" />
             <span class="absolute inset-0 flex items-center justify-center gap-1.5 text-[9px] font-semibold tabular-nums text-default">
-              {{ (hpShare * 100).toFixed(1) }}% · {{ short(meter.target!.hp!) }}<template v-if="ttk !== null"> · dies in {{ clock(ttk) }}</template>
+              {{ (hpShare * 100).toFixed(1) }}% · {{ short(meter.target!.hp!) }}<template v-if="ttk !== null"> · {{ t('dies in {time}', { time: clock(ttk) }) }}</template>
             </span>
           </div>
         </div>
 
         <template v-if="rows.length">
           <div class="flex items-center gap-1.5 px-3 pb-1 text-[10px] text-darkest">
-            <span class="min-w-0 flex-1 pl-6">Player</span>
+            <span class="min-w-0 flex-1 pl-6">{{ t('Player') }}</span>
             <span class="w-12 text-right">{{ STAT_TITLE[cfg.stat][2] }}</span>
-            <span class="w-10 text-right">Share</span>
-            <span class="w-12 text-right">{{ cfg.stat === 'taken' ? 'Taken' : cfg.stat === 'healing' ? 'Healed' : 'Damage' }}</span>
+            <span class="w-10 text-right">{{ t('Share') }}</span>
+            <span class="w-12 text-right">{{ cfg.stat === 'taken' ? t('Taken') : cfg.stat === 'healing' ? t('Healed') : t('Damage') }}</span>
             <span v-if="cfg.stat === 'damage'" class="w-8 text-right">Crit</span>
           </div>
           <ul class="space-y-0.5 px-1.5 pb-1.5">
@@ -228,7 +229,7 @@ onBeforeUnmount(() => {
               v-for="r in rows"
               :key="r.id"
               :class="['relative cursor-pointer overflow-hidden rounded-md bg-dark', r.you ? 'ring-1 ring-accent' : 'hover:ring-1 hover:ring-light']"
-              :title="`${r.className ?? 'Unknown class'} · click for the details`"
+              :title="t('{class} · click for the details', { class: r.className ?? t('Unknown class') })"
               @click="showDetails(r.id)"
             >
               <div class="absolute inset-y-0 left-0 opacity-50" :style="{ width: `${(r.value / top) * 100}%`, background: CLASS_COLORS[r.className ?? ''] ?? '#787b8a' }" />
@@ -247,9 +248,9 @@ onBeforeUnmount(() => {
         <p v-else class="px-3 pb-2.5 text-[11px] text-darker">{{ empty }}</p>
 
         <footer v-if="meter.ping !== null || all.length > rows.length" class="flex gap-2 border-t border-card px-3 py-1 text-[10px] tabular-nums text-darkest">
-          <span>{{ TARGET_MODE_LABELS[meter.mode] }}</span>
-          <span v-if="all.length > rows.length">+{{ all.length - rows.length }} more</span>
-          <span v-if="meter.ping !== null" class="ml-auto" title="Your ping to the game server">
+          <span>{{ t(TARGET_MODE_LABELS[meter.mode]) }}</span>
+          <span v-if="all.length > rows.length">{{ t('+{n} more', { n: all.length - rows.length }) }}</span>
+          <span v-if="meter.ping !== null" class="ml-auto" :title="t('Your ping to the game server')">
             <span :class="pingClass">{{ meter.ping }}</span> ms
           </span>
         </footer>

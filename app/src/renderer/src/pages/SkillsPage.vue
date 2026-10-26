@@ -5,6 +5,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import SkillIcon from '@/components/SkillIcon.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { t } from '@/lib/i18n.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { useApp } from '@/stores/app.ts'
 import { NO_PERSONAL, type PersonalView } from '@shared/meter.ts'
@@ -69,16 +70,16 @@ onBeforeUnmount(() => {
   <div class="inline-block">
     <div ref="root" class="inline-block">
       <div v-if="rows.length" class="m-1.5 w-[300px] rounded-lg border border-card bg-darker shadow-card" :style="{ opacity: cfg.opacity }">
-        <header class="cursor-move px-2.5 pb-1.5 pt-2" title="Drag to move" @pointerdown="drag.onPointerDown">
+        <header class="cursor-move px-2.5 pb-1.5 pt-2" :title="t('Drag to move')" @pointerdown="drag.onPointerDown">
           <div class="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-darker">
-            <span>My skills</span>
+            <span>{{ t('My skills') }}</span>
             <span class="tabular-nums text-default">{{ clock(view.battleTime) }}</span>
             <span class="ml-auto truncate normal-case tracking-normal text-darkest">{{ view.target }}</span>
           </div>
           <div class="flex items-baseline gap-1.5">
             <span class="text-2xl font-semibold tabular-nums text-accent-text">{{ short(view.dps) }}</span>
             <span class="text-xs text-darker">DPS</span>
-            <span class="ml-auto text-xs tabular-nums text-darker">{{ short(view.damage) }} damage</span>
+            <span class="ml-auto text-xs tabular-nums text-darker">{{ t('{n} damage', { n: short(view.damage) }) }}</span>
           </div>
         </header>
         <ul class="space-y-0.5 px-1.5 pb-1.5">

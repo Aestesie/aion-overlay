@@ -2,6 +2,7 @@
 import { app, Menu, nativeImage, Tray } from 'electron'
 import { join } from 'node:path'
 import { DISPLAY_NAME } from '../shared/app.ts'
+import { tr } from './i18n.ts'
 import { settings } from './settings.ts'
 import { tracker } from './tracker.ts'
 import { hudIsEditing, markQuitting, overlaysHidden, setHudEditing, showPanel, toggleOverlays, togglePanel } from './windows.ts'
@@ -11,19 +12,19 @@ let tray: Tray | null = null
 function menu(): Menu {
   const hud = settings.get('hud')
   return Menu.buildFromTemplate([
-    { label: 'Open dashboard', accelerator: 'Alt+E', click: () => showPanel() },
-    { label: 'Hide overlays', type: 'checkbox', checked: overlaysHidden(), accelerator: 'Alt+Shift+E', click: () => toggleOverlays() },
+    { label: tr('Open dashboard'), accelerator: 'Alt+E', click: () => showPanel() },
+    { label: tr('Hide overlays'), type: 'checkbox', checked: overlaysHidden(), accelerator: 'Alt+Shift+E', click: () => toggleOverlays() },
     {
-      label: 'Show HUD',
+      label: tr('Show HUD'),
       type: 'checkbox',
       checked: hud.enabled,
       click: (item) => settings.set('hud', { ...settings.get('hud'), enabled: item.checked }),
     },
-    { label: hudIsEditing() ? 'Done moving HUD' : 'Move HUD…', click: () => setHudEditing(!hudIsEditing()) },
-    { label: 'Restart tracker', click: () => tracker.restart() },
+    { label: hudIsEditing() ? tr('Done moving HUD') : tr('Move HUD…'), click: () => setHudEditing(!hudIsEditing()) },
+    { label: tr('Restart tracker'), click: () => tracker.restart() },
     { type: 'separator' },
     {
-      label: 'Quit',
+      label: tr('Quit'),
       click: () => {
         markQuitting()
         app.quit()

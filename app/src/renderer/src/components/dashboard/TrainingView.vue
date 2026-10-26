@@ -12,6 +12,7 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import Segmented from '@/components/ui/Segmented.vue'
 import Toggle from '@/components/Toggle.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { loc, plural, t } from '@/lib/i18n.ts'
 import { useApp } from '@/stores/app.ts'
 import { DUMMY_DAMAGE_GOALS, DUMMY_LIMITS, NO_DUMMY, nextRunName, type DummyGoal, type DummyRun, type DummyState } from '@shared/dummy.ts'
 
@@ -52,7 +53,7 @@ const clock = (ms: number): string => {
   const s = Math.floor(ms / 1000)
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
-const when = (ms: number): string => new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+const when = (ms: number): string => new Date(ms).toLocaleString(loc(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 const inGroup = computed(() => state.value.runs.filter((r) => r.group === state.value.group).length)
 const placeholder = computed(() => nextRunName(state.value))
@@ -69,7 +70,7 @@ const progress = computed(() => {
   return a.damageGoal ? Math.min(1, a.damage / a.damageGoal) : 0
 })
 const goalText = (r: { goal: DummyGoal; limitMs: number | null; damageGoal: number | null }): string =>
-  r.goal === 'time' ? (r.limitMs ? `${clock(r.limitMs)} on the clock` : 'Until stopped') : `${short(r.damageGoal ?? 0)} damage`
+  r.goal === 'time' ? (r.limitMs ? t('{time} on the clock', { time: clock(r.limitMs) }) : t('Until stopped')) : t('{n} damage', { n: short(r.damageGoal ?? 0) })
 
 const groups = computed(() => {
   const by = new Map<number, DummyRun[]>()
@@ -117,36 +118,36 @@ onBeforeUnmount(() => off?.())
     <div class="mb-6 rounded-xl border border-card bg-card px-4 py-4">
       <div v-if="!active" class="flex flex-wrap items-end gap-4">
         <label class="block">
-          <span class="text-xs text-darker">Name</span>
+          <span class="text-xs text-darker">{{ t('Name') }}</span>
           <input v-model="name" :placeholder="placeholder" class="mt-1 block h-9 w-56 rounded-md border border-light bg-default px-2.5 text-sm placeholder:text-darkest focus:border-accent" @keydown.enter="start" />
         </label>
         <div>
-          <div class="mb-1 text-xs text-darker">Goal</div>
+          <div class="mb-1 text-xs text-darker">{{ t('Goal') }}</div>
           <Segmented :model-value="cfg.goal" :options="[{ id: 'time' as DummyGoal, label: 'Time' }, { id: 'damage' as DummyGoal, label: 'Damage' }]" @update:model-value="set({ goal: $event })" />
         </div>
         <div v-if="cfg.goal === 'time'">
-          <div class="mb-1 text-xs text-darker">Time limit</div>
+          <div class="mb-1 text-xs text-darker">{{ t('Time limit') }}</div>
           <Segmented :model-value="cfg.limitMs" :options="DUMMY_LIMITS" @update:model-value="set({ limitMs: $event })" />
         </div>
         <div v-else>
-          <div class="mb-1 text-xs text-darker">Damage goal</div>
+          <div class="mb-1 text-xs text-darker">{{ t('Damage goal') }}</div>
           <Segmented :model-value="cfg.damageGoal" :options="DUMMY_DAMAGE_GOALS.map((d) => ({ id: d, label: short(d) }))" @update:model-value="set({ damageGoal: $event })" />
         </div>
         <div class="flex gap-2">
-          <Button intent="primary" @click="start">Start run</Button>
-          <Button :disabled="!inGroup" title="Runs from now on are compared among themselves" @click="api.invoke('dummy:newGroup')">New group</Button>
+          <Button intent="primary" @click="start">{{ t('Start run') }}</Button>
+          <Button :disabled="!inGroup" :title="t('Runs from now on are compared among themselves')" @click="api.invoke('dummy:newGroup')">{{ t('New group') }}</Button>
         </div>
         <div class="flex w-full flex-wrap items-center gap-x-6 gap-y-2 border-t border-card pt-3 text-sm">
-          <label class="flex items-center gap-2" title="No need to press Start: hitting a training dummy starts a run, and its clock, at once">
+          <label class="flex items-center gap-2" :title="t('No need to press Start: hitting a training dummy starts a run, and its clock, at once')">
             <Toggle :model-value="cfg.autoStart" @update:model-value="set({ autoStart: $event })" />
-            Start on my first hit on a dummy
+            {{ t('Start on my first hit on a dummy') }}
           </label>
-          <label class="flex items-center gap-2" title="A small panel over the game while you train: the clock, your DPS, start and stop">
+          <label class="flex items-center gap-2" :title="t('A small panel over the game while you train: the clock, your DPS, start and stop')">
             <Toggle :model-value="cfg.overlay" @update:model-value="set({ overlay: $event })" />
-            Training overlay over the game
+            {{ t('Training overlay over the game') }}
           </label>
           <span class="text-xs text-darker">
-            {{ inGroup ? `Group ${state.group} has ${inGroup} run${inGroup === 1 ? '' : 's'}.` : `${placeholder} starts a new group.` }}
+            {{ inGroup ? plural(inGroup, 'Group {g} has {n} run.', 'Group {g} has {n} runs.', { g: state.group }) : t('{name} starts a new group.', { name: placeholder }) }}
           </span>
         </div>
       </div>
@@ -158,14 +159,14 @@ onBeforeUnmount(() => off?.())
               {{ active.name }}
               <span class="text-xs font-normal text-darker">· {{ goalText(active) }}</span>
             </div>
-            <div class="text-xs text-darker">{{ active.startedAt ? 'Running: keep hitting the dummy.' : 'Hit a training dummy: the clock starts with your first hit.' }}</div>
+            <div class="text-xs text-darker">{{ active.startedAt ? t('Running: keep hitting the dummy.') : t('Hit a training dummy: the clock starts with your first hit.') }}</div>
           </div>
           <div class="text-right">
             <div class="text-2xl font-bold tabular-nums">{{ short(active.dps) }}<span class="ml-1 text-xs font-normal text-darker">DPS</span></div>
-            <div class="text-xs tabular-nums text-darker">{{ clock(elapsed) }} · {{ short(active.damage) }} damage</div>
+            <div class="text-xs tabular-nums text-darker">{{ clock(elapsed) }} · {{ t('{n} damage', { n: short(active.damage) }) }}</div>
           </div>
-          <Button intent="primary" :disabled="!active.startedAt" @click="api.invoke('dummy:stop', true)">Stop and save</Button>
-          <Button @click="api.invoke('dummy:stop', false)">Cancel</Button>
+          <Button intent="primary" :disabled="!active.startedAt" @click="api.invoke('dummy:stop', true)">{{ t('Stop and save') }}</Button>
+          <Button @click="api.invoke('dummy:stop', false)">{{ t('Cancel') }}</Button>
         </div>
         <div v-if="progress > 0 || (active.goal === 'time' && active.limitMs) || active.goal === 'damage'" class="mt-3 h-1.5 overflow-hidden rounded-full bg-dark">
           <div class="h-full bg-accent transition-[width]" :style="{ width: `${progress * 100}%` }" />
@@ -184,7 +185,7 @@ onBeforeUnmount(() => off?.())
           { label: 'Time', a: compared.x.durationMs, b: compared.y.durationMs, f: clock },
           { label: 'Hits', a: compared.x.skills.reduce((n, s) => n + s.hits, 0), b: compared.y.skills.reduce((n, s) => n + s.hits, 0), f: (n: number) => String(n) },
         ]" :key="c.label" class="rounded-xl border border-card bg-card px-3 py-2.5">
-          <div class="text-xs text-darker">{{ c.label }}</div>
+          <div class="text-xs text-darker">{{ t(c.label) }}</div>
           <div class="text-lg font-semibold tabular-nums">{{ c.f(c.a) }} <span class="text-darkest">→</span> {{ c.f(c.b) }}</div>
           <div :class="['text-xs tabular-nums', c.b >= c.a ? 'text-green' : 'text-danger']">{{ change(c.a, c.b) }}</div>
         </div>
@@ -196,7 +197,7 @@ onBeforeUnmount(() => off?.())
               <th class="py-2 pl-4 text-left font-medium">Skill DPS</th>
               <th class="w-28 px-3 text-right font-medium">{{ compared.x.name }}</th>
               <th class="w-28 px-3 text-right font-medium">{{ compared.y.name }}</th>
-              <th class="w-24 pr-4 text-right font-medium">Change</th>
+              <th class="w-24 pr-4 text-right font-medium">{{ t('Change') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[color:var(--line)]">
@@ -204,7 +205,7 @@ onBeforeUnmount(() => off?.())
               <td class="py-1.5 pl-4"><span class="flex items-center gap-2"><SkillIcon :code="s.code" :size="20" />{{ s.name }}<span v-if="s.dot" class="text-xs text-darker">DoT</span></span></td>
               <td class="px-3 text-right tabular-nums text-darker">{{ s.a ? short(s.a) : '-' }}</td>
               <td class="px-3 text-right tabular-nums">{{ s.b ? short(s.b) : '-' }}</td>
-              <td :class="['pr-4 text-right tabular-nums', s.b >= s.a ? 'text-green' : 'text-danger']">{{ s.a && s.b ? change(s.a, s.b) : s.b ? 'new' : 'gone' }}</td>
+              <td :class="['pr-4 text-right tabular-nums', s.b >= s.a ? 'text-green' : 'text-danger']">{{ s.a && s.b ? change(s.a, s.b) : s.b ? t('new') : t('gone') }}</td>
             </tr>
           </tbody>
         </table>
@@ -214,21 +215,21 @@ onBeforeUnmount(() => off?.())
     <section>
       <div class="mb-2 flex items-baseline gap-2">
         <h2 class="text-base font-semibold">Runs</h2>
-        <span class="text-xs text-darker">Tick two runs to compare them.</span>
+        <span class="text-xs text-darker">{{ t('Tick two runs to compare them.') }}</span>
       </div>
       <div v-if="!state.runs.length" class="rounded-xl border border-dashed border-card px-4 py-10 text-center">
-        <div class="text-sm font-medium">No run saved yet.</div>
-        <div class="mt-1 text-xs text-darker">Start a run, then hit a training dummy. Finished runs are saved here to compare.</div>
+        <div class="text-sm font-medium">{{ t('No run saved yet.') }}</div>
+        <div class="mt-1 text-xs text-darker">{{ t('Start a run, then hit a training dummy. Finished runs are saved here to compare.') }}</div>
       </div>
       <div v-for="[group, runs] in groups" :key="group" class="mb-4 overflow-hidden rounded-xl border border-card">
-        <div class="border-b border-card bg-card px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-darker">Group {{ group }}</div>
+        <div class="border-b border-card bg-card px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-darker">{{ t('Group {n}', { n: group }) }}</div>
         <table class="w-full text-sm">
           <tbody class="divide-y divide-[color:var(--line)]">
             <template v-for="r in runs" :key="r.id">
             <tr :class="['group cursor-pointer', picked.includes(r.id) ? 'bg-accent-soft/40' : 'hover:bg-card']" @click="pick(r.id)">
               <td class="w-10 py-2 pl-4"><input type="checkbox" class="accent-[color:var(--accent)]" :checked="picked.includes(r.id)" @click.stop="pick(r.id)" /></td>
               <td class="py-2">
-                <div class="font-medium">{{ r.name }}<span v-if="!r.finished" class="ml-1.5 rounded border border-light px-1 text-[10px] font-normal text-darker">stopped</span></div>
+                <div class="font-medium">{{ r.name }}<span v-if="!r.finished" class="ml-1.5 rounded border border-light px-1 text-[10px] font-normal text-darker">{{ t('stopped') }}</span></div>
                 <div class="text-xs text-darker">{{ goalText(r) }}</div>
               </td>
               <td class="w-24 px-3 text-right font-semibold tabular-nums">{{ short(r.dps) }}<span class="ml-0.5 text-[10px] font-normal text-darker">DPS</span></td>
@@ -240,36 +241,36 @@ onBeforeUnmount(() => off?.())
                 <button
                   type="button"
                   :class="['h-7 rounded-md px-2 text-xs hover:bg-light', expanded === r.id ? 'text-default' : 'text-darker']"
-                  title="Its skills: DPS, share, hits and crits"
+                  :title="t('Its skills: DPS, share, hits and crits')"
                   @click.stop="expanded = expanded === r.id ? null : r.id"
                 >Skills {{ expanded === r.id ? '▴' : '▾' }}</button>
                 <button
                   v-if="r.details"
                   type="button"
                   class="h-7 rounded-md px-2 text-xs text-accent hover:bg-light"
-                  title="The whole breakdown: skills, hits, defense, rotation and buffs"
+                  :title="t('The whole breakdown: skills, hits, defense, rotation and buffs')"
                   @click.stop="openDetails(r)"
-                >Details</button>
+                >{{ t('Details') }}</button>
               </td>
               <td class="w-12 pr-3 text-right">
-                <button type="button" class="inline-flex size-7 items-center justify-center rounded-md text-darker opacity-0 hover:bg-light hover:text-danger group-hover:opacity-100" title="Delete this run" @click.stop="api.invoke('dummy:delete', r.id)">
+                <button type="button" class="inline-flex size-7 items-center justify-center rounded-md text-darker opacity-0 hover:bg-light hover:text-danger group-hover:opacity-100" :title="t('Delete this run')" @click.stop="api.invoke('dummy:delete', r.id)">
                   <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M5 4.5l.5 8.5h5l.5-8.5" /></svg>
                 </button>
               </td>
             </tr>
             <tr v-if="expanded === r.id" class="bg-default/40">
               <td colspan="9" class="px-4 py-2">
-                <p v-if="!r.skills.length" class="text-xs text-darker">No skills recorded for this run.</p>
+                <p v-if="!r.skills.length" class="text-xs text-darker">{{ t('No skills recorded for this run.') }}</p>
                 <table v-else class="w-full text-xs">
                   <thead class="text-darker">
                     <tr>
                       <th class="py-1 text-left font-medium">Skill</th>
                       <th class="w-20 text-right font-medium">DPS</th>
-                      <th class="w-20 text-right font-medium">Damage</th>
-                      <th class="w-36 pl-3 text-left font-medium">Share</th>
+                      <th class="w-20 text-right font-medium">{{ t('Damage') }}</th>
+                      <th class="w-36 pl-3 text-left font-medium">{{ t('Share') }}</th>
                       <th class="w-14 text-right font-medium">Hits</th>
                       <th class="w-14 text-right font-medium">Crit</th>
-                      <th class="w-20 text-right font-medium">Avg hit</th>
+                      <th class="w-20 text-right font-medium">{{ t('Avg hit') }}</th>
                     </tr>
                   </thead>
                   <tbody>

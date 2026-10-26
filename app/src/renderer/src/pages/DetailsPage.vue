@@ -10,6 +10,7 @@ import BuffIcon from '@/components/BuffIcon.vue'
 import SkillIcon from '@/components/SkillIcon.vue'
 import { buffName } from '@/lib/buffs.ts'
 import { bridge } from '@/lib/bridge.ts'
+import { loc, t } from '@/lib/i18n.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { CLASS_COLORS, type DetailsSkill, type DetailsView } from '@shared/meter.ts'
 import { trackSegments, type BuffTrack } from '@shared/buffs.ts'
@@ -144,7 +145,7 @@ const onActor = computed(() => buffRows((view.value?.buffs?.tracks ?? []).filter
 const onTarget = computed(() => buffRows((view.value?.buffs?.tracks ?? []).filter((t) => t.on === view.value?.buffs?.targetId && (showPassives.value || !t.passive)), true))
 const showPassives = ref(false)
 const started = computed(() =>
-  view.value?.startedAt ? new Date(view.value.startedAt).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : null,
+  view.value?.startedAt ? new Date(view.value.startedAt).toLocaleString(loc(), { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : null,
 )
 
 async function load(): Promise<void> {
@@ -179,21 +180,21 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="flex h-screen flex-col overflow-hidden rounded-xl border border-card bg-darker shadow-card">
-    <header class="flex cursor-move items-center gap-2 border-b border-card px-3 py-2" title="Drag to move" @pointerdown="drag.onPointerDown">
-      <span v-if="live" class="size-1.5 shrink-0 rounded-full bg-green" title="Live: follows the fight" />
+    <header class="flex cursor-move items-center gap-2 border-b border-card px-3 py-2" :title="t('Drag to move')" @pointerdown="drag.onPointerDown">
+      <span v-if="live" class="size-1.5 shrink-0 rounded-full bg-green" :title="t('Live: follows the fight')" />
       <div class="min-w-0 flex-1">
-        <div class="truncate text-sm font-semibold text-default">{{ view?.title ?? 'Details' }}</div>
+        <div class="truncate text-sm font-semibold text-default">{{ view?.title ?? t('Details') }}</div>
         <div v-if="view" class="text-[11px] tabular-nums text-darker">
-          {{ clock(view.battleTime) }} · {{ short(view.totalDamage) }} damage<template v-if="view.maxHp"> of {{ short(view.maxHp) }} HP</template
+          {{ clock(view.battleTime) }} · {{ t('{n} damage', { n: short(view.totalDamage) }) }}<template v-if="view.maxHp"> {{ t('of {n} HP', { n: short(view.maxHp) }) }}</template
           ><template v-if="started"> · {{ started }}</template>
         </div>
       </div>
-      <button type="button" class="flex size-6 shrink-0 items-center justify-center rounded text-darker hover:bg-dark hover:text-default" title="Close" @pointerdown.stop @click="close">
+      <button type="button" class="flex size-6 shrink-0 items-center justify-center rounded text-darker hover:bg-dark hover:text-default" :title="t('Close')" @pointerdown.stop @click="close">
         <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round" /></svg>
       </button>
     </header>
 
-    <p v-if="!view" class="px-3 py-4 text-xs text-darker">{{ loading ? 'Loading…' : 'Nothing to show: the fight is gone, or the engine is not running.' }}</p>
+    <p v-if="!view" class="px-3 py-4 text-xs text-darker">{{ loading ? t('Loading…') : t('Nothing to show: the fight is gone, or the engine is not running.') }}</p>
 
     <template v-else>
       <!-- The players: click one for their card. -->
@@ -227,7 +228,7 @@ onBeforeUnmount(() => {
               <span v-if="actor.you" class="rounded bg-accent/20 px-1.5 text-[10px] font-bold text-accent">ME</span>
             </div>
             <div class="text-xs text-darker">
-              #{{ rank }} · {{ actor.className ?? 'Unknown class' }}<template v-if="actor.combatPower"> · {{ short(actor.combatPower) }}</template>
+              #{{ rank }} · {{ actor.className ?? t('Unknown class') }}<template v-if="actor.combatPower"> · {{ short(actor.combatPower) }}</template>
             </div>
           </div>
         </div>
@@ -237,26 +238,26 @@ onBeforeUnmount(() => {
             <div class="text-base font-semibold tabular-nums">{{ short(actor.dps) }}</div>
           </div>
           <div class="rounded-lg bg-dark px-2.5 py-2">
-            <div class="text-[10px] text-darker">Damage</div>
+            <div class="text-[10px] text-darker">{{ t('Damage') }}</div>
             <div class="text-base font-semibold tabular-nums">{{ short(actor.damage) }}</div>
           </div>
           <div class="rounded-lg bg-dark px-2.5 py-2">
-            <div class="text-[10px] text-darker">Contribution</div>
+            <div class="text-[10px] text-darker">{{ t('Contribution') }}</div>
             <div class="text-base font-semibold tabular-nums">{{ actor.share.toFixed(1) }}%</div>
           </div>
           <div class="rounded-lg bg-dark px-2.5 py-2">
-            <div class="text-[10px] text-darker">Active</div>
+            <div class="text-[10px] text-darker">{{ t('Active') }}</div>
             <div class="text-base font-semibold tabular-nums">{{ active !== null ? clock(active) : '-' }}<span class="text-xs font-normal text-darker"> / {{ clock(view.battleTime) }}</span></div>
           </div>
         </div>
         <nav class="mt-2 flex gap-4 border-b border-card text-sm">
           <button
-            v-for="t in TABS"
-            :key="t.id"
+            v-for="tb in TABS"
+            :key="tb.id"
             type="button"
-            :class="['-mb-px border-b-2 pb-1.5 pt-1', tab === t.id ? 'border-accent font-medium text-default' : 'border-transparent text-darker hover:text-default']"
-            @click="tab = t.id"
-          >{{ t.label }}</button>
+            :class="['-mb-px border-b-2 pb-1.5 pt-1', tab === tb.id ? 'border-accent font-medium text-default' : 'border-transparent text-darker hover:text-default']"
+            @click="tab = tb.id"
+          >{{ t(tb.label) }}</button>
         </nav>
       </div>
 
@@ -264,7 +265,7 @@ onBeforeUnmount(() => {
         <!-- Skills -->
         <template v-if="tab === 'skills'">
           <div class="flex items-center gap-2 px-1.5 pb-1 text-[10px] text-darkest">
-            <span class="flex-1 pl-7">Skill</span><span class="w-14 text-right">Damage</span><span class="w-12 text-right">DPS</span><span class="w-10 text-right">Crit</span><span class="w-10 text-right">Hits</span><span class="w-12 text-right">Max</span>
+            <span class="flex-1 pl-7">Skill</span><span class="w-14 text-right">{{ t('Damage') }}</span><span class="w-12 text-right">DPS</span><span class="w-10 text-right">Crit</span><span class="w-10 text-right">Hits</span><span class="w-12 text-right">Max</span>
           </div>
           <div v-for="s in skills" :key="`${s.code}-${s.dot}`" class="relative mb-0.5 overflow-hidden rounded-md bg-dark" :title="s.name">
             <div class="absolute inset-y-0 left-0 bg-danger/35" :style="{ width: `${(s.damage / skillTop) * 100}%` }" />
@@ -278,16 +279,16 @@ onBeforeUnmount(() => {
               <span class="w-12 text-right text-dark">{{ s.maxHit ? short(s.maxHit) : '-' }}</span>
             </div>
           </div>
-          <p v-if="!skills.length" class="px-1.5 py-2 text-darker">No damage by this player in this fight.</p>
+          <p v-if="!skills.length" class="px-1.5 py-2 text-darker">{{ t('No damage by this player in this fight.') }}</p>
         </template>
 
         <!-- Hits -->
         <template v-else-if="tab === 'hits'">
           <div class="mb-3 grid grid-cols-3 gap-2 px-1">
             <div v-for="c in HIT_CARDS" :key="c.key" class="rounded-lg bg-dark px-2.5 py-2">
-              <div class="text-[10px] text-darker">{{ c.label }}</div>
+              <div class="text-[10px] text-darker">{{ t(c.label) }}</div>
               <div class="text-base font-semibold tabular-nums">{{ pct(hits[c.key], hits.hits) }}</div>
-              <div class="text-[10px] tabular-nums text-darkest">{{ hits[c.key] }} of {{ hits.hits }} hits</div>
+              <div class="text-[10px] tabular-nums text-darkest">{{ t('{n} of {total} hits', { n: hits[c.key], total: hits.hits }) }}</div>
             </div>
           </div>
           <table class="w-full tabular-nums">
@@ -310,26 +311,26 @@ onBeforeUnmount(() => {
 
         <!-- Defense -->
         <template v-else-if="tab === 'defense'">
-          <p v-if="!view.defense" class="px-1.5 py-2 text-darker">Not recorded for this fight.</p>
+          <p v-if="!view.defense" class="px-1.5 py-2 text-darker">{{ t('Not recorded for this fight.') }}</p>
           <template v-else>
             <div class="mb-3 grid grid-cols-3 gap-2 px-1">
               <div class="rounded-lg bg-dark px-2.5 py-2">
-                <div class="text-[10px] text-darker">Damage taken</div>
+                <div class="text-[10px] text-darker">{{ t('Damage taken') }}</div>
                 <div class="text-base font-semibold tabular-nums">{{ short(defense?.taken ?? 0) }}</div>
-                <div class="text-[10px] tabular-nums text-darkest">{{ short((defense?.taken ?? 0) / seconds) }} per second</div>
+                <div class="text-[10px] tabular-nums text-darkest">{{ short((defense?.taken ?? 0) / seconds) }} {{ t('per second') }}</div>
               </div>
               <div class="rounded-lg bg-dark px-2.5 py-2">
-                <div class="text-[10px] text-darker">Hits taken</div>
+                <div class="text-[10px] text-darker">{{ t('Hits taken') }}</div>
                 <div class="text-base font-semibold tabular-nums">{{ defense?.hitsTaken ?? 0 }}</div>
-                <div class="text-[10px] tabular-nums text-darkest">{{ defense?.hitsTaken ? short((defense.taken ?? 0) / defense.hitsTaken) : '-' }} a hit</div>
+                <div class="text-[10px] tabular-nums text-darkest">{{ defense?.hitsTaken ? short((defense.taken ?? 0) / defense.hitsTaken) : '-' }} {{ t('a hit') }}</div>
               </div>
               <div class="rounded-lg bg-dark px-2.5 py-2">
-                <div class="text-[10px] text-darker">Healing done</div>
+                <div class="text-[10px] text-darker">{{ t('Healing done') }}</div>
                 <div class="text-base font-semibold tabular-nums">{{ short(defense?.heal ?? actor?.heal ?? 0) }}</div>
-                <div class="text-[10px] tabular-nums text-darkest">{{ short((defense?.heal ?? actor?.heal ?? 0) / seconds) }} per second</div>
+                <div class="text-[10px] tabular-nums text-darkest">{{ short((defense?.heal ?? actor?.heal ?? 0) / seconds) }} {{ t('per second') }}</div>
               </div>
             </div>
-            <div class="px-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-darkest">Damage taken by player</div>
+            <div class="px-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-darkest">{{ t('Damage taken by player') }}</div>
             <div v-for="r in takenRanked" :key="r.a.id" class="relative mb-0.5 overflow-hidden rounded-md bg-dark">
               <div class="absolute inset-y-0 left-0 opacity-40" :style="{ width: `${(r.taken / takenTop) * 100}%`, background: color(r.a.className) }" />
               <div class="relative flex items-center gap-1.5 px-1.5 py-0.5">
@@ -338,22 +339,22 @@ onBeforeUnmount(() => {
                 <span class="tabular-nums">{{ short(r.taken) }}</span>
               </div>
             </div>
-            <p v-if="!takenRanked.length" class="px-1.5 text-darker">Nobody took damage from this target.</p>
+            <p v-if="!takenRanked.length" class="px-1.5 text-darker">{{ t('Nobody took damage from this target.') }}</p>
           </template>
         </template>
 
         <!-- Rotation -->
         <template v-else-if="tab === 'rotation'">
-          <p v-if="!sequence.length" class="px-1.5 py-2 text-darker">No hit times for this player in this fight.</p>
+          <p v-if="!sequence.length" class="px-1.5 py-2 text-darker">{{ t('No hit times for this player in this fight.') }}</p>
           <template v-else>
-            <div class="px-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-darkest">Opening: the first {{ Math.min(24, sequence.length) }} casts</div>
+            <div class="px-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-darkest">{{ t('Opening: the first {n} casts', { n: Math.min(24, sequence.length) }) }}</div>
             <div class="mb-3 flex flex-wrap items-center gap-1 px-1.5">
               <template v-for="(h, i) in sequence.slice(0, 24)" :key="i">
                 <span v-if="i" class="text-[9px] text-darkest">›</span>
-                <span :title="`${h.name} at ${clock(h.t)}`"><SkillIcon :code="h.code" :size="22" /></span>
+                <span :title="t('{name} at {time}', { name: h.name, time: clock(h.t) })"><SkillIcon :code="h.code" :size="22" /></span>
               </template>
             </div>
-            <div class="px-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-darkest">Over the fight: each hit a mark</div>
+            <div class="px-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-darkest">{{ t('Over the fight: each hit a mark') }}</div>
             <div v-for="l in lanes" :key="l.s.code" class="flex items-center gap-2 px-1.5 py-0.5" :title="`${l.s.name}: ${l.s.hits} hits`">
               <SkillIcon :code="l.s.code" :size="16" />
               <span class="w-28 shrink-0 truncate text-dark">{{ l.s.name }}</span>
@@ -367,16 +368,16 @@ onBeforeUnmount(() => {
 
         <!-- Buffs -->
         <div v-else-if="tab === 'buffs'" class="px-1.5">
-          <p v-if="!view.buffs" class="py-2 text-darker">No buffs recorded for this fight (fights saved before buffs were recorded have none).</p>
+          <p v-if="!view.buffs" class="py-2 text-darker">{{ t('No buffs recorded for this fight (fights saved before buffs were recorded have none).') }}</p>
           <template v-else>
           <label class="mb-1.5 flex items-center gap-1.5 text-darker">
             <input v-model="showPassives" type="checkbox" class="accent-[color:var(--accent)]" />
-            Passives (on all fight)
+            {{ t('Passives (on all fight)') }}
           </label>
-          <section v-for="group in [{ title: `On ${actor?.name ?? 'the player'}`, rows: onActor }, { title: `On ${view.title}`, rows: onTarget }]" :key="group.title" class="mb-3">
+          <section v-for="group in [{ title: t('On {name}', { name: actor?.name ?? t('the player') }), rows: onActor }, { title: t('On {name}', { name: view.title }), rows: onTarget }]" :key="group.title" class="mb-3">
             <h3 class="mb-1 font-semibold uppercase tracking-wide text-darkest">{{ group.title }}</h3>
-            <p v-if="!group.rows.length" class="text-darker">Nothing.</p>
-            <div v-for="r in group.rows" :key="r.key" class="flex items-center gap-2 py-0.5" :title="r.by ? `${r.name} · from ${r.by}` : r.name">
+            <p v-if="!group.rows.length" class="text-darker">{{ t('Nothing.') }}</p>
+            <div v-for="r in group.rows" :key="r.key" class="flex items-center gap-2 py-0.5" :title="r.by ? t('{name} · from {by}', { name: r.name, by: r.by }) : r.name">
               <BuffIcon :id="r.track.id" :skill="r.track.skill" :size="16" />
               <span class="w-36 shrink-0 truncate text-dark">{{ r.name }}<span v-if="r.by && group.rows === onTarget" class="text-darkest"> · {{ r.by }}</span></span>
               <div class="relative h-2.5 min-w-0 flex-1 overflow-hidden rounded-sm bg-dark">
@@ -390,7 +391,7 @@ onBeforeUnmount(() => {
               <span class="w-10 shrink-0 text-right tabular-nums text-darker">{{ r.uptime.toFixed(0) }}%</span>
             </div>
           </section>
-          <p class="text-darkest">Blue: cast by {{ actor?.name ?? 'the player' }}. Green: by others. Red: on the target from others.</p>
+          <p class="text-darkest">{{ t('Blue: cast by {name}. Green: by others. Red: on the target from others.', { name: actor?.name ?? t('the player') }) }}</p>
         </template>
         </div>
 
@@ -406,7 +407,7 @@ onBeforeUnmount(() => {
               <span class="w-10 text-right text-dark">{{ s.hits }}</span>
             </div>
           </div>
-          <p v-if="!heals.length" class="px-1.5 py-2 text-darker">No healing by this player in this fight.</p>
+          <p v-if="!heals.length" class="px-1.5 py-2 text-darker">{{ t('No healing by this player in this fight.') }}</p>
         </template>
       </div>
     </template>

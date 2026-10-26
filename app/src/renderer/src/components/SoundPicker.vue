@@ -8,6 +8,7 @@ import SettingRow from '@/components/SettingRow.vue'
 import Slider from '@/components/Slider.vue'
 import SelectBox from '@/components/ui/SelectBox.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { t } from '@/lib/i18n.ts'
 import { playSound } from '@/lib/sound.ts'
 import { useApp } from '@/stores/app.ts'
 import { SOUNDS, type SoundId, type SoundSlot } from '@shared/sounds.ts'
@@ -18,7 +19,7 @@ const store = useApp()
 const id = computed<SoundId>(() => (props.kind === 'cube' ? store.settings.hud.cubeSoundId : store.settings.enemies.soundId))
 const volume = computed(() => (props.kind === 'cube' ? store.settings.hud.cubeVolume : store.settings.enemies.volume))
 const customName = computed(() => (props.kind === 'cube' ? store.settings.hud.cubeCustomName : store.settings.enemies.customName))
-const options = computed(() => SOUNDS.map((s) => ({ id: s.id, label: s.id === 'custom' && customName.value ? `Your own: ${customName.value}` : s.label })))
+const options = computed(() => SOUNDS.map((s) => ({ id: s.id, label: s.id === 'custom' && customName.value ? t('Your own: {name}', { name: customName.value }) : s.label })))
 const note = ref<string | null>(null)
 
 function save(patch: { id?: SoundId; volume?: number }): void {
@@ -29,7 +30,7 @@ function save(patch: { id?: SoundId; volume?: number }): void {
   }
 }
 async function test(): Promise<void> {
-  note.value = (await playSound(props.kind, id.value, volume.value)) ? null : 'It could not be played: choose your mp3 again.'
+  note.value = (await playSound(props.kind, id.value, volume.value)) ? null : t('It could not be played: choose your mp3 again.')
 }
 async function pick(): Promise<void> {
   const result = await bridge().invoke('sounds:pickCustom', props.kind)
@@ -51,11 +52,11 @@ const pct = (v: number): string => `${Math.round(v * 100)}%`
   <SettingRow :label="label" :hint="note ?? 'Or your own mp3 (up to 2 MB): a copy is kept in the app\'s data folder.'">
     <div class="flex items-center gap-2">
       <SelectBox size="sm" :model-value="id" :options="options" @update:model-value="choose" />
-      <Button size="sm" @click="test">Test</Button>
-      <Button size="sm" @click="pick">{{ customName ? 'Change mp3…' : 'Add mp3…' }}</Button>
+      <Button size="sm" @click="test">{{ t('Test') }}</Button>
+      <Button size="sm" @click="pick">{{ customName ? t('Change mp3…') : t('Add mp3…') }}</Button>
     </div>
   </SettingRow>
-  <SettingRow :label="`${label} volume`">
+  <SettingRow :label="t('{name} volume', { name: t(label) })">
     <Slider :model-value="volume" :min="0" :max="1" :step="0.05" :format="pct" @update:model-value="save({ volume: $event })" />
   </SettingRow>
 </template>

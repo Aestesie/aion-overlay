@@ -11,6 +11,7 @@ import CollapseButton from '@/components/CollapseButton.vue'
 import PetIcon from '@/components/PetIcon.vue'
 import WorldMap, { type MapLayer } from '@/components/WorldMap.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { plural, t } from '@/lib/i18n.ts'
 import { displayName } from '@/lib/petDb.ts'
 import { currentWorld, nearbyPets, useSpawns } from '@/lib/spawns.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
@@ -100,17 +101,17 @@ onBeforeUnmount(() => observer?.disconnect())
         class="m-1.5 overflow-hidden rounded-lg border border-card bg-darker shadow-card"
         :style="{ width: `${cfg.size}px`, opacity: cfg.opacity }"
       >
-        <header class="flex cursor-move items-center gap-1.5 px-2 py-1 text-[11px]" title="Drag to move" @pointerdown="drag.onPointerDown">
-          <span class="truncate font-semibold text-dark">{{ world?.name ?? 'Map' }}</span>
+        <header class="flex cursor-move items-center gap-1.5 px-2 py-1 text-[11px]" :title="t('Drag to move')" @pointerdown="drag.onPointerDown">
+          <span class="truncate font-semibold text-dark">{{ world?.name ?? t('Map') }}</span>
           <span class="flex-1" />
           <span v-if="store.cubes.length" class="shrink-0 rounded-full bg-yellow/15 px-1.5 font-semibold text-yellow">
-            {{ store.cubes.length }} cube{{ store.cubes.length > 1 ? 's' : '' }}
+            {{ plural(store.cubes.length, '{n} cube', '{n} cubes') }}
           </span>
-          <span v-if="!store.nearby.position && !cfg.collapsed" class="shrink-0 text-darkest">where you are: unknown</span>
+          <span v-if="!store.nearby.position && !cfg.collapsed" class="shrink-0 text-darkest">{{ t('where you are: unknown') }}</span>
           <CollapseButton :collapsed="cfg.collapsed" class="-my-0.5 -mr-1" @toggle="toggleCollapsed" />
         </header>
         <p v-if="!world && !cfg.collapsed" class="px-2 pb-2 text-[11px] text-darker">
-          Your zone isn't known yet: change zone (or teleport) and the map shows it.
+          {{ t("Your zone isn't known yet: change zone (or teleport) and the map shows it.") }}
         </p>
         <template v-else-if="!cfg.collapsed && world">
         <div class="relative" :style="{ height: `${cfg.size}px` }">
@@ -118,7 +119,7 @@ onBeforeUnmount(() => observer?.disconnect())
             <button
               type="button"
               class="flex size-6 items-center justify-center hover:bg-white/15 disabled:opacity-40"
-              title="Zoom in"
+              :title="t('Zoom in')"
               :disabled="cfg.zoom >= 40"
               @pointerdown.stop
               @dblclick.stop
@@ -131,7 +132,7 @@ onBeforeUnmount(() => observer?.disconnect())
             <button
               type="button"
               class="flex size-6 items-center justify-center border-t border-white/15 hover:bg-white/15 disabled:opacity-40"
-              title="Centre on me"
+              :title="t('Centre on me')"
               :disabled="!store.nearby.position"
               @pointerdown.stop
               @dblclick.stop
@@ -145,7 +146,7 @@ onBeforeUnmount(() => observer?.disconnect())
             <button
               type="button"
               class="flex size-6 items-center justify-center border-t border-white/15 hover:bg-white/15 disabled:opacity-40"
-              title="Zoom out"
+              :title="t('Zoom out')"
               :disabled="cfg.zoom <= 1"
               @pointerdown.stop
               @dblclick.stop
@@ -171,10 +172,10 @@ onBeforeUnmount(() => observer?.disconnect())
           />
         </div>
         <div v-if="legend.length" class="flex flex-wrap gap-x-2 gap-y-1 px-2 py-1.5">
-          <span v-for="t in legend" :key="t.id" class="flex min-w-0 items-center gap-1 text-[11px] text-dark" :title="displayName(pet(t.id))">
-            <span class="size-2 shrink-0 rounded-full" :style="{ background: t.color }" />
-            <PetIcon :id="t.id" :size="14" />
-            <span class="max-w-[88px] truncate">{{ displayName(pet(t.id)) }}</span>
+          <span v-for="lg in legend" :key="lg.id" class="flex min-w-0 items-center gap-1 text-[11px] text-dark" :title="displayName(pet(lg.id))">
+            <span class="size-2 shrink-0 rounded-full" :style="{ background: lg.color }" />
+            <PetIcon :id="lg.id" :size="14" />
+            <span class="max-w-[88px] truncate">{{ displayName(pet(lg.id)) }}</span>
           </span>
         </div>
         </template>

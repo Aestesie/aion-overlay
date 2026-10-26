@@ -7,6 +7,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ClassIcon from '@/components/ClassIcon.vue'
 import CollapseButton from '@/components/CollapseButton.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { t } from '@/lib/i18n.ts'
 import { panelStyle } from '@/lib/overlayLook.ts'
 import { playSound } from '@/lib/sound.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
@@ -20,13 +21,13 @@ const root = ref<HTMLElement | null>(null)
 const cfg = computed(() => store.settings.enemies)
 
 const ROWS = 8
-const SAMPLE: Enemy[] = [
-  { entity: -1, name: 'Enemy player', server: 2104, legion: 'Their legion', combatPower: 123_186, className: 'Assassin' },
-  { entity: -2, name: 'Another one', server: 2104, legion: null },
-]
+const SAMPLE = computed<Enemy[]>(() => [
+  { entity: -1, name: t('Enemy player'), server: 2104, legion: t('Their legion'), combatPower: 123_186, className: 'Assassin' },
+  { entity: -2, name: t('Another one'), server: 2104, legion: null },
+])
 /** Nobody around while the dashboard is up: a sample to place it by. */
 const preview = computed(() => !store.enemies.length && store.panelVisible)
-const list = computed(() => (store.enemies.length ? store.enemies : preview.value ? SAMPLE : []))
+const list = computed(() => (store.enemies.length ? store.enemies : preview.value ? SAMPLE.value : []))
 
 // An enemy coming into view sounds the alarm: not again for the same player within a minute (they
 // step in and out of range), and not more than once every 5 s however many arrive.
@@ -81,8 +82,8 @@ onBeforeUnmount(() => observer?.disconnect())
       >
         <div :class="['flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-red', !cfg.collapsed && 'mb-1']">
           <span class="size-1.5 animate-pulse rounded-full bg-red" />
-          {{ list.length === 1 ? 'Enemy nearby' : `Enemies nearby · ${list.length}` }}
-          <span v-if="preview" class="ml-auto font-normal normal-case tracking-normal text-darker">drag to move</span>
+          {{ list.length === 1 ? t('Enemy nearby') : t('Enemies nearby · {n}', { n: list.length }) }}
+          <span v-if="preview" class="ml-auto font-normal normal-case tracking-normal text-darker">{{ t('drag to move') }}</span>
           <CollapseButton v-if="store.panelVisible" :class="!preview && 'ml-auto'" :collapsed="cfg.collapsed" @toggle="toggleCollapsed" />
         </div>
         <div v-if="!cfg.collapsed" class="space-y-0.5">
@@ -93,14 +94,14 @@ onBeforeUnmount(() => observer?.disconnect())
             <span
               v-if="e.combatPower"
               class="shrink-0 text-[11px] font-semibold tabular-nums text-yellow"
-              :title="`Combat power${e.level ? `, Lv${e.level}` : ''}${e.gearScore ? `, gear score ${e.gearScore}` : ''}`"
+              :title="`${t('Combat power')}${e.level ? `, Lv${e.level}` : ''}${e.gearScore ? `, ${t('gear score {n}', { n: e.gearScore })}` : ''}`"
             >
               [{{ e.combatPower.toLocaleString('en-US') }}]
             </span>
             <span v-if="e.legion" class="ml-auto min-w-0 truncate text-[11px] text-darker">&lt;{{ e.legion }}&gt;</span>
           </div>
         </div>
-        <div v-if="!cfg.collapsed && list.length > ROWS" class="mt-0.5 text-[11px] text-darker">… {{ list.length - ROWS }} more</div>
+        <div v-if="!cfg.collapsed && list.length > ROWS" class="mt-0.5 text-[11px] text-darker">… {{ t('{n} more', { n: list.length - ROWS }) }}</div>
       </section>
     </div>
   </div>

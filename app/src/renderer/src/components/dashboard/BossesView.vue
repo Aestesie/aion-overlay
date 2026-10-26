@@ -9,6 +9,7 @@ import Countdown from '@/components/ui/Countdown.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import SelectBox from '@/components/ui/SelectBox.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { loc, t } from '@/lib/i18n.ts'
 import { leadLabel, setAlert, setLead } from '@/lib/timerView.ts'
 import { useApp } from '@/stores/app.ts'
 import type { SyncResult } from '@shared/lokthar.ts'
@@ -25,14 +26,14 @@ const zone = ref<(typeof ZONES)[number]['id']>('verteron')
 
 function ago(ms: number): string {
   const s = Math.max(0, Math.round((now.value - ms) / 1000))
-  if (s < 60) return 'just now'
+  if (s < 60) return t('just now')
   const m = Math.round(s / 60)
-  if (m < 60) return `${m} min ago`
+  if (m < 60) return t('{n} min ago', { n: m })
   const h = Math.round(m / 60)
-  return h < 48 ? `${h} h ago` : `${Math.round(h / 24)} d ago`
+  return h < 48 ? t('{n} h ago', { n: h }) : t('{n} d ago', { n: Math.round(h / 24) })
 }
 /** "Oct 21, 14:56": the exact time a respawn or a read was, to check against the game's map. */
-const stamp = (ms: number): string => new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+const stamp = (ms: number): string => new Date(ms).toLocaleString(loc(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 /** Alive first, then by respawn, the ones never seen last. */
 const rows = computed(() =>
@@ -71,18 +72,18 @@ const on = (def: TimerDef): boolean => (cfg.value.enabled[def.id] ?? false) && (
       >
         {{ z.label }}
       </button>
-      <span class="pb-2 text-xs text-darkest">Other zones' bosses are not known yet.</span>
-      <span class="ml-auto pb-2 text-xs text-darker"><span class="font-semibold text-green">{{ alive }}</span> alive</span>
+      <span class="pb-2 text-xs text-darkest">{{ t("Other zones' bosses are not known yet.") }}</span>
+      <span class="ml-auto pb-2 text-xs text-darker"><span class="font-semibold text-green">{{ alive }}</span> {{ t('alive') }}</span>
     </div>
 
     <div v-if="hasToken" class="mb-4 flex items-center gap-3 rounded-xl border border-card bg-card px-4 py-2.5 text-xs">
-      <span class="font-medium text-default">Lokthar sync</span>
+      <span class="font-medium text-default">{{ t('Lokthar sync') }}</span>
       <span v-if="syncResult" :class="['min-w-0 flex-1 truncate', syncResult.ok ? 'text-darker' : 'text-red']" :title="syncResult.message">
         {{ ago(syncResult.at) }}: {{ syncResult.message }}
       </span>
-      <span v-else class="flex-1 text-darkest">Not synced yet</span>
-      <Button size="sm" :disabled="syncing" title="Send these bosses, as your map last listed them, to lokthar.com" @click="syncNow">
-        {{ syncing ? 'Syncing…' : 'Sync now' }}
+      <span v-else class="flex-1 text-darkest">{{ t('Not synced yet') }}</span>
+      <Button size="sm" :disabled="syncing" :title="t('Send these bosses, as your map last listed them, to lokthar.com')" @click="syncNow">
+        {{ syncing ? t('Syncing…') : t('Sync now') }}
       </Button>
     </div>
 
@@ -91,10 +92,10 @@ const on = (def: TimerDef): boolean => (cfg.value.enabled[def.id] ?? false) && (
         <thead class="bg-card text-xs uppercase tracking-wide text-darker">
           <tr class="border-b border-card">
             <th class="py-2.5 pl-4 text-left font-medium">Boss</th>
-            <th class="w-52 px-3 text-left font-medium">Status</th>
-            <th class="w-36 px-3 text-left font-medium">Last read</th>
-            <th class="w-44 px-3 text-left font-medium">Alert me</th>
-            <th class="w-20 pr-4 text-right font-medium">Alert</th>
+            <th class="w-52 px-3 text-left font-medium">{{ t('Status') }}</th>
+            <th class="w-36 px-3 text-left font-medium">{{ t('Last read') }}</th>
+            <th class="w-44 px-3 text-left font-medium">{{ t('Alert me') }}</th>
+            <th class="w-20 pr-4 text-right font-medium">{{ t('Alert') }}</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-[color:var(--line)]">
@@ -106,23 +107,23 @@ const on = (def: TimerDef): boolean => (cfg.value.enabled[def.id] ?? false) && (
               </div>
             </td>
             <td class="px-3 py-1.5">
-              <span v-if="!r.state" class="text-darkest">Not seen</span>
+              <span v-if="!r.state" class="text-darkest">{{ t('Not seen') }}</span>
               <template v-else-if="r.state.up">
-                <div class="font-medium text-green">Alive</div>
-                <div v-if="r.state.at" class="text-[11px] text-darker">since {{ stamp(r.state.at) }}</div>
+                <div class="font-medium text-green">{{ t('Alive') }}</div>
+                <div v-if="r.state.at" class="text-[11px] text-darker">{{ t('since {when}', { when: stamp(r.state.at) }) }}</div>
               </template>
               <template v-else-if="r.state.at <= now">
-                <div class="text-yellow">Due</div>
-                <div class="text-[11px] text-darker">respawned {{ stamp(r.state.at) }}</div>
+                <div class="text-yellow">{{ t('Due') }}</div>
+                <div class="text-[11px] text-darker">{{ t('respawned {when}', { when: stamp(r.state.at) }) }}</div>
               </template>
               <template v-else>
-                <div class="font-medium text-yellow">Time left <Countdown :at="r.state.at" :now="now" /></div>
-                <div class="text-[11px] text-darker">respawns {{ stamp(r.state.at) }}</div>
+                <div class="font-medium text-yellow">{{ t('Time left') }} <Countdown :at="r.state.at" :now="now" /></div>
+                <div class="text-[11px] text-darker">{{ t('respawns {when}', { when: stamp(r.state.at) }) }}</div>
               </template>
             </td>
             <td class="px-3 text-xs text-darker">
               <template v-if="r.state">
-                <div>{{ ago(r.state.seen) }}<span v-if="r.state.source === 'shared'" class="text-darkest"> · shared</span></div>
+                <div>{{ ago(r.state.seen) }}<span v-if="r.state.source === 'shared'" class="text-darkest"> · {{ t('shared') }}</span></div>
                 <div class="text-[11px] text-darkest">{{ stamp(r.state.seen) }}</div>
               </template>
             </td>

@@ -1,5 +1,6 @@
 /**
- * What changed in each version, newest first: one short line per change, shown on the dashboard's
+ * What changed in each version, newest first: one short line per change (its Spanish in
+ * shared/i18n.es.ts), shown on the dashboard's
  * What's new page (the sidebar's App group), and this version's on the Updates page. Add the next
  * version's lines at the top as they land; the release takes them as they are (updates.md).
  */
@@ -18,6 +19,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       'PvP fight details include your allies\' hits on the enemy and the enemy\'s hits on them.',
       'Alt+E hides the dashboard again when it is open.',
       'PvP fight details show the enemy\'s name in red.',
+      'The app is in Spanish (with the community\'s game words), or English: switch on Home or in Settings.',
+      'The app opens on Home, with a greeting that knows the time and what is going on.',
     ],
   },
   {

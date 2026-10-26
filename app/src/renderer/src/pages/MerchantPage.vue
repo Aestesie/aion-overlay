@@ -8,6 +8,7 @@ import GenusPill from '@/components/GenusPill.vue'
 import PetIcon from '@/components/PetIcon.vue'
 import petItems from '@/data/petItems.json'
 import { bridge } from '@/lib/bridge.ts'
+import { t } from '@/lib/i18n.ts'
 import { merchantOffers, type MerchantOffer } from '@/lib/merchant.ts'
 import { displayName } from '@/lib/petDb.ts'
 import { CONTINENTS, petContinents, useSpawns, type Continent } from '@/lib/spawns.ts'
@@ -42,15 +43,15 @@ const side = computed(() => store.settings.faction)
 const hard = (id: number): string | null => {
   if (!spawns.value) return null
   const at = where(id)
-  if (!at.length) return 'no known spawn'
-  return at.includes(side.value) ? null : `not on ${SHORT[side.value]}`
+  if (!at.length) return t('no known spawn')
+  return at.includes(side.value) ? null : t('not on {side}', { side: SHORT[side.value] })
 }
 
 const restockIn = computed(() => {
   const next = Math.min(...store.shop.map((s) => s.nextAt ?? Infinity))
   if (!Number.isFinite(next)) return null
   const min = Math.max(0, Math.ceil((next - now.value) / 60_000))
-  return min < 60 ? `restocks in ${min} min` : `restocks in ${Math.floor(min / 60)} h ${min % 60} min`
+  return min < 60 ? t('restocks in {n} min', { n: min }) : t('restocks in {h} h {m} min', { h: Math.floor(min / 60), m: min % 60 })
 })
 
 const drag = windowDrag({ move: 'merchant:moveTo', end: 'merchant:dragEnd' })
@@ -88,7 +89,7 @@ onBeforeUnmount(() => {
       <div v-if="offers.length" class="m-1.5 w-[388px] rounded-lg border border-yellow/40 bg-darker/95 shadow-card">
         <header
           class="flex cursor-move items-center gap-2 border-b border-card px-3 py-2"
-          title="Drag to move"
+          :title="t('Drag to move')"
           @pointerdown="drag.onPointerDown"
         >
           <span class="size-1.5 rounded-full bg-yellow" />
@@ -97,7 +98,7 @@ onBeforeUnmount(() => {
           <button
             type="button"
             :class="['flex size-6 items-center justify-center rounded text-darker hover:bg-dark hover:text-default', !restockIn && 'ml-auto']"
-            title="Close (it opens again with the shop)"
+            :title="t('Close (it opens again with the shop)')"
             @pointerdown.stop
             @click="close"
           >
@@ -116,7 +117,7 @@ onBeforeUnmount(() => {
               'flex cursor-pointer items-center gap-2 rounded-md border-l-2 px-1.5 py-1 transition hover:bg-dark',
               hard(o.pet) ? 'border-yellow bg-yellow/5' : 'border-transparent',
             ]"
-            title="Show where its soul monsters spawn"
+            :title="t('Show where its soul monsters spawn')"
             @click="showPet(o.pet)"
           >
             <PetIcon :id="o.pet" :size="28" />
@@ -129,7 +130,7 @@ onBeforeUnmount(() => {
                 </span>
               </div>
               <div class="mt-0.5 flex items-center gap-1.5 text-[11px]">
-                <span v-if="o.gives === 'unlock'" class="rounded bg-green/20 px-1 font-bold text-green">unlocks</span>
+                <span v-if="o.gives === 'unlock'" class="rounded bg-green/20 px-1 font-bold text-green">{{ t('unlocks') }}</span>
                 <span v-else class="text-darker">+1 soul{{ progress(o) }}</span>
                 <span class="ml-auto flex shrink-0 items-center gap-1">
                   <span v-for="c in where(o.pet)" :key="c" class="rounded border border-light px-1 text-[10px] text-darker">
@@ -143,8 +144,7 @@ onBeforeUnmount(() => {
         </ul>
 
         <p class="border-t border-card px-3 py-1.5 text-[10px] text-darkest">
-          Click a pet for where its soul monsters spawn. Marked: none spawn on your side
-          ({{ SHORT[side] }}), or none are known (bosses, events). Your side is in Settings → You.
+          {{ t('Click a pet for where its soul monsters spawn. Marked: none spawn on your side ({side}), or none are known (bosses, events). Your side is in Settings → You.', { side: SHORT[side] }) }}
         </p>
       </div>
     </div>

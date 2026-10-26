@@ -2,6 +2,7 @@
 // How long until `at` (ms), as questlog shows it: "1h 51m 08s", the units small. Days drop the
 // seconds. "now" once it is past.
 import { computed } from 'vue'
+import { t } from '@/lib/i18n.ts'
 
 const props = defineProps<{ at: number; now: number }>()
 const parts = computed<[string, string][]>(() => {
@@ -23,6 +24,6 @@ const parts = computed<[string, string][]>(() => {
     <template v-if="parts.length">
       <template v-for="([n, u], i) in parts" :key="i"><span v-if="i" class="inline-block w-1" />{{ n }}<span class="text-[0.7em] text-darker">{{ u }}</span></template>
     </template>
-    <span v-else class="text-green">now</span>
+    <span v-else class="text-green">{{ t('now') }}</span>
   </span>
 </template>

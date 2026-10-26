@@ -7,6 +7,7 @@ import StatusDot, { statusText } from '@/components/StatusDot.vue'
 import Toggle from '@/components/Toggle.vue'
 import Countdown from '@/components/ui/Countdown.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { plural, t } from '@/lib/i18n.ts'
 import { currentWorld, nearbyPets, useSpawns } from '@/lib/spawns.ts'
 import { timerNext } from '@/lib/timerView.ts'
 import { useApp } from '@/stores/app.ts'
@@ -14,6 +15,7 @@ import { formatKina } from '@shared/kina.ts'
 import { NO_METER, type MeterData } from '@shared/meter.ts'
 import type { Settings } from '@shared/settings.ts'
 import { serverName } from '@shared/servers.ts'
+import { LANGS } from '@shared/i18n.ts'
 import { TIMERS } from '@shared/timers.ts'
 
 const emit = defineEmits<{ go: [page: string] }>()
@@ -40,15 +42,32 @@ onBeforeUnmount(() => {
   for (const off of offs) off()
 })
 
+// ---- the greeting: the time of day, and the one thing worth saying now -------------------------
+const hour = computed(() => new Date(now.value).getHours())
 const greeting = computed(() => {
-  const h = new Date(now.value).getHours()
-  return h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
+  const h = hour.value
+  return t(h < 5 ? 'Late night grind' : h < 12 ? 'Good morning' : h < 19 ? 'Good afternoon' : 'Good evening')
+})
+/** Under it: what matters most right now, else what the app is. */
+const greetingLine = computed(() => {
+  const s = store.status
+  if (s?.state === 'error') return t('Your pets, fights, buffs, maps and timers, read from the game as you play.')
+  if (s?.state === 'idle') return t('Aion 2 is not open: everything wakes up with the game.')
+  const event = nextEvent.value
+  const mins = event ? Math.round((event.at - now.value) / 60_000) : null
+  if (event && mins !== null && mins <= 60) return mins <= 0 ? t('{name} is starting now.', { name: event.def.name }) : t('{name} starts in {n} min.', { name: event.def.name, n: mins })
+  if (bossesUp.value) return plural(bossesUp.value, '{n} field boss alive in Verteron right now.', '{n} field bosses alive in Verteron right now.')
+  if (store.sessionSouls) return plural(store.sessionSouls, '{n} soul so far this session: keep farming.', '{n} souls so far this session: keep farming.')
+  if (hour.value < 5) return t('Late one: remember to sleep at some point.')
+  const day = new Date(now.value).getDay()
+  if (day === 0 || day === 6) return t('Weekend: good time to farm some pets.')
+  return t('Your pets, fights, buffs, maps and timers, read from the game as you play.')
 })
 const who = computed(() => {
   const s = store.status
   return [s?.character, s?.server ? serverName(s.server) : null, s?.level ? `Lv ${s.level}` : null].filter(Boolean).join(' · ')
 })
-const error = computed(() => (store.status?.state === 'error' ? (store.status.detail ?? 'The engine stopped with an error.') : null))
+const error = computed(() => (store.status?.state === 'error' ? (store.status.detail ?? t('The engine stopped with an error.')) : null))
 
 // ---- the overlays -----------------------------------------------------------------------------
 type Overlay = { id: string; name: string; about: string; page: string; on: boolean; set: (on: boolean) => void }
@@ -58,23 +77,23 @@ function flip<K extends keyof Settings>(key: K, field: string): (on: boolean) =>
 const overlays = computed<Overlay[]>(() => {
   const s = store.settings
   return [
-    { id: 'hud', name: 'Pets HUD', about: 'Souls, nearby soul monsters, Hidden Cubes', page: 'settings', on: s.hud.enabled, set: flip('hud', 'enabled') },
-    { id: 'meter', name: 'Damage meter', about: 'You and your party, live', page: 'meter', on: s.meter.enabled, set: flip('meter', 'enabled') },
-    { id: 'skills', name: 'My skills', about: 'Your damage, skill by skill', page: 'meter', on: s.skills.enabled, set: flip('skills', 'enabled') },
-    { id: 'buffs', name: 'Buffs', about: 'What is on you, and for how long', page: 'buffs', on: s.buffs.enabled, set: flip('buffs', 'enabled') },
-    { id: 'cc', name: 'CC / Debuffs', about: 'When you are stunned, rooted, feared…', page: 'buffs', on: s.buffs.cc, set: flip('buffs', 'cc') },
-    { id: 'training', name: 'Training', about: 'Training dummy runs: clock and DPS', page: 'training', on: s.dummy.overlay, set: flip('dummy', 'overlay') },
-    { id: 'minimap', name: 'Map', about: 'Your zone, tracked pets, cubes', page: 'map', on: s.minimap.enabled, set: flip('minimap', 'enabled') },
-    { id: 'timerBar', name: 'Countdown bar', about: 'Events with an alert on', page: 'events', on: s.timerBar.enabled, set: flip('timerBar', 'enabled') },
+    { id: 'hud', name: t('Pets HUD'), about: t('Souls, nearby soul monsters, Hidden Cubes'), page: 'settings', on: s.hud.enabled, set: flip('hud', 'enabled') },
+    { id: 'meter', name: t('Damage meter'), about: t('You and your party, live'), page: 'meter', on: s.meter.enabled, set: flip('meter', 'enabled') },
+    { id: 'skills', name: t('My skills'), about: t('Your damage, skill by skill'), page: 'meter', on: s.skills.enabled, set: flip('skills', 'enabled') },
+    { id: 'buffs', name: 'Buffs', about: t('What is on you, and for how long'), page: 'buffs', on: s.buffs.enabled, set: flip('buffs', 'enabled') },
+    { id: 'cc', name: t('CC / Debuffs'), about: t('When you are stunned, rooted, feared…'), page: 'buffs', on: s.buffs.cc, set: flip('buffs', 'cc') },
+    { id: 'training', name: t('Training'), about: t('Training dummy runs: clock and DPS'), page: 'training', on: s.dummy.overlay, set: flip('dummy', 'overlay') },
+    { id: 'minimap', name: t('Map'), about: t('Your zone, tracked pets, cubes'), page: 'map', on: s.minimap.enabled, set: flip('minimap', 'enabled') },
+    { id: 'timerBar', name: t('Countdown bar'), about: t('Events with an alert on'), page: 'events', on: s.timerBar.enabled, set: flip('timerBar', 'enabled') },
     {
       id: 'killFeed',
-      name: 'Kill feed',
-      about: 'Player kills around you',
+      name: t('Kill feed'),
+      about: t('Player kills around you'),
       page: 'pvp',
       on: s.killFeed.open,
       set: (on) => void api.invoke(on ? 'killfeed:open' : 'killfeed:close'),
     },
-    { id: 'merchant', name: 'Merchant pets', about: 'When you open the Black Cloud shop', page: 'settings', on: s.hud.merchant, set: flip('hud', 'merchant') },
+    { id: 'merchant', name: t('Merchant pets'), about: t('When you open the Black Cloud shop'), page: 'settings', on: s.hud.merchant, set: flip('hud', 'merchant') },
   ]
 })
 const overlaysOn = computed(() => overlays.value.filter((o) => o.on).length)
@@ -121,20 +140,33 @@ const ICONS: Record<string, string> = {
     <!-- Who and what: the greeting, the game's state, all overlays at once. -->
     <div class="relative mb-6 overflow-hidden rounded-xl border border-card bg-gradient-to-br from-accent-soft/70 via-card to-card px-6 py-6">
       <img src="/icon.png" alt="" class="pointer-events-none absolute -right-6 -top-6 size-40 opacity-10" draggable="false" />
-      <h1 class="text-3xl font-bold tracking-tight">{{ greeting }}{{ store.status?.character ? `, ${store.status.character}` : '' }}</h1>
-      <p class="mt-1 text-sm text-darker">Your pets, fights, buffs, maps and timers, read from the game as you play.</p>
+      <div class="flex items-start gap-3">
+        <h1 class="min-w-0 flex-1 text-3xl font-bold tracking-tight">{{ greeting }}{{ store.status?.character ? `, ${store.status.character}` : '' }}</h1>
+        <div class="relative flex shrink-0 rounded-full border border-card bg-default/60 p-0.5 text-xs" role="group" :aria-label="t('Language')">
+          <button
+            v-for="l in LANGS"
+            :key="l.id"
+            type="button"
+            :class="['rounded-full px-2.5 py-0.5 font-medium transition', store.settings.language === l.id ? 'bg-accent/20 text-accent' : 'text-darker hover:text-default']"
+            @click="store.set('language', l.id)"
+          >
+            {{ l.label }}
+          </button>
+        </div>
+      </div>
+      <p class="mt-1 text-sm text-darker">{{ greetingLine }}</p>
       <div class="mt-4 flex flex-wrap items-center gap-2 text-xs">
         <span class="flex items-center gap-2 rounded-full border border-card bg-default/60 px-3 py-1 font-medium">
-          <StatusDot :status="store.status" />{{ statusText(store.status) }}<span v-if="who" class="text-darker">· {{ who }}</span>
+          <StatusDot :status="store.status" />{{ t(statusText(store.status)) }}<span v-if="who" class="text-darker">· {{ who }}</span>
         </span>
-        <span class="rounded-full border border-card bg-default/60 px-3 py-1 font-medium">{{ overlaysOn }} overlays on</span>
+        <span class="rounded-full border border-card bg-default/60 px-3 py-1 font-medium">{{ plural(overlaysOn, '{n} overlay on', '{n} overlays on') }}</span>
         <button
           type="button"
           :class="['rounded-full border px-3 py-1 font-medium transition', overlaysOff ? 'border-yellow/50 bg-yellow/10 text-yellow' : 'border-card bg-default/60 hover:bg-dark']"
-          title="Alt+Shift+E does the same from the game"
+          :title="t('Alt+Shift+E does the same from the game')"
           @click="toggleAll"
         >
-          {{ overlaysOff ? 'Overlays hidden: show them' : 'Hide all overlays' }} <span class="text-darkest">Alt+Shift+E</span>
+          {{ overlaysOff ? t('Overlays hidden: show them') : t('Hide all overlays') }} <span class="text-darkest">Alt+Shift+E</span>
         </button>
       </div>
     </div>
@@ -142,21 +174,21 @@ const ICONS: Record<string, string> = {
     <div v-if="error" class="mb-6 flex items-start gap-3 rounded-xl border border-danger/50 bg-danger/10 px-4 py-3">
       <svg viewBox="0 0 16 16" class="mt-0.5 size-4 shrink-0 text-danger" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1.5 15 14H1zM8 6v3.5M8 11.8v.2" /></svg>
       <div class="min-w-0 flex-1">
-        <div class="text-sm font-semibold text-danger">The game's traffic can't be read</div>
+        <div class="text-sm font-semibold text-danger">{{ t('The game\'s traffic can\'t be read') }}</div>
         <div class="text-sm text-dark">{{ error }}</div>
       </div>
-      <Button size="sm" @click="api.invoke('tracker:restart')">Try again</Button>
+      <Button size="sm" @click="api.invoke('tracker:restart')">{{ t('Try again') }}</Button>
     </div>
 
     <section class="mb-6">
-      <h2 class="mb-2 text-xs font-semibold uppercase tracking-wider text-darker">Overlays</h2>
+      <h2 class="mb-2 text-xs font-semibold uppercase tracking-wider text-darker">{{ t('Overlays') }}</h2>
       <div class="grid grid-cols-2 gap-2 xl:grid-cols-4">
         <div
           v-for="o in overlays"
           :key="o.id"
           :class="['flex items-center gap-3 rounded-xl border px-3.5 py-3 transition', o.on ? 'border-accent/40 bg-accent-soft/30' : 'border-card bg-card']"
         >
-          <button type="button" class="min-w-0 flex-1 text-left" :title="`${o.name}: its settings`" @click="emit('go', o.page)">
+          <button type="button" class="min-w-0 flex-1 text-left" :title="t('{name}: its settings', { name: o.name })" @click="emit('go', o.page)">
             <div class="truncate text-sm font-medium">{{ o.name }}</div>
             <div class="truncate text-xs text-darker">{{ o.about }}</div>
           </button>
@@ -166,15 +198,15 @@ const ICONS: Record<string, string> = {
     </section>
 
     <section class="mb-6">
-      <h2 class="mb-2 text-xs font-semibold uppercase tracking-wider text-darker">In game</h2>
+      <h2 class="mb-2 text-xs font-semibold uppercase tracking-wider text-darker">{{ t('In game') }}</h2>
       <div class="grid grid-cols-2 gap-3">
         <button v-for="card in [
-          { page: 'meter', title: 'Combat Meter', line: meter.target ? `${meter.target.name}: ${myDps ? `you ${short(myDps.dps)}/s` : `${meter.rows.length} players`}` : 'No fight right now.' },
-          { page: 'map', title: 'Map', line: zone ? `${zone}${store.cubes.length ? ` · ${store.cubes.length} Hidden Cube${store.cubes.length > 1 ? 's' : ''} nearby` : ''}` : 'Where you are shows once you enter a zone.' },
-          { page: 'pets', title: 'Pets', line: `${store.sessionSouls} souls this session · ${nearbyCount} pet${nearbyCount === 1 ? '' : 's'} around you` },
-          { page: 'buffs', title: 'Buffs', line: store.settings.buffs.enabled ? `${store.buffs.length} on you now` : 'The buffs overlay is off.' },
-          { page: 'pvp', title: 'PvP', line: `${store.pvp.length} kills seen · yours ${pvp.kills}, deaths ${pvp.deaths}` },
-          { page: 'bosses', title: 'Field Bosses', line: Object.keys(store.fieldBosses).length ? `${bossesUp} alive in Verteron` : 'Open the map in game to read them.' },
+          { page: 'meter', title: t('Combat Meter'), line: meter.target ? `${meter.target.name}: ${myDps ? t('you {dps}/s', { dps: short(myDps.dps) }) : plural(meter.rows.length, '{n} player', '{n} players')}` : t('No fight right now.') },
+          { page: 'map', title: t('Map'), line: zone ? `${zone}${store.cubes.length ? ` · ${plural(store.cubes.length, '{n} Hidden Cube nearby', '{n} Hidden Cubes nearby')}` : ''}` : t('Where you are shows once you enter a zone.') },
+          { page: 'pets', title: 'Pets', line: `${plural(store.sessionSouls, '{n} soul this session', '{n} souls this session')} · ${plural(nearbyCount, '{n} pet around you', '{n} pets around you')}` },
+          { page: 'buffs', title: 'Buffs', line: store.settings.buffs.enabled ? t('{n} on you now', { n: store.buffs.length }) : t('The buffs overlay is off.') },
+          { page: 'pvp', title: 'PvP', line: t('{n} kills seen · yours {kills}, deaths {deaths}', { n: store.pvp.length, kills: pvp.kills, deaths: pvp.deaths }) },
+          { page: 'bosses', title: 'Field Bosses', line: Object.keys(store.fieldBosses).length ? t('{n} alive in Verteron', { n: bossesUp }) : t('Open the map in game to read them.') },
         ]" :key="card.page" type="button" class="group flex items-center gap-4 rounded-xl border border-card bg-card px-4 py-3.5 text-left transition hover:border-light hover:bg-dark" @click="emit('go', card.page)">
           <span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-dark text-accent group-hover:bg-light">
             <svg viewBox="0 0 16 16" class="size-5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path :d="ICONS[card.page]" /></svg>
@@ -190,9 +222,9 @@ const ICONS: Record<string, string> = {
             <svg viewBox="0 0 16 16" class="size-5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path :d="ICONS.events" /></svg>
           </span>
           <span class="min-w-0 flex-1">
-            <span class="block text-sm font-semibold">Event Alerts</span>
-            <span v-if="nextEvent" class="block truncate text-xs text-darker">{{ nextEvent.def.name }} in <span class="text-yellow"><Countdown :at="nextEvent.at" :now="now" /></span></span>
-            <span v-else class="block truncate text-xs text-darker">No alerts on: pick the events to hear about.</span>
+            <span class="block text-sm font-semibold">{{ t('Event Alerts') }}</span>
+            <span v-if="nextEvent" class="block truncate text-xs text-darker">{{ t('{name} in', { name: nextEvent.def.name }) }} <span class="text-yellow"><Countdown :at="nextEvent.at" :now="now" /></span></span>
+            <span v-else class="block truncate text-xs text-darker">{{ t('No alerts on: pick the events to hear about.') }}</span>
           </span>
           <svg viewBox="0 0 16 16" class="size-4 shrink-0 text-darkest" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="m6 4 4 4-4 4" /></svg>
         </button>
@@ -200,11 +232,11 @@ const ICONS: Record<string, string> = {
     </section>
 
     <section>
-      <h2 class="mb-2 text-xs font-semibold uppercase tracking-wider text-darker">Records</h2>
+      <h2 class="mb-2 text-xs font-semibold uppercase tracking-wider text-darker">{{ t('Records') }}</h2>
       <div class="grid grid-cols-2 gap-3">
         <button v-for="card in [
-          { page: 'history', title: 'History', line: fights === null ? '…' : `${fights} boss fight${fights === 1 ? '' : 's'} saved` },
-          { page: 'session', title: 'Session', line: store.kinaRate !== null ? `${formatKina(store.kinaRate)} Kina per hour · ${store.sessionSouls} souls` : `${store.sessionSouls} souls so far` },
+          { page: 'history', title: t('History'), line: fights === null ? '…' : plural(fights, '{n} boss fight saved', '{n} boss fights saved') },
+          { page: 'session', title: t('Session'), line: store.kinaRate !== null ? t('{kina} Kina per hour · {n} souls', { kina: formatKina(store.kinaRate), n: store.sessionSouls }) : t('{n} souls so far', { n: store.sessionSouls }) },
         ]" :key="card.page" type="button" class="group flex items-center gap-4 rounded-xl border border-card bg-card px-4 py-3.5 text-left transition hover:border-light hover:bg-dark" @click="emit('go', card.page)">
           <span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-dark text-accent group-hover:bg-light">
             <svg viewBox="0 0 16 16" class="size-5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path :d="ICONS[card.page]" /></svg>

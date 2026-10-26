@@ -12,6 +12,7 @@ import Slider from '@/components/Slider.vue'
 import SoundPicker from '@/components/SoundPicker.vue'
 import Toggle from '@/components/Toggle.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { loc, plural, t } from '@/lib/i18n.ts'
 import { useApp } from '@/stores/app.ts'
 import { serverTag } from '@shared/servers.ts'
 import type { Settings } from '@shared/settings.ts'
@@ -50,12 +51,12 @@ const counts = computed(() => ({
 const now = ref(Date.now())
 const ticker = setInterval(() => (now.value = Date.now()), 15_000)
 onBeforeUnmount(() => clearInterval(ticker))
-const time = (ms: number): string => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+const time = (ms: number): string => new Date(ms).toLocaleTimeString(loc(), { hour: '2-digit', minute: '2-digit' })
 function ago(ms: number): string {
   const s = Math.max(0, Math.round((now.value - ms) / 1000))
-  if (s < 60) return 'just now'
+  if (s < 60) return t('just now')
   const m = Math.round(s / 60)
-  return m < 60 ? `${m} min ago` : time(ms)
+  return m < 60 ? t('{n} min ago', { n: m }) : time(ms)
 }
 const rowClass = (k: PvpKill): string =>
   k.mine ? 'bg-green/10 border-l-2 border-green' : k.died ? 'bg-danger/10 border-l-2 border-danger' : 'border-l-2 border-transparent'
@@ -65,7 +66,7 @@ const openFight = (k: PvpKill): void => {
   if (k.fight) void bridge().invoke('details:open', { kind: 'pvp', id: k.fight })
 }
 const fightTitle = (k: PvpKill): string | undefined =>
-  k.fight ? 'Show the fight: damage and skills, yours and theirs' : k.mine || k.died ? 'No hits between you were seen before this one' : undefined
+  k.fight ? t('Show the fight: damage and skills, yours and theirs') : k.mine || k.died ? t('No hits between you were seen before this one') : undefined
 /** The kill feed over the game (its own small window). */
 const hudOpen = computed(() => store.settings.killFeed.open)
 const toggleHud = (): void => void bridge().invoke(hudOpen.value ? 'killfeed:close' : 'killfeed:open')
@@ -73,7 +74,7 @@ const toggleHud = (): void => void bridge().invoke(hudOpen.value ? 'killfeed:clo
 // The overlays over the game, set up here: the kill feed's look, and Enemies nearby.
 const setKillFeed = (patch: Partial<Settings['killFeed']>): void => void store.set('killFeed', { ...store.settings.killFeed, ...patch })
 const setEnemies = (patch: Partial<Settings['enemies']>): void => void store.set('enemies', { ...store.settings.enemies, ...patch })
-const background = (v: number): string => (v === 0 ? 'None' : `${Math.round(v * 100)}%`)
+const background = (v: number): string => (v === 0 ? t('None') : `${Math.round(v * 100)}%`)
 const BACKGROUND_HINT = 'At None the text keeps a dark glow, readable on the game.'
 </script>
 
@@ -81,10 +82,10 @@ const BACKGROUND_HINT = 'At None the text keeps a dark glow, readable on the gam
   <div class="space-y-3 p-3">
     <div class="flex items-center gap-2 text-xs">
       <span class="rounded-md bg-card px-2 py-1"><span class="font-semibold text-green">{{ counts.kills }}</span> kills</span>
-      <span class="rounded-md bg-card px-2 py-1"><span class="font-semibold text-danger">{{ counts.deaths }}</span> deaths</span>
-      <Button size="sm" class="ml-auto" :disabled="!store.pvp.length" @click="clear">Clear</Button>
-      <Button size="sm" :intent="hudOpen ? 'default' : 'primary'" :title="hudOpen ? 'Close the kill feed over the game' : 'A small kill feed over the game'" @click="toggleHud">
-        {{ hudOpen ? 'Close HUD' : 'Open HUD' }}
+      <span class="rounded-md bg-card px-2 py-1"><span class="font-semibold text-danger">{{ counts.deaths }}</span> {{ t('deaths') }}</span>
+      <Button size="sm" class="ml-auto" :disabled="!store.pvp.length" @click="clear">{{ t('Clear') }}</Button>
+      <Button size="sm" :intent="hudOpen ? 'default' : 'primary'" :title="hudOpen ? t('Close the kill feed over the game') : t('A small kill feed over the game')" @click="toggleHud">
+        {{ hudOpen ? t('Close HUD') : t('Open HUD') }}
       </Button>
     </div>
 
@@ -93,14 +94,14 @@ const BACKGROUND_HINT = 'At None the text keeps a dark glow, readable on the gam
         v-for="f in filters"
         :key="f.id"
         type="button"
-        :title="f.title"
+        :title="t(f.title)"
         :class="['rounded-full border px-2.5 py-0.5', filter === f.id ? 'border-accent bg-accent/15 text-default' : 'border-light text-darker hover:text-dark']"
         @click="pick(f.id)"
       >
-        {{ f.label }}
+        {{ t(f.label) }}
       </button>
       <!-- How many kills the list below holds (with the filter). -->
-      <span class="ml-auto rounded-full bg-card px-2 py-0.5 tabular-nums text-dark" :title="`${filtered.length} kill${filtered.length === 1 ? '' : 's'} in the list`">{{ filtered.length }}</span>
+      <span class="ml-auto rounded-full bg-card px-2 py-0.5 tabular-nums text-dark" :title="plural(filtered.length, '{n} kill in the list', '{n} kills in the list')">{{ filtered.length }}</span>
     </div>
 
     <ul v-if="filtered.length" class="divide-y divide-[color:var(--line)] overflow-hidden rounded-lg border border-card bg-card">
@@ -116,19 +117,19 @@ const BACKGROUND_HINT = 'At None the text keeps a dark glow, readable on the gam
             <ClassIcon :class-name="k.killer.className" :size="16" />
             <span class="truncate font-medium" :class="k.mine && 'text-green'">{{ k.killer.name }}</span>
             <span v-if="tag(k.killer.server)" class="shrink-0 text-[11px] text-yellow">[{{ tag(k.killer.server) }}]</span>
-            <span v-if="k.killer.combatPower" class="shrink-0 text-[11px] font-semibold tabular-nums text-yellow" title="Combat power">{{ cp(k.killer.combatPower) }}</span>
+            <span v-if="k.killer.combatPower" class="shrink-0 text-[11px] font-semibold tabular-nums text-yellow" :title="t('Combat power')">{{ cp(k.killer.combatPower) }}</span>
             <svg viewBox="0 0 16 16" class="size-3.5 shrink-0 text-darker" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
               <path d="M3 8h9M9 4.5 12.5 8 9 11.5" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
             <ClassIcon :class-name="k.victim?.className" :size="16" />
-            <span class="truncate font-medium" :class="k.died && 'text-danger'">{{ k.victim?.name ?? 'a player out of view' }}</span>
+            <span class="truncate font-medium" :class="k.died && 'text-danger'">{{ k.victim?.name ?? t('a player out of view') }}</span>
             <span v-if="k.victim && tag(k.victim.server)" class="shrink-0 text-[11px] text-yellow">[{{ tag(k.victim.server) }}]</span>
-            <span v-if="k.victim?.combatPower" class="shrink-0 text-[11px] font-semibold tabular-nums text-yellow" title="Combat power">{{ cp(k.victim.combatPower) }}</span>
+            <span v-if="k.victim?.combatPower" class="shrink-0 text-[11px] font-semibold tabular-nums text-yellow" :title="t('Combat power')">{{ cp(k.victim.combatPower) }}</span>
           </div>
           <div v-if="k.killer.guild" class="truncate text-[11px] text-darker">{{ k.killer.guild }}</div>
         </div>
-        <span v-if="k.fight && !k.mine && !k.died" class="shrink-0 rounded bg-accent/15 px-1.5 text-[10px] font-semibold text-accent" title="You fought this player before someone else took the kill">Assist</span>
-        <span v-if="k.fight" class="shrink-0 text-[11px] font-medium text-accent">Details ›</span>
+        <span v-if="k.fight && !k.mine && !k.died" class="shrink-0 rounded bg-accent/15 px-1.5 text-[10px] font-semibold text-accent" :title="t('You fought this player before someone else took the kill')">Assist</span>
+        <span v-if="k.fight" class="shrink-0 text-[11px] font-medium text-accent">{{ t('Details') }} ›</span>
         <span class="shrink-0 text-[11px] tabular-nums text-darker" :title="time(k.at)">{{ ago(k.at) }}</span>
       </li>
     </ul>
@@ -138,14 +139,14 @@ const BACKGROUND_HINT = 'At None the text keeps a dark glow, readable on the gam
       class="w-full rounded-lg border border-card bg-card py-1.5 text-xs text-darker hover:text-dark"
       @click="limit += PAGE"
     >
-      Show older ({{ filtered.length - shown.length }} more)
+      {{ t('Show older ({n} more)', { n: filtered.length - shown.length }) }}
     </button>
     <p v-if="!filtered.length" class="rounded-lg border border-card bg-card px-3 py-6 text-center text-sm text-darker">
-      {{ filters.find((f) => f.id === filter)?.empty ?? 'No player kills seen yet.' }}
+      {{ t(filters.find((f) => f.id === filter)?.empty ?? 'No player kills seen yet.') }}
     </p>
 
     <section class="rounded-lg border border-card bg-card px-3">
-      <h3 class="pt-2.5 text-[11px] font-semibold uppercase tracking-wide text-darker">Overlays over the game</h3>
+      <h3 class="pt-2.5 text-[11px] font-semibold uppercase tracking-wide text-darker">{{ t('Overlays over the game') }}</h3>
       <div class="divide-y divide-[color:var(--line)]">
         <SettingRow label="Kill feed" hint="This session's kills and deaths, and each player kill around you as it happens.">
           <Toggle :model-value="hudOpen" @update:model-value="toggleHud" />
@@ -177,8 +178,7 @@ const BACKGROUND_HINT = 'At None the text keeps a dark glow, readable on the gam
     </section>
 
     <p class="text-[11px] text-darkest">
-      Player kills around you, as the game credits them: the killing blow only, so an assist is not
-      a kill here. Kept until you clear them, across restarts.
+      {{ t('Player kills around you, as the game credits them: the killing blow only, so an assist is not a kill here. Kept until you clear them, across restarts.') }}
     </p>
   </div>
 </template>

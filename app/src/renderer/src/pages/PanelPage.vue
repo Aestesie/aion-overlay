@@ -21,6 +21,7 @@ import SessionTab from '@/components/panel/SessionTab.vue'
 import StatusDot, { statusText } from '@/components/StatusDot.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { t } from '@/lib/i18n.ts'
 import { timerNext } from '@/lib/timerView.ts'
 import { useApp } from '@/stores/app.ts'
 import { DISPLAY_NAME } from '@shared/app.ts'
@@ -63,31 +64,11 @@ const ABOUT: Partial<Record<PageId, string>> = {
   pvp: 'Every player killed around you, as the game credits it. The kill feed shows them over the game.',
   session: 'This session: souls, crystals and Kina.',
 }
-/** Pages renamed since: a remembered old one opens its new one. */
-const RENAMED: Record<string, PageId> = { timers: 'events', fights: 'history' }
-
 const store = useApp()
 const api = bridge()
 
-/** The page shown: remembered on this computer between openings. */
-const STORE_KEY = 'lokthar.page'
-function savedPage(): PageId {
-  try {
-    const p = localStorage.getItem(STORE_KEY) ?? ''
-    const id = RENAMED[p] ?? p
-    return id in PAGES ? (id as PageId) : 'home'
-  } catch {
-    return 'home'
-  }
-}
-const page = ref<PageId>(savedPage())
-watch(page, (p) => {
-  try {
-    localStorage.setItem(STORE_KEY, p)
-  } catch {
-    // Not kept: it opens on Home next time.
-  }
-})
+/** The page shown: Home each time the app starts, then where you left it while it runs. */
+const page = ref<PageId>('home')
 function go(p: string): void {
   const id = (p in PAGES ? p : 'home') as PageId
   if (id !== 'pets') store.openPet(null)
@@ -135,7 +116,7 @@ const badge = computed<Partial<Record<PageId, string>>>(() => {
     bosses: up ? String(up) : undefined,
     pets: store.sessionSouls ? `+${store.sessionSouls}` : undefined,
     updates:
-      update.value?.status === 'downloading' ? `${update.value.percent}%` : update.value && ['available', 'ready'].includes(update.value.status) ? 'New' : undefined,
+      update.value?.status === 'downloading' ? `${update.value.percent}%` : update.value && ['available', 'ready'].includes(update.value.status) ? t('New') : undefined,
   }
 })
 
@@ -177,7 +158,7 @@ onBeforeUnmount(() => {
   <div class="flex h-screen flex-col bg-app text-default">
     <!-- The title bar: dragged to move the window (its buttons excepted). -->
     <header class="drag flex h-10 shrink-0 items-center border-b border-card">
-      <div class="flex h-full w-56 shrink-0 items-center gap-2 border-r border-card px-4">
+      <div class="flex h-full w-60 shrink-0 items-center gap-2 border-r border-card px-4">
         <img src="/icon.png" alt="" class="size-[18px]" draggable="false" />
         <span class="text-sm font-semibold">{{ DISPLAY_NAME }}</span>
       </div>
@@ -189,37 +170,43 @@ onBeforeUnmount(() => {
           ]"
         >
           <StatusDot :status="store.status" />
-          <span class="truncate">{{ statusText(store.status) }}</span>
+          <span class="truncate">{{ t(statusText(store.status)) }}</span>
           <span v-if="who" class="truncate text-dark">· {{ who }}</span>
         </span>
-        <span v-if="store.sessionSouls" class="rounded-full border border-card bg-dark px-2.5 py-0.5 text-xs text-green">+{{ store.sessionSouls }} souls this session</span>
+        <span v-if="store.sessionSouls" class="rounded-full border border-card bg-dark px-2.5 py-0.5 text-xs text-green">{{ t('+{n} souls this session', { n: store.sessionSouls }) }}</span>
         <button
           v-if="update && ['available', 'downloading', 'ready'].includes(update.status)"
           type="button"
           class="no-drag ml-auto rounded-full border border-accent/50 bg-accent/15 px-2.5 py-0.5 text-xs font-medium text-accent hover:bg-accent/25"
           @click="go('updates')"
         >
-          {{ update.status === 'ready' ? `Restart to update to ${update.latest}` : update.status === 'downloading' ? `Downloading ${update.latest}… ${update.percent}%` : `Update ${update.latest} available` }}
+          {{
+            update.status === 'ready'
+              ? t('Restart to update to {v}', { v: update.latest ?? '' })
+              : update.status === 'downloading'
+                ? t('Downloading {v}… {p}%', { v: update.latest ?? '', p: update.percent })
+                : t('Update {v} available', { v: update.latest ?? '' })
+          }}
         </button>
       </div>
       <div class="no-drag flex h-full">
-        <button type="button" class="flex w-12 items-center justify-center text-darker hover:bg-dark hover:text-default" title="Minimize" @click="minimize">
+        <button type="button" class="flex w-12 items-center justify-center text-darker hover:bg-dark hover:text-default" :title="t('Minimize')" @click="minimize">
           <svg viewBox="0 0 16 16" class="size-4" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3.5 8h9" /></svg>
         </button>
-        <button type="button" class="flex w-12 items-center justify-center text-darker hover:bg-dark hover:text-default" :title="maximized ? 'Restore' : 'Maximize'" @click="maximize">
+        <button type="button" class="flex w-12 items-center justify-center text-darker hover:bg-dark hover:text-default" :title="maximized ? t('Restore') : t('Maximize')" @click="maximize">
           <svg v-if="!maximized" viewBox="0 0 16 16" class="size-4" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="3.5" y="3.5" width="9" height="9" rx="0.5" /></svg>
           <svg v-else viewBox="0 0 16 16" class="size-4" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M5.5 5.5V3.5h7v7h-2M3.5 5.5h7v7h-7z" /></svg>
         </button>
-        <button type="button" class="flex w-12 items-center justify-center text-darker hover:bg-[#e81123] hover:text-white" title="Close to the taskbar (quit from the tray icon)" @click="hide">
+        <button type="button" class="flex w-12 items-center justify-center text-darker hover:bg-[#e81123] hover:text-white" :title="t('Close to the taskbar (quit from the tray icon)')" @click="hide">
           <svg viewBox="0 0 16 16" class="size-4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
         </button>
       </div>
     </header>
 
     <div class="flex min-h-0 flex-1">
-      <nav class="flex w-56 shrink-0 flex-col overflow-y-auto border-r border-card px-2.5 py-3">
+      <nav class="flex w-60 shrink-0 flex-col overflow-y-auto border-r border-card px-2.5 py-3">
         <div v-for="(s, n) in SECTIONS" :key="s.title ?? ''" :class="n > 0 && 'mt-5'">
-          <div v-if="s.title" class="mb-1 px-2.5 text-[11px] font-medium uppercase tracking-wider text-darkest">{{ s.title }}</div>
+          <div v-if="s.title" class="mb-1 px-2.5 text-[11px] font-medium uppercase tracking-wider text-darkest">{{ t(s.title) }}</div>
           <button
             v-for="id in s.pages"
             :key="id"
@@ -234,7 +221,7 @@ onBeforeUnmount(() => {
             <svg viewBox="0 0 16 16" :class="['size-4 shrink-0', page === id ? 'text-accent' : 'text-darker']" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
               <path :d="PAGES[id].icon" />
             </svg>
-            <span class="min-w-0 flex-1 truncate">{{ PAGES[id].label }}</span>
+            <span class="min-w-0 flex-1 truncate">{{ t(PAGES[id].label) }}</span>
             <span
               v-if="badge[id]"
               :class="['shrink-0 rounded-full px-1.5 text-[10px] font-semibold tabular-nums', page === id ? 'bg-accent/20 text-accent' : 'bg-dark text-darker']"
@@ -254,13 +241,13 @@ onBeforeUnmount(() => {
             <svg viewBox="0 0 16 16" :class="['size-4 shrink-0', page === 'settings' ? 'text-accent' : 'text-darker']" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
               <path :d="PAGES.settings.icon" />
             </svg>
-            Settings
+            {{ t('Settings') }}
           </button>
           <button
             v-if="version"
             type="button"
             :class="['px-2.5 pt-2 text-[11px] hover:text-default hover:underline', page === 'updates' ? 'text-default' : 'text-darkest']"
-            title="Updates"
+            :title="t('Updates')"
             @click="go('updates')"
           >
             v{{ version }}
@@ -270,7 +257,7 @@ onBeforeUnmount(() => {
 
       <main ref="main" class="min-w-0 flex-1 overflow-y-auto">
         <div :class="['mx-auto px-8 py-7', ['settings', 'updates', 'changes'].includes(page) ? 'max-w-4xl' : 'max-w-6xl']">
-          <div v-if="!store.ready" class="py-6 text-center text-sm text-darker">Loading…</div>
+          <div v-if="!store.ready" class="py-6 text-center text-sm text-darker">{{ t('Loading…') }}</div>
           <HomeView v-else-if="page === 'home'" @go="go" />
           <MeterView v-else-if="page === 'meter'" />
           <TrainingView v-else-if="page === 'training'" />

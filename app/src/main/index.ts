@@ -20,6 +20,7 @@ import { startPackets } from './packets.ts'
 import { startMeter } from './meter.ts'
 import { startTimers } from './timers.ts'
 import { killTrackerNow, log, stopTracker, tracker } from './tracker.ts'
+import { tr } from './i18n.ts'
 import { createTray, setTrayTooltip } from './tray.ts'
 import { applyWindowSettings, markQuitting, refreshHud, setForeground, showMerchant, showPanel, startOnTopWatch } from './windows.ts'
 
@@ -73,7 +74,7 @@ if (!app.requestSingleInstanceLock()) {
         error: 'error',
         exited: 'restarting',
       }[status.state]
-      setTrayTooltip(`${DISPLAY_NAME}: ${what}`)
+      setTrayTooltip(`${DISPLAY_NAME}: ${tr(what)}`)
     })
 
     // The bubble, the HUD and the tracker, once it is known whether the game is running.

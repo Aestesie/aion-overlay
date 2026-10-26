@@ -8,6 +8,7 @@ import PetIcon from '@/components/PetIcon.vue'
 import WorldMap, { type MapLayer } from '@/components/WorldMap.vue'
 import { displayName, monsterName } from '@/lib/petDb.ts'
 import { currentWorld, levelFit, LEVEL_GAP, loadSpawns, npcUrl, sortDroppers, type Dropper } from '@/lib/spawns.ts'
+import { t } from '@/lib/i18n.ts'
 import { useApp } from '@/stores/app.ts'
 import { MAX_PINNED } from '@shared/settings.ts'
 import { blankPet } from '@shared/tracker.ts'
@@ -73,7 +74,7 @@ const you = computed<[number, number] | null>(() => {
 const nearCount = computed(() => new Map(store.nearby.monsters.map((m) => [m.npc, m.count])))
 const focus = computed(() => current.value?.worlds.find((w) => w.world === worldId.value)?.points ?? [])
 
-const FIT_TEXT = { good: 'good drop rate', low: `over ${LEVEL_GAP} levels below you: rare drops`, high: 'above your level' }
+const FIT_TEXT = computed(() => ({ good: t('good drop rate'), low: t('over {n} levels below you: rare drops', { n: LEVEL_GAP }), high: t('above your level') }))
 const FIT_CLASS = { good: 'text-green', low: 'text-red', high: 'text-yellow' }
 
 </script>
@@ -84,7 +85,7 @@ const FIT_CLASS = { good: 'text-green', low: 'text-red', high: 'text-yellow' }
       <button
         type="button"
         class="flex size-7 shrink-0 items-center justify-center rounded-md text-darker transition hover:bg-light hover:text-default"
-        title="Back to the collection"
+        :title="t('Back to the collection')"
         @click="store.openPet(null)"
       >
         <svg viewBox="0 0 16 16" class="size-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -100,14 +101,14 @@ const FIT_CLASS = { good: 'text-green', low: 'text-red', high: 'text-yellow' }
         <div class="flex items-center gap-2 text-xs text-darker">
           <span class="tabular-nums">{{ pet.souls }} souls</span>
           <LevelBadge :pet="pet" />
-          <span v-if="pet.session" class="text-green">+{{ pet.session }} this session</span>
-          <span v-if="monsterName(pet)" class="truncate">· farmed from {{ monsterName(pet) }}</span>
+          <span v-if="pet.session" class="text-green">{{ t('+{n} this session', { n: pet.session }) }}</span>
+          <span v-if="monsterName(pet)" class="truncate">· {{ t('farmed from {name}', { name: monsterName(pet)! }) }}</span>
         </div>
       </div>
       <!-- Pinned: on the HUD's pinned list and the map overlay, as from the Pets page. -->
       <button
         type="button"
-        :title="pinned ? 'Unpin from the HUD and the map overlay' : pinsFull ? `${MAX_PINNED} pets pinned already: unpin one first` : 'Pin to the HUD and the map overlay'"
+        :title="pinned ? t('Unpin from the HUD and the map overlay') : pinsFull ? t('{n} pets pinned already: unpin one first', { n: MAX_PINNED }) : t('Pin to the HUD and the map overlay')"
         :disabled="!pinned && pinsFull"
         :class="[
           'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs transition disabled:cursor-not-allowed disabled:opacity-50',
@@ -118,18 +119,18 @@ const FIT_CLASS = { good: 'text-green', low: 'text-red', high: 'text-yellow' }
         <svg viewBox="0 0 16 16" class="size-3.5" :fill="pinned ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.4">
           <path d="M6 2h4l-.5 4 2.5 2.5H4L6.5 6z M8 8.5V14" stroke-linejoin="round" />
         </svg>
-        {{ pinned ? 'Pinned' : 'Pin' }}
+        {{ pinned ? t('Pinned') : t('Pin') }}
       </button>
       <!-- Your level, as the game says: what the drop-rate marks below go by. -->
-      <span v-if="store.settings.playerLevel" class="shrink-0 text-xs text-darker" title="Read from the game">
-        You: <span class="font-semibold tabular-nums text-default">Lv {{ store.settings.playerLevel }}</span>
+      <span v-if="store.settings.playerLevel" class="shrink-0 text-xs text-darker" :title="t('Read from the game')">
+        {{ t('You:') }} <span class="font-semibold tabular-nums text-default">Lv {{ store.settings.playerLevel }}</span>
       </span>
     </div>
 
-    <p v-if="error" class="text-sm text-red">Could not load the drop locations: {{ error }}</p>
-    <p v-else-if="!data" class="text-sm text-darker">Loading drop locations…</p>
+    <p v-if="error" class="text-sm text-red">{{ t('Could not load the drop locations: {error}', { error }) }}</p>
+    <p v-else-if="!data" class="text-sm text-darker">{{ t('Loading drop locations…') }}</p>
     <p v-else-if="!droppers.length" class="text-sm text-darker">
-      No monster drops this pet's soul: it comes from chests, events or the shop.
+      {{ t("No monster drops this pet's soul: it comes from chests, events or the shop.") }}
     </p>
 
     <div v-else class="flex min-h-0 flex-1 gap-3">
@@ -149,7 +150,7 @@ const FIT_CLASS = { good: 'text-green', low: 'text-red', high: 'text-yellow' }
               :href="npcUrl(d.npc)"
               target="_blank"
               class="min-w-0 truncate text-sm font-medium hover:text-accent hover:underline"
-              :title="`Open ${d.name} on questlog.gg`"
+              :title="t('Open {name} on questlog.gg', { name: d.name })"
               @click.stop
             >
               {{ d.name }}
@@ -163,7 +164,7 @@ const FIT_CLASS = { good: 'text-green', low: 'text-red', high: 'text-yellow' }
             <span v-if="d.worlds.length" class="truncate">
               {{ d.worlds.map((w) => [worldName(w.world), w.area].filter(Boolean).join(' · ')).join(', ') }}
             </span>
-            <span v-else class="italic">not on the map</span>
+            <span v-else class="italic">{{ t('not on the map') }}</span>
             <span v-if="d.worlds.length" class="ml-auto shrink-0 tabular-nums text-darkest">
               {{ d.worlds.reduce((n, w) => n + w.points.length, 0) }} spawns
             </span>
@@ -172,8 +173,8 @@ const FIT_CLASS = { good: 'text-green', low: 'text-red', high: 'text-yellow' }
             <span v-if="levelFit(d.level, store.settings.playerLevel)" :class="FIT_CLASS[levelFit(d.level, store.settings.playerLevel)!]">
               {{ FIT_TEXT[levelFit(d.level, store.settings.playerLevel)!] }}
             </span>
-            <span v-if="nearCount.get(d.npc)" class="font-semibold text-green">{{ nearCount.get(d.npc) }} around you</span>
-            <span v-if="d.name === pet.name" class="text-accent">you farmed here</span>
+            <span v-if="nearCount.get(d.npc)" class="font-semibold text-green">{{ t('{n} around you', { n: nearCount.get(d.npc)! }) }}</span>
+            <span v-if="d.name === pet.name" class="text-accent">{{ t('you farmed here') }}</span>
           </div>
         </li>
       </ul>
@@ -181,27 +182,27 @@ const FIT_CLASS = { good: 'text-green', low: 'text-red', high: 'text-yellow' }
       <div class="flex min-w-0 flex-1 flex-col gap-2">
         <div v-if="worldTabs.length > 1" class="flex gap-1">
           <button
-            v-for="t in worldTabs"
-            :key="t.id"
+            v-for="tab in worldTabs"
+            :key="tab.id"
             type="button"
             :class="[
               'rounded-md border px-2 py-0.5 text-xs transition',
-              t.id === worldId ? 'border-accent bg-accent-soft text-accent' : 'border-light text-darker hover:text-default',
+              tab.id === worldId ? 'border-accent bg-accent-soft text-accent' : 'border-light text-darker hover:text-default',
             ]"
-            @click="worldId = t.id"
+            @click="worldId = tab.id"
           >
-            {{ t.name }}
+            {{ tab.name }}
           </button>
         </div>
         <!-- Square, from the width (the page's height is not one to fill), but never past the window. -->
         <div class="aspect-square w-full max-w-[calc(100vh-11rem)]">
           <WorldMap v-if="world" :world="world" :layers="layers" :focus="focus" :you="you" :cubes="you ? store.cubes.map((c) => c.position) : []" />
           <div v-else class="flex h-full items-center justify-center rounded-lg border border-card text-sm text-darker">
-            This monster has no spawn points on the map.
+            {{ t('This monster has no spawn points on the map.') }}
           </div>
         </div>
         <p class="text-[11px] text-darkest">
-          Drop sources, spawns and maps:
+          {{ t('Drop sources, spawns and maps:') }}
           <a :href="data?.source" target="_blank" class="hover:text-default hover:underline">questlog.gg</a> ({{ data?.fetched }})
         </p>
       </div>

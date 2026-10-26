@@ -7,6 +7,7 @@ import PetIcon from '@/components/PetIcon.vue'
 import Sparkline from '@/components/Sparkline.vue'
 import StatusDot, { statusText } from '@/components/StatusDot.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { loc, plural, t } from '@/lib/i18n.ts'
 import { displayName } from '@/lib/petDb.ts'
 import { formatKina } from '@shared/kina.ts'
 import { useApp } from '@/stores/app.ts'
@@ -30,47 +31,47 @@ function resetSession(): void {
 const kinaPointLabel = (i: number): string => {
   const p = store.kinaTimeline[i]
   if (!p) return ''
-  const at = new Date(p.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const at = new Date(p.at).toLocaleTimeString(loc(), { hour: '2-digit', minute: '2-digit' })
   return `${at} · ${formatKina(p.perHour)}/h`
 }
 const lastPacket = computed(() => {
   const ago = store.status?.lastPacketAgo
-  return ago === null || ago === undefined ? 'never' : ago < 5 ? 'just now' : `${Math.round(ago)} s ago`
+  return ago === null || ago === undefined ? t('never') : ago < 5 ? t('just now') : t('{n} s ago', { n: Math.round(ago) })
 })
 </script>
 
 <template>
   <div class="space-y-3 p-3">
     <div class="flex items-center justify-between text-xs">
-      <span class="font-medium text-darker">This session</span>
+      <span class="font-medium text-darker">{{ t('This session') }}</span>
       <button
         type="button"
         :class="[
           'rounded-md border px-2 py-0.5 transition',
           confirming ? 'border-danger/50 bg-danger/10 text-danger' : 'border-light text-darker hover:text-dark',
         ]"
-        title="Start the session's souls and Kina again (your collection is not changed)"
+        :title="t('Start the session\'s souls and Kina again (your collection is not changed)')"
         @click="resetSession"
       >
-        {{ confirming ? 'Click again to reset' : 'Reset session' }}
+        {{ confirming ? t('Click again to reset') : t('Reset session') }}
       </button>
     </div>
     <div class="grid grid-cols-2 gap-2">
       <div class="rounded-lg bg-card p-3 text-center">
         <div class="text-3xl font-semibold tabular-nums text-accent">{{ store.sessionSouls }}</div>
-        <div class="text-xs text-darker">souls this session, across {{ gained.length }} pet{{ gained.length === 1 ? '' : 's' }}</div>
+        <div class="text-xs text-darker">{{ plural(gained.length, 'souls this session, across {n} pet', 'souls this session, across {n} pets') }}</div>
       </div>
       <div class="rounded-lg bg-card p-3 text-center">
         <div
           v-if="store.kinaRate !== null"
-          title="Kina earned per hour of farming: gains only (spending is not taken off), and a break of more than 5 minutes counts as 5."
+          :title="t('Kina earned per hour of farming: gains only (spending is not taken off), and a break of more than 5 minutes counts as 5.')"
           class="text-3xl font-semibold tabular-nums text-yellow">{{ formatKina(store.kinaRate) }}</div>
         <!-- Kina is coming in, but under a minute of it: no rate yet. -->
-        <div v-else-if="store.kina.earned" class="flex h-9 items-center justify-center text-lg font-semibold text-yellow">measuring…</div>
+        <div v-else-if="store.kina.earned" class="flex h-9 items-center justify-center text-lg font-semibold text-yellow">{{ t('measuring…') }}</div>
         <div v-else class="text-3xl font-semibold text-yellow">—</div>
         <div class="text-xs text-darker">
-          <template v-if="store.kina.earned">Kina per hour, {{ formatKina(store.kina.earned) }} earned</template>
-          <template v-else>Kina per hour, from your first loot</template>
+          <template v-if="store.kina.earned">{{ t('Kina per hour, {kina} earned', { kina: formatKina(store.kina.earned) }) }}</template>
+          <template v-else>{{ t('Kina per hour, from your first loot') }}</template>
         </div>
         <Sparkline
           v-if="store.kinaTimeline.length"
@@ -86,7 +87,7 @@ const lastPacket = computed(() => {
         v-for="pet in gained"
         :key="pet.id"
         class="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm transition hover:bg-dark"
-        title="Show where its souls drop"
+        :title="t('Show where its souls drop')"
         @click="store.openPet(pet.id)"
       >
         <PetIcon :id="pet.id" :size="28" />
@@ -99,15 +100,15 @@ const lastPacket = computed(() => {
         <LevelBadge :pet="pet" />
       </li>
     </ul>
-    <p v-else class="py-4 text-center text-sm text-darker">No souls yet this session.</p>
+    <p v-else class="py-4 text-center text-sm text-darker">{{ t('No souls yet this session.') }}</p>
 
     <div class="space-y-1.5 rounded-lg border border-card p-3 text-xs">
       <div class="flex items-center gap-2 font-medium">
         <StatusDot :status="store.status" /> {{ statusText(store.status) }}
       </div>
       <div v-if="store.status?.detail" class="break-words text-darker">{{ store.status.detail }}</div>
-      <div class="text-darker">Last game packet: {{ lastPacket }}</div>
-      <div v-if="store.status?.replay" class="text-yellow">Replaying a saved capture (A2T_REPLAY): counts are not saved.</div>
+      <div class="text-darker">{{ t('Last game packet: {when}', { when: lastPacket }) }}</div>
+      <div v-if="store.status?.replay" class="text-yellow">{{ t('Replaying a saved capture (A2T_REPLAY): counts are not saved.') }}</div>
     </div>
   </div>
 </template>

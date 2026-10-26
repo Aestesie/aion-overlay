@@ -10,6 +10,7 @@ import { basename, join } from 'node:path'
 import { settings } from './settings.ts'
 import { log } from './tracker.ts'
 import { CUSTOM_SOUND_MAX_BYTES, isSoundSlot, type CustomSoundResult, type SoundSlot } from '../shared/sounds.ts'
+import { tr } from './i18n.ts'
 
 const file = (slot: SoundSlot): string => join(app.getPath('userData'), 'sounds', `${slot}-custom.mp3`)
 
@@ -25,15 +26,15 @@ export const sounds = {
   async pickCustom(slot: unknown): Promise<CustomSoundResult> {
     if (!isSoundSlot(slot)) return { ok: false, error: 'unknown alert' }
     const parent = BrowserWindow.getFocusedWindow()
-    const options = { title: slot === 'cube' ? 'Choose a sound for Hidden Cubes' : 'Choose a sound for enemies nearby', filters: [{ name: 'MP3 audio', extensions: ['mp3'] }], properties: ['openFile' as const] }
+    const options = { title: slot === 'cube' ? tr('Choose a sound for Hidden Cubes') : tr('Choose a sound for enemies nearby'), filters: [{ name: tr('MP3 audio'), extensions: ['mp3'] }], properties: ['openFile' as const] }
     const picked = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
     const from = picked.filePaths[0]
     if (picked.canceled || !from) return null
     try {
       const size = (await stat(from)).size
-      if (size > CUSTOM_SOUND_MAX_BYTES) return { ok: false, error: `that file is ${(size / 1048576).toFixed(1)} MB: up to ${CUSTOM_SOUND_MAX_BYTES / 1048576} MB` }
+      if (size > CUSTOM_SOUND_MAX_BYTES) return { ok: false, error: tr('that file is {size} MB: up to {max} MB', { size: (size / 1048576).toFixed(1), max: CUSTOM_SOUND_MAX_BYTES / 1048576 }) }
       const bytes = await readFile(from)
-      if (!looksLikeMp3(bytes)) return { ok: false, error: 'that file is not an mp3' }
+      if (!looksLikeMp3(bytes)) return { ok: false, error: tr('that file is not an mp3') }
       await mkdir(join(app.getPath('userData'), 'sounds'), { recursive: true })
       await writeFile(file(slot), bytes)
       const name = basename(from)
@@ -42,7 +43,7 @@ export const sounds = {
       log(`${slot} sound: ${name} (${size} bytes)`)
       return { ok: true, name }
     } catch (err) {
-      return { ok: false, error: `could not copy it: ${(err as Error).message}` }
+      return { ok: false, error: tr('could not copy it: {error}', { error: (err as Error).message }) }
     }
   },
 

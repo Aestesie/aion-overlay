@@ -11,6 +11,7 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import Segmented from '@/components/ui/Segmented.vue'
 import SelectBox from '@/components/ui/SelectBox.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { plural, t } from '@/lib/i18n.ts'
 import { CONTINENTS, formatDistance, nearbyPets, petContinents, petDistance, petWorlds, useSpawns, type NearbyPet } from '@/lib/spawns.ts'
 import { displayName, GENERA, GENUS_LABEL, monsterName, PET_DB_DATE, PET_DB_SIZE, PET_DB_SOURCE, petInfo, type Genus } from '@/lib/petDb.ts'
 import { useApp } from '@/stores/app.ts'
@@ -93,9 +94,9 @@ const ticker = setInterval(() => (now.value = Date.now()), 15_000)
 onBeforeUnmount(() => clearInterval(ticker))
 const positionAge = computed(() => {
   const at = store.nearby.positionAt
-  if (!at) return 'as last seen'
+  if (!at) return t('as last seen')
   const min = Math.floor((now.value - at) / 60_000)
-  return min < 1 ? 'updated just now' : min < 60 ? `updated ${min} min ago` : `updated ${Math.floor(min / 60)} h ago`
+  return min < 1 ? t('updated just now') : min < 60 ? t('updated {n} min ago', { n: min }) : t('updated {n} h ago', { n: Math.floor(min / 60) })
 })
 const distance = (id: number): number | null =>
   spawns.value && here.value ? petDistance(spawns.value, id, here.value.world, here.value.at) : null
@@ -184,7 +185,7 @@ function commit(): void {
 /** What to show, with how many: the nearby count is the live one. */
 const FILTERS = computed(() => [
   { id: 'all' as const, label: 'All' },
-  { id: 'unfinished' as const, label: `Below Lv${MAX_LEVEL}` },
+  { id: 'unfinished' as const, label: t('Below Lv{n}', { n: MAX_LEVEL }) },
   { id: 'session' as const, label: 'This session' },
   { id: 'pinned' as const, label: 'Pinned', count: pinned.value.size },
   { id: 'nearby' as const, label: 'Nearby', count: near.value.size },
@@ -194,7 +195,7 @@ const syncedAgo = computed(() => {
   const s = store.status?.synced
   if (!s) return null
   const min = Math.round((Date.now() - s.at) / 60000)
-  return min < 1 ? 'just now' : `${min} min ago`
+  return min < 1 ? t('just now') : t('{n} min ago', { n: min })
 })
 </script>
 
@@ -206,7 +207,7 @@ const syncedAgo = computed(() => {
       v-if="!store.status?.synced && store.pets.every((p) => p.levelEstimated)"
       class="mb-4 rounded-xl border border-accent/40 bg-accent-soft/60 px-4 py-2.5 text-sm text-dark"
     >
-      Counts load from the server when you enter the world. Log in (or go to character select and back) while the tracker runs to sync every pet.
+      {{ t('Counts load from the server when you enter the world. Log in (or go to character select and back) while the tracker runs to sync every pet.') }}
     </div>
 
     <div class="mb-4 grid grid-cols-4 gap-3">
@@ -219,11 +220,11 @@ const syncedAgo = computed(() => {
         <div class="text-2xl font-semibold tabular-nums">{{ totals.souls }}</div>
       </div>
       <div class="rounded-xl border border-card bg-card px-4 py-3">
-        <div class="text-xs text-darker">At Lv{{ MAX_LEVEL }}</div>
+        <div class="text-xs text-darker">{{ t('At Lv{n}', { n: MAX_LEVEL }) }}</div>
         <div class="text-2xl font-semibold tabular-nums">{{ totals.maxed }}</div>
       </div>
       <div class="rounded-xl border border-card bg-card px-4 py-3">
-        <div class="text-xs text-darker">This session</div>
+        <div class="text-xs text-darker">{{ t('This session') }}</div>
         <div class="text-2xl font-semibold tabular-nums text-green">+{{ store.sessionSouls }}</div>
       </div>
     </div>
@@ -233,14 +234,14 @@ const syncedAgo = computed(() => {
       <input
         v-model="query"
         type="search"
-        placeholder="Search pets, monsters, genus or #id"
+        :placeholder="t('Search pets, monsters, genus or #id')"
         class="ml-auto h-8 w-64 rounded-md border border-light bg-default px-2.5 text-sm placeholder:text-darkest focus:border-accent"
       />
       <SelectBox v-model="sort" :options="SORTS" />
       <SelectBox
         :model-value="store.settings.hud.mode"
         :options="HUD_MODES"
-        title="What the HUD lists below Nearby"
+        :title="t('What the HUD lists below Nearby')"
         @update:model-value="store.setHud({ mode: $event })"
       />
     </div>
@@ -260,7 +261,7 @@ const syncedAgo = computed(() => {
         :key="c.id"
         type="button"
         :class="['rounded-full border px-2.5 py-0.5 text-xs transition', continent === c.id ? 'border-accent bg-accent-soft text-accent' : 'border-light text-darker hover:text-default']"
-        :title="`Pets whose soul monsters spawn in ${c.label === 'Abyss' ? 'the Abyss' : `${c.label} zones`}`"
+        :title="c.label === 'Abyss' ? t('Pets whose soul monsters spawn in the Abyss') : t('Pets whose soul monsters spawn in {side} zones', { side: c.label })"
         @click="continent = continent === c.id ? null : c.id"
       >
         {{ c.label }} <span class="tabular-nums opacity-60">{{ continentCounts.get(c.id) ?? 0 }}</span>
@@ -270,8 +271,8 @@ const syncedAgo = computed(() => {
       </span>
     </div>
     <p v-if="sort === 'range'" class="-mt-2 mb-3 text-xs text-darkest">
-      <template v-if="here">Distance from your position in {{ spawns?.worlds[here.world]?.name ?? 'this zone' }} ({{ positionAge }}) to each pet's nearest spawn there.</template>
-      <template v-else>Nearest spawn needs your position: it is read as you enter a zone, and follows you from then on.</template>
+      <template v-if="here">{{ t('Distance from your position in {zone} ({age}) to each pet\'s nearest spawn there.', { zone: spawns?.worlds[here.world]?.name ?? t('this zone'), age: positionAge }) }}</template>
+      <template v-else>{{ t('Nearest spawn needs your position: it is read as you enter a zone, and follows you from then on.') }}</template>
     </p>
 
     <div class="overflow-hidden rounded-xl border border-card">
@@ -280,12 +281,12 @@ const syncedAgo = computed(() => {
           <tr class="border-b border-card">
             <th class="py-2.5 pl-4 text-left font-medium">Pet</th>
             <th class="w-24 px-3 text-right font-medium">Souls</th>
-            <th class="w-72 px-3 text-left font-medium">Level</th>
+            <th class="w-72 px-3 text-left font-medium">{{ t('Level') }}</th>
             <th class="w-12 pr-3" />
           </tr>
         </thead>
         <tbody class="divide-y divide-[color:var(--line)]">
-          <tr v-for="pet in list" :key="pet.id" class="group cursor-pointer hover:bg-card" title="Show where its souls drop" @click="store.openPet(pet.id)">
+          <tr v-for="pet in list" :key="pet.id" class="group cursor-pointer hover:bg-card" :title="t('Show where its souls drop')" @click="store.openPet(pet.id)">
             <td class="py-2 pl-4">
               <div class="flex items-center gap-3">
                 <PetIcon :id="pet.id" :size="36" />
@@ -296,7 +297,7 @@ const syncedAgo = computed(() => {
                       ref="input"
                       v-model="editing.value"
                       class="h-6 w-56 rounded border border-accent bg-default px-1.5 text-sm"
-                      placeholder="Monster name"
+                      :placeholder="t('Monster name')"
                       @click.stop
                       @keydown.enter="commit"
                       @keydown.esc.stop="editing = null"
@@ -308,22 +309,22 @@ const syncedAgo = computed(() => {
                         v-else
                         type="button"
                         :class="['truncate text-left', pet.name ? 'font-medium' : 'italic text-darker']"
-                        title="Not in the pet database: click to name it"
+                        :title="t('Not in the pet database: click to name it')"
                         @click.stop="edit(pet, 'name')"
                       >
                         {{ displayName(pet) }}
                       </button>
                       <GenusPill :id="pet.id" />
                       <span v-if="onlyZone(pet.id)" class="shrink-0 whitespace-nowrap rounded border border-light px-1.5 text-[10px] text-darker">
-                        only in {{ onlyZone(pet.id) }}
+                        {{ t('only in {zone}', { zone: onlyZone(pet.id)! }) }}
                       </span>
                     </template>
                   </div>
-                  <div v-if="near.get(pet.id)" class="truncate text-xs text-green" :title="nearLine(near.get(pet.id)!)">nearby: {{ nearLine(near.get(pet.id)!) }}</div>
+                  <div v-if="near.get(pet.id)" class="truncate text-xs text-green" :title="nearLine(near.get(pet.id)!)">{{ t('nearby: {list}', { list: nearLine(near.get(pet.id)!) }) }}</div>
                   <div v-else-if="monsterName(pet) || (sort === 'range' && distance(pet.id) !== null)" class="truncate text-xs text-darkest">
-                    <template v-if="sort === 'range' && distance(pet.id) !== null">{{ formatDistance(distance(pet.id)!) }} away</template>
+                    <template v-if="sort === 'range' && distance(pet.id) !== null">{{ t('{d} away', { d: formatDistance(distance(pet.id)!) }) }}</template>
                     <template v-if="sort === 'range' && distance(pet.id) !== null && monsterName(pet)"> · </template>
-                    <template v-if="monsterName(pet)">from {{ monsterName(pet) }}</template>
+                    <template v-if="monsterName(pet)">{{ t('from {name}', { name: monsterName(pet)! }) }}</template>
                   </div>
                 </div>
               </div>
@@ -340,7 +341,7 @@ const syncedAgo = computed(() => {
                 @keydown.esc.stop="editing = null"
                 @blur="commit"
               />
-              <button v-else type="button" class="font-semibold tabular-nums hover:text-accent" title="Click to correct the count" @click.stop="edit(pet, 'souls')">
+              <button v-else type="button" class="font-semibold tabular-nums hover:text-accent" :title="t('Click to correct the count')" @click.stop="edit(pet, 'souls')">
                 {{ pet.souls }}
               </button>
               <div v-if="pet.session" class="text-xs tabular-nums text-green">+{{ pet.session }}</div>
@@ -358,7 +359,7 @@ const syncedAgo = computed(() => {
             <td class="pr-3 text-right">
               <button
                 type="button"
-                :title="pinned.has(pet.id) ? 'Unpin from the HUD' : pinsFull ? `${MAX_PINNED} pets pinned already: unpin one first` : 'Pin to the HUD'"
+                :title="pinned.has(pet.id) ? t('Unpin from the HUD') : pinsFull ? t('{n} pets pinned already: unpin one first', { n: MAX_PINNED }) : t('Pin to the HUD')"
                 :disabled="!pinned.has(pet.id) && pinsFull"
                 :class="[
                   'inline-flex size-7 items-center justify-center rounded-md transition hover:bg-light disabled:cursor-not-allowed disabled:hover:bg-transparent',
@@ -374,23 +375,23 @@ const syncedAgo = computed(() => {
           </tr>
           <tr v-if="hiddenCount">
             <td colspan="4" class="px-4 py-2 text-center text-xs text-darkest">
-              {{ hiddenCount }} maxed (Lv3) pet{{ hiddenCount === 1 ? '' : 's' }} hidden: search finds them, or turn this off in Settings.
+              {{ plural(hiddenCount, '{n} maxed (Lv3) pet hidden: search finds them, or turn this off in Settings.', '{n} maxed (Lv3) pets hidden: search finds them, or turn this off in Settings.') }}
             </td>
           </tr>
           <tr v-if="!list.length">
             <td colspan="4" class="px-4 py-10 text-center text-sm text-darker">
-              {{ store.pets.length ? 'No pets match.' : 'No pets yet: they appear when souls drop, or on the next login sync.' }}
+              {{ store.pets.length ? t('No pets match.') : t('No pets yet: they appear when souls drop, or on the next login sync.') }}
             </td>
           </tr>
         </tbody>
       </table>
     </div>
     <p class="mt-3 flex justify-between text-xs text-darkest">
-      <span v-if="syncedAgo">Synced from the server {{ syncedAgo }}</span>
+      <span v-if="syncedAgo">{{ t('Synced from the server {when}', { when: syncedAgo }) }}</span>
       <span>
-        Pet names, genus and portraits:
+        {{ t('Pet names, genus and portraits:') }}
         <a :href="PET_DB_SOURCE" target="_blank" class="hover:text-default hover:underline">questlog.gg</a>
-        ({{ PET_DB_SIZE }} pets, {{ PET_DB_DATE }})
+        ({{ t('{n} pets', { n: PET_DB_SIZE }) }}, {{ PET_DB_DATE }})
       </span>
     </p>
   </div>

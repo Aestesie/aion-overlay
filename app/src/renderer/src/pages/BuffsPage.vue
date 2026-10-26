@@ -5,6 +5,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import BuffIcon from '@/components/BuffIcon.vue'
 import { bridge } from '@/lib/bridge.ts'
+import { t } from '@/lib/i18n.ts'
 import { buffName, consumable, hiddenBuff, remaining } from '@/lib/buffs.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { useApp } from '@/stores/app.ts'
@@ -35,7 +36,7 @@ const rows = computed(() => [debuffs.value, buffs.value].filter((r) => r.length)
 const left = (b: Buff): number | null => (b.endsAt === null ? null : b.endsAt - now.value)
 /** How much of its time is left, 0..1, for the ring. */
 const share = (b: Buff): number => (b.endsAt === null ? 1 : Math.max(0, Math.min(1, (b.endsAt - now.value) / Math.max(1, b.endsAt - b.startedAt))))
-const tip = (b: Buff): string => [buffName(b.id), b.stacks > 1 ? `${b.stacks} stacks` : '', b.debuff ? 'debuff' : b.mine ? 'yours' : ''].filter(Boolean).join(' · ')
+const tip = (b: Buff): string => [buffName(b.id), b.stacks > 1 ? t('{n} stacks', { n: b.stacks }) : '', b.debuff ? 'debuff' : b.mine ? t('yours') : ''].filter(Boolean).join(' · ')
 
 const drag = windowDrag({ move: 'buffs:moveTo', end: 'buffs:dragEnd' })
 
@@ -72,7 +73,7 @@ onBeforeUnmount(() => {
         v-if="rows.length"
         class="m-1.5 cursor-move space-y-1 rounded-lg border border-card bg-darker/80 p-1.5 shadow-card"
         :style="{ opacity: cfg.opacity }"
-        title="Drag to move"
+        :title="t('Drag to move')"
         @pointerdown="drag.onPointerDown"
       >
         <div

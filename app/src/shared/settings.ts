@@ -3,6 +3,7 @@
  * file or a renderer bug can never store something the app then trips over.
  */
 
+import type { Lang } from './i18n.ts'
 import { DUMMY_DAMAGE_GOALS, DUMMY_LIMITS, type DummyGoal } from './dummy.ts'
 import { isSound, type SoundId } from './sounds.ts'
 import { TARGET_MODES, type MeterPlayers, type MeterStat, type TargetMode } from './meter.ts'
@@ -150,6 +151,9 @@ export interface Settings {
   /** Hide every overlay window from screenshots, OBS and Discord (WDA_EXCLUDEFROMCAPTURE). */
   hideFromCapture: boolean
 
+  /** The app's language (shared/i18n.ts): Spanish unless changed. */
+  language: Lang
+
   /** Your side: its zones are listed first where a soul drops. */
   faction: 'elyos' | 'asmodians'
   /** Your level, to point out monsters close enough to it for souls to drop well; null = unset. */
@@ -243,6 +247,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   buffs: { enabled: true, position: null, opacity: 0.92, size: 34, perRow: 10, debuffs: true, passives: false, consumables: false, cc: true, ccPosition: null, ccDebuffs: false },
   meter: { enabled: true, position: null, targetMode: 'bossTargets', players: 'party', stat: 'damage', rows: 8, opacity: 0.92, collapsed: false },
   hideFromCapture: false,
+  language: 'es',
   faction: 'elyos',
   playerLevel: null,
   hideMaxed: true,
@@ -430,6 +435,8 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         collapsed: bool(v.collapsed, false),
       } as Settings[K]
     }
+    case 'language':
+      return (value === 'en' ? 'en' : 'es') as Settings[K]
     case 'faction':
       return (value === 'asmodians' ? 'asmodians' : 'elyos') as Settings[K]
     case 'playerLevel':

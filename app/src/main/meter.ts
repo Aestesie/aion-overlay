@@ -5,6 +5,7 @@
  * engine (through the tracker's process, main/tracker.ts).
  */
 import { broadcast } from './broadcast.ts'
+import { tr } from './i18n.ts'
 import { settings } from './settings.ts'
 import { command, tracker } from './tracker.ts'
 import type { Buff, BuffTrack, FightBuffs } from '../shared/buffs.ts'
@@ -170,7 +171,7 @@ async function pvpDetails(source: Extract<DetailsSource, { kind: 'pvp' }>): Prom
   return {
     source,
     buffs: null,
-    title: `${fight.me.name} vs ${fight.opponent.name} · ${fight.outcome === 'kill' ? 'you won' : fight.outcome === 'death' ? 'you died' : `${fight.killer ?? 'someone else'} got the kill`}`,
+    title: `${fight.me.name} vs ${fight.opponent.name} · ${fight.outcome === 'kill' ? tr('you won') : fight.outcome === 'death' ? tr('you died') : tr('{name} got the kill', { name: fight.killer ?? tr('someone else') })}`,
     startedAt: fight.startMs,
     battleTime: fight.durationMs,
     totalDamage: sum(skills, (s) => s.damage),

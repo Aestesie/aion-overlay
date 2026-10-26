@@ -12,6 +12,7 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import SelectBox from '@/components/ui/SelectBox.vue'
 import { playChime } from '@/lib/chime.ts'
 import { CLOCK_ICON, EVENT_ICONS, leadLabel, setAlert, setLead, timerNext } from '@/lib/timerView.ts'
+import { loc, t } from '@/lib/i18n.ts'
 import { useApp } from '@/stores/app.ts'
 import { leadChoices, REGIONS, TIMERS, type TimerDef, type TimerId } from '@shared/timers.ts'
 
@@ -23,8 +24,8 @@ onBeforeUnmount(() => clearInterval(ticker))
 
 const EVENT_IMAGES: Partial<Record<TimerId, string>> = { shugo: 'events/shugo.webp', rift: 'events/rift.webp' }
 const alerting = computed(() => new Set(store.alerting.map((a) => a.id)))
-const time = (ms: number): string => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-const day = (ms: number): string => new Date(ms).toLocaleDateString([], { weekday: 'short' })
+const time = (ms: number): string => new Date(ms).toLocaleTimeString(loc(), { hour: '2-digit', minute: '2-digit' })
+const day = (ms: number): string => new Date(ms).toLocaleDateString(loc(), { weekday: 'short' })
 
 /** The events (field bosses have their own page), soonest first. */
 const rows = computed(() =>
@@ -67,40 +68,40 @@ onBeforeUnmount(() => flashTimer && clearTimeout(flashTimer))
     <PageHeader title="Event Alerts" about="The game's events in your local time. Turn on an alert to get a chime and a shaking bubble before it starts, and its countdown over the game.">
       <Button @click="playChime(cfg.volume)">
         <svg viewBox="0 0 16 16" class="size-4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11zM6.5 14h3" /></svg>
-        Test the chime
+        {{ t('Test the chime') }}
       </Button>
     </PageHeader>
 
     <div class="mb-5 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-xl border border-card bg-card px-4 py-3 text-sm">
       <label class="flex items-center gap-2">
-        <span class="text-xs font-medium uppercase tracking-wide text-darker">Region</span>
+        <span class="text-xs font-medium uppercase tracking-wide text-darker">{{ t('Region') }}</span>
         <SelectBox
           :model-value="cfg.region"
-          :options="REGIONS.map((r) => ({ id: r.id, label: r.label + (r.confirmed ? '' : ' (unconfirmed)') }))"
+          :options="REGIONS.map((r) => ({ id: r.id, label: t(r.label) + (r.confirmed ? '' : ` (${t('unconfirmed')})`) }))"
           @update:model-value="set({ region: $event })"
         />
       </label>
       <span class="h-6 w-px bg-light" />
       <label class="flex items-center gap-2">
         <Toggle :model-value="cfg.sound" @update:model-value="set({ sound: $event })" />
-        <span>Chime</span>
+        <span>{{ t('Chime') }}</span>
       </label>
       <label v-if="cfg.sound" class="flex items-center gap-2">
-        <span class="text-xs font-medium uppercase tracking-wide text-darker">Volume</span>
+        <span class="text-xs font-medium uppercase tracking-wide text-darker">{{ t('Volume') }}</span>
         <Slider :model-value="cfg.volume" :min="0.1" :max="1" :step="0.05" :format="pct" @update:model-value="set({ volume: $event })" />
       </label>
       <span class="h-6 w-px bg-light" />
       <label class="flex items-center gap-2">
         <Toggle :model-value="cfg.shake" @update:model-value="set({ shake: $event })" />
-        <span>Shake the bubble</span>
+        <span>{{ t('Shake the bubble') }}</span>
       </label>
       <span class="h-6 w-px bg-light" />
-      <label class="flex items-center gap-2" title="The timers with an alert on, starting within 13 hours, over the game. Drag it to move it.">
+      <label class="flex items-center gap-2" :title="t('The timers with an alert on, starting within 13 hours, over the game. Drag it to move it.')">
         <Toggle :model-value="bar.enabled" @update:model-value="store.set('timerBar', { ...bar, enabled: $event })" />
-        <span>Countdown bar over the game</span>
+        <span>{{ t('Countdown bar over the game') }}</span>
       </label>
       <label v-if="bar.enabled" class="flex items-center gap-2">
-        <span class="text-xs font-medium uppercase tracking-wide text-darker">Opacity</span>
+        <span class="text-xs font-medium uppercase tracking-wide text-darker">{{ t('Opacity') }}</span>
         <Slider :model-value="bar.opacity" :min="0.3" :max="1" :step="0.05" :format="pct" @update:model-value="store.set('timerBar', { ...bar, opacity: $event })" />
       </label>
     </div>
@@ -109,10 +110,10 @@ onBeforeUnmount(() => flashTimer && clearTimeout(flashTimer))
       <table class="w-full text-sm">
         <thead class="bg-card text-xs uppercase tracking-wide text-darker">
           <tr class="border-b border-card">
-            <th class="py-2.5 pl-4 text-left font-medium">Event</th>
-            <th class="w-40 px-3 text-left font-medium">Next in</th>
-            <th class="w-48 px-3 text-left font-medium">Alert me</th>
-            <th class="w-20 pr-4 text-right font-medium">Alert</th>
+            <th class="py-2.5 pl-4 text-left font-medium">{{ t('Event') }}</th>
+            <th class="w-40 px-3 text-left font-medium">{{ t('Next in') }}</th>
+            <th class="w-48 px-3 text-left font-medium">{{ t('Alert me') }}</th>
+            <th class="w-20 pr-4 text-right font-medium">{{ t('Alert') }}</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-[color:var(--line)]">
@@ -124,7 +125,7 @@ onBeforeUnmount(() => flashTimer && clearTimeout(flashTimer))
               'transition-[background-color,box-shadow] duration-700',
               flashing.has(r.def.id) ? 'bg-yellow/20 ring-2 ring-inset ring-yellow/60' : alerting.has(r.def.id) ? 'bg-yellow/10' : 'hover:bg-card',
             ]"
-            :title="r.def.detail"
+            :title="t(r.def.detail)"
           >
             <td class="py-2.5 pl-4">
               <div class="flex items-center gap-3">
@@ -137,10 +138,10 @@ onBeforeUnmount(() => flashTimer && clearTimeout(flashTimer))
                 <div class="min-w-0">
                   <div class="flex items-center gap-1.5 font-medium">
                     <span v-if="alerting.has(r.def.id)" class="size-1.5 shrink-0 animate-pulse rounded-full bg-yellow" />
-                    {{ r.def.name }}
-                    <span v-if="!r.def.confirmed" class="rounded border border-yellow/40 px-1 text-[10px] font-normal text-yellow" title="The times are not checked against the game yet">unconfirmed</span>
+                    {{ t(r.def.name) }}
+                    <span v-if="!r.def.confirmed" class="rounded border border-yellow/40 px-1 text-[10px] font-normal text-yellow" :title="t('The times are not checked against the game yet')">{{ t('unconfirmed') }}</span>
                   </div>
-                  <div class="truncate text-xs text-darker">{{ r.def.detail }}</div>
+                  <div class="truncate text-xs text-darker">{{ t(r.def.detail) }}</div>
                 </div>
               </div>
             </td>
@@ -164,6 +165,6 @@ onBeforeUnmount(() => flashTimer && clearTimeout(flashTimer))
         </tbody>
       </table>
     </div>
-    <p class="mt-3 text-xs text-darkest">Weekly events (the siege) are at your region's own time; the region follows your server when you enter the world.</p>
+    <p class="mt-3 text-xs text-darkest">{{ t("Weekly events (the siege) are at your region's own time; the region follows your server when you enter the world.") }}</p>
   </div>
 </template>

@@ -3,6 +3,7 @@
  * alerting one keeps the start it alerts for), and switching its alert, which also lists it (only
  * listed timers alert: shared/timers.ts).
  */
+import { t } from '@/lib/i18n.ts'
 import { useApp } from '@/stores/app.ts'
 import { nextStart, type TimerDef, type TimerId } from '@shared/timers.ts'
 
@@ -45,4 +46,4 @@ export function setLead(id: TimerId, minutes: number): void {
 }
 
 /** "At start", "5 min before", "1 h before". */
-export const leadLabel = (m: number): string => (m === 0 ? 'At start' : m < 60 ? `${m} min before` : `${m / 60} h before`)
+export const leadLabel = (m: number): string => (m === 0 ? t('At start') : m < 60 ? t('{n} min before', { n: m }) : t('{n} h before', { n: m / 60 }))

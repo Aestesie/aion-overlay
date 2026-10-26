@@ -9,6 +9,8 @@ const tone = computed(() => statusTone(props.status))
 </script>
 
 <script lang="ts">
+import { t } from '@/lib/i18n.ts'
+
 export function statusTone(s: TrackerStatus | null): 'green' | 'amber' | 'red' | 'gray' {
   if (!s) return 'gray'
   if (s.state === 'error') return 'red'
@@ -17,7 +19,12 @@ export function statusTone(s: TrackerStatus | null): 'green' | 'amber' | 'red' |
   return 'gray'
 }
 
+/** The tracker's state in words, in the language picked. */
 export function statusText(s: TrackerStatus | null): string {
+  return t(statusWords(s))
+}
+
+function statusWords(s: TrackerStatus | null): string {
   if (!s) return 'Connecting…'
   switch (s.state) {
     case 'starting':

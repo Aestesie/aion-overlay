@@ -26,6 +26,7 @@ import type { FieldBosses } from '../shared/timers.ts'
 import { pvpLog } from './pvpLog.ts'
 import { serverFaction, serverRegion } from '../shared/servers.ts'
 import { GAME_ACTIVE_S, NO_NEARBY, type Cube, type Enemy, type Nearby, type TargetPlayer, type Pet, type PvpKill, type ShopItem, type ShopStock, type SoulToast, type TrackerStatus } from '../shared/tracker.ts'
+import { tr } from './i18n.ts'
 
 const RESTART_DELAYS_MS = [1000, 3000, 10000, 30000]
 const EXE = process.platform === 'win32' ? 'lokthar-engine.exe' : 'lokthar-engine'
@@ -150,7 +151,7 @@ export function startTracker(): void {
   if (!replay && !npcapInstalled()) {
     setStatus({
       state: 'error',
-      detail: 'Npcap is not installed. Install it from https://npcap.com (the default options are fine), then Restart tracker.',
+      detail: tr('Npcap is not installed. Install it from https://npcap.com (the default options are fine), then Restart tracker.'),
     })
     return
   }
