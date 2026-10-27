@@ -74,6 +74,8 @@ export interface Enemy {
   legion: string | null
   /** Their PvP is on: they can attack you, and you them (absent from an engine before 0.3.6). */
   pvp?: boolean
+  /** Where they stand everyone can fight, PvP on or off (the Abyss): every one of them is a threat. */
+  openPvp?: boolean
   /** From their player card (the game sends it now and then: a target, a fight), when one was read. */
   level?: number | null
   gearScore?: number | null

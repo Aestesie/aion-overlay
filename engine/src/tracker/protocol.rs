@@ -554,6 +554,10 @@ pub struct Player {
     /// 45 of the 49 players seen in a fight between factions, the 4 others maybe in a zone where
     /// PvP is always on.
     pub pvp: bool,
+    /// Where they stand everyone can fight, PvP switched on or not (the Abyss): bit 10 of the
+    /// fifth byte after the entity, the one before the name's length. 17 in every spawn of the
+    /// owner's Abyss logs (2026-10-26 15:07-15:42, 10-27 02:23), 07 in all of the Altgard ones.
+    pub open_pvp: bool,
 }
 
 pub const ELYOS: u8 = 1;
@@ -571,10 +575,10 @@ pub fn server_faction(server: u16) -> Option<u8> {
 pub fn player(frame: &[u8]) -> Option<Player> {
     let b = body(frame, OP_PLAYER)?;
     let (entity, pos) = varint(b, 0)?;
-    let (name, end) = (pos..(pos + 12).min(b.len())).find_map(|p| {
+    let (name, at, end) = (pos..(pos + 12).min(b.len())).find_map(|p| {
         let name = name_at(b, p)?;
         let end = p + 1 + name.len();
-        Some((name, end))
+        Some((name, p, end))
     })?;
     let mut server = None;
     let mut legion = None;
@@ -592,7 +596,8 @@ pub fn player(frame: &[u8]) -> Option<Player> {
     let place = place_at(b, end + 8);
     let combat_power = spawn_combat_power(b, end);
     let pvp = b.get(pos).is_some_and(|f| f & 0x02 != 0);
-    Some(Player { entity, name, server, legion, faction, class, place, combat_power, pvp })
+    let open_pvp = at == pos + 5 && b[pos + 4] & 0x10 != 0;
+    Some(Player { entity, name, server, legion, faction, class, place, combat_power, pvp, open_pvp })
 }
 
 /// What every item of a player's gear in their spawn ends with.
@@ -866,6 +871,10 @@ mod tests {
         let s4iko = player(&frame(OP_PLAYER, &hex("a26d0530a40107055334696b6f1c0000000202409285b0a6c71c0eb1"))).unwrap();
         assert_eq!((coby.name.as_str(), coby.pvp), ("Coby", true));
         assert_eq!((s4iko.name.as_str(), s4iko.pvp), ("S4iko", false));
+        assert!(!coby.open_pvp && !s4iko.open_pvp);
+        // The Abyss: Lag3rth4, PvP off but there to fight (the owner's 2026-10-27 02:23 log).
+        let lag = player(&frame(OP_PLAYER, &hex("ce110530a00117084c616733727468340800000002020240"))).unwrap();
+        assert_eq!((lag.name.as_str(), lag.pvp, lag.open_pvp), ("Lag3rth4", false, true));
     }
 
     #[test]

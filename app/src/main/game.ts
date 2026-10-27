@@ -6,8 +6,8 @@
  * until it is gone.
  *
  * The client is C:\Program Files (x86)\NC\AION 2\Aion2\Binaries\Win64\AION2.exe; the Unreal
- * shipping name is accepted too. The tracker's own Aion2DropTracker.exe also matches tasklist's
- * "aion2*" filter, so names are checked exactly.
+ * shipping name is accepted too. The tracker's own exe was Aion2DropTracker.exe before 0.3.7,
+ * which matches tasklist's "aion2*" filter too, so names are checked exactly.
  */
 import { execFile } from 'node:child_process'
 

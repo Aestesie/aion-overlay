@@ -11,6 +11,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.3.7',
+    items: [
+      'In the Abyss, where everyone fights, the enemy sound plays for every enemy, PvP on or not.',
+      'The app is now lokthar-overlay.exe (was Aion2DropTracker.exe). A taskbar pin to the old one needs pinning again; a portable copy of 0.3.6 or older updates by hand this once.',
+    ],
+  },
+  {
     version: '0.3.6',
     items: [
       'Alt+Shift+R starts and stops the packet log from the game, with a pill over the game while it records.',

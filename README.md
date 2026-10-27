@@ -82,7 +82,7 @@ an open feature at the moment.
 3. Start the tracker **before you log in** to your character, so it picks up your collection.
 
 **Portable, without installing:** each release also has `Lokthar-<version>-portable.zip`. Unpack it
-anywhere and run `Aion2DropTracker.exe` (Npcap is still needed). Settings → Updates tells you when a
+anywhere and run `lokthar-overlay.exe` (Npcap is still needed). Settings → Updates tells you when a
 new version is out and opens its release page: unpack the new zip over the old folder. Your settings
 and data live in `%APPDATA%\Lokthar` either way.
 

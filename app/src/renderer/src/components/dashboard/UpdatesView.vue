@@ -62,7 +62,7 @@ const manual = computed(() => {
   const files = version
     ? [
         { kind: 'installer' as const, label: t('Installer ({file})', { file: `Lokthar-Setup-${version}.exe` }), about: 'Installs over this copy, like the automatic update.' },
-        { kind: 'portable' as const, label: t('Portable zip ({file})', { file: `Lokthar-${version}-portable.zip` }), about: 'Unpack it over this folder, or anywhere, and run Aion2DropTracker.exe.' },
+        { kind: 'portable' as const, label: t('Portable zip ({file})', { file: `Lokthar-${version}-portable.zip` }), about: 'Unpack it over this folder, or anywhere, and run lokthar-overlay.exe.' },
       ].map((f) => ({ ...f, url: releaseFile(version, f.kind) }))
     : []
   if (u?.portable) files.reverse()

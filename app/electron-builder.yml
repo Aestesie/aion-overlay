@@ -6,12 +6,13 @@
 # The engine (capture, tracking and the DPS meter) is the Rust build in ../build/engine; npm run dist
 # builds it first (scripts/build-engine.mjs). Npcap is not bundled: its licence does not allow it, and
 # the app tells the user to install it.
-# appId, executableName and the package name (the install folder) are kept from the first release:
-# the installed copy is found by them, so a new build installs over the old one. The product name
-# was renamed in 0.1.11, 0.2.0 and 0.3.0 (Nyerk -> Lokthar).
+# appId and the package name (the install folder) are kept from the first release: the installed
+# copy is found by them, so a new build installs over the old one. The product name was renamed in
+# 0.1.11, 0.2.0 and 0.3.0 (Nyerk -> Lokthar), the exe in 0.3.7 (Aion2DropTracker.exe ->
+# lokthar-overlay.exe: the installer drops the old one; main/updater.ts takes the portable copy over).
 appId: com.xcrov.aion2-drop-tracker
 productName: Lokthar
-executableName: Aion2DropTracker
+executableName: lokthar-overlay
 directories:
   output: dist
   buildResources: build

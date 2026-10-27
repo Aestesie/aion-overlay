@@ -173,7 +173,7 @@ const BACKGROUND_HINT = 'At None the text keeps a dark glow, readable on the gam
             <Toggle :model-value="store.settings.enemies.sound" @update:model-value="setEnemies({ sound: $event })" />
           </SettingRow>
           <template v-if="store.settings.enemies.sound">
-            <SettingRow label="Only enemies with PvP on" hint="The sound only for those who can attack you. The list shows them all, PvP on first, with a PvP mark.">
+            <SettingRow label="Only enemies with PvP on" hint="The sound only for those who can attack you: with their PvP on, or anyone in the Abyss. The list shows them all, PvP on first, with a PvP mark.">
               <Toggle :model-value="store.settings.enemies.pvpOnly" @update:model-value="setEnemies({ pvpOnly: $event })" />
             </SettingRow>
             <SoundPicker kind="enemy" label="Enemy sound" />

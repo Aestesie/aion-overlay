@@ -500,7 +500,7 @@ impl Tracker {
                     let position = self.enemy_places.get(&e.entity).map(|&(x, y)| [x.round() as i64, (-y).round() as i64]);
                     json!({
                         "position": position,
-                        "entity": e.entity, "name": e.name, "server": e.server, "legion": e.legion, "pvp": e.pvp,
+                        "entity": e.entity, "name": e.name, "server": e.server, "legion": e.legion, "pvp": e.pvp, "openPvp": e.open_pvp,
                         "level": card.map(|c| c.level).filter(|&l| l > 0), "gearScore": card.map(|c| c.gear_score).filter(|&g| g > 0), "combatPower": card.and_then(|c| c.cp),
                         "className": card.and_then(|c| c.class).or_else(|| self.classes.get(&e.entity).copied()),
                     })
@@ -799,7 +799,7 @@ impl Tracker {
                                 tracing::info!("enemy in view: {} ({:?}, {:?} combat power, pvp {})", player.name, player.server, player.combat_power, player.pvp);
                                 self.enemies_changed(ts);
                             }
-                            Some(before) if cp_changed || before.pvp != player.pvp => self.enemies_changed(ts),
+                            Some(before) if cp_changed || (before.pvp, before.open_pvp) != (player.pvp, player.open_pvp) => self.enemies_changed(ts),
                             Some(_) => {}
                         }
                     }

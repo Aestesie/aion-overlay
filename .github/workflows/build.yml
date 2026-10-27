@@ -115,7 +115,7 @@ jobs:
 
           **Installer in a zip:** \`$INST\` holds the same \`$EXE\`, for browsers or chats that block downloading an .exe.
 
-          **Portable:** \`$ZIP\` is the same app without an installer: unpack it anywhere and run \`Aion2DropTracker.exe\`. To update it, unpack a newer zip over the folder (your settings and data are kept in %APPDATA%\\Lokthar).
+          **Portable:** \`$ZIP\` is the same app without an installer: unpack it anywhere and run \`lokthar-overlay.exe\`. To update it, unpack a newer zip over the folder (your settings and data are kept in %APPDATA%\\Lokthar).
 
           SHA-256 of \`$EXE\`: \`$HASH\`
           SHA-256 of \`$ZIP\`: \`$ZIPHASH\`
