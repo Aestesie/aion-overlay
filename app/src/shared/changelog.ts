@@ -11,6 +11,10 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.3.8',
+    items: ['The Spacetime Rift and the daily and weekly resets were an hour off: the rift is now at 2, 5, 8... UTC (17:00 in Buenos Aires) and the resets at 07:00 UTC (04:00 in Buenos Aires).'],
+  },
+  {
     version: '0.3.7',
     items: [
       'In the Abyss, where everyone fights, the enemy sound plays for every enemy, PvP on or not.',

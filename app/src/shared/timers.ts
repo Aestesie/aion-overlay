@@ -4,9 +4,9 @@
  * Schedules are kept in UTC. Sources (2026-10-12), and what is confirmed:
  * - Black Cloud Merchant: restocks every hour on the hour. Confirmed: its stock record (`91 56`)
  *   carries the next restock time, 15:00:00 UTC when captured at 14:47.
- * - Spacetime Rift: every 3 hours, 00:00, 03:00 ... 21:00 UTC. Confirmed by the in-game countdown
- *   ("starts in 14m 53s" at about 14:45 UTC); aion2hub.com lists the same hours for the global
- *   servers (server time UTC+9, a multiple of 3 hours away, so the hours are the same in UTC).
+ * - Spacetime Rift: every 3 hours, 02:00, 05:00 ... 23:00 UTC since at least 2026-10-15 (lokthar.com's
+ *   timer moved then; the player saw one at 17:00 Buenos Aires, 20:00 UTC, on 2026-10-27). On
+ *   2026-10-12 it was on the multiples of 3 (the in-game countdown at 14:45 UTC, aion2hub.com).
  * - Shugo Festival: every hour on the hour, its lobby open 3 minutes before (metabot.gg).
  * - Dimensional Invasion: every hour at half past, a 3-minute entry window (The Games Wiki).
  * - Artifact Siege: Monday, Thursday and Saturday at 21:00 server time, with a 10-minute warning
@@ -23,8 +23,9 @@
  *   timer showed Friday 21:00 New York).
  * - Watcher Kaira: every 4 hours from 01:00 server time, since the 2026-09-02 patch (The Games
  *   Wiki; older guides say every 3 hours). The timer showed 01:00 New York, which either fits.
- * - Daily reset at 03:00 New York (07:00 UTC), weekly reset on Wednesday at the same time. That
- *   they follow New York's daylight saving, as the siege does, is assumed.
+ * - Daily reset at 07:00 UTC for every global region (16:00 Korean server time: aion2hub.com and
+ *   allthings.how; 04:00 Buenos Aires, as the player and lokthar.com have it), weekly reset on
+ *   Wednesday at the same time. Fixed in UTC: no daylight saving.
  */
 
 export type TimerId =
@@ -46,8 +47,8 @@ export type Schedule =
   /** Every `every` minutes, at `offset` minutes past each period (periods counted from 00:00 UTC). */
   | { kind: 'every'; every: number; offset: number }
   /** On these weekdays (0 = Sunday), at these times (minutes after midnight), in the server
-   *  region's time zone. */
-  | { kind: 'zoned'; days: number[]; times: number[] }
+   *  region's time zone, or in `zone` for every region. */
+  | { kind: 'zoned'; days: number[]; times: number[]; zone?: string }
   /** A field boss: when it respawns, from the map's field boss list (see FieldBossState). */
   | { kind: 'boss'; boss: number }
 
@@ -152,7 +153,7 @@ export const TIMERS: TimerDef[] = [
     id: 'rift',
     name: 'Spacetime Rift',
     detail: 'Rifts to the other side open (level 45+)',
-    schedule: { kind: 'every', every: 180, offset: 0 },
+    schedule: { kind: 'every', every: 180, offset: 120 },
     lead: 5,
     confirmed: true,
     defaultOn: false,
@@ -215,7 +216,7 @@ export const TIMERS: TimerDef[] = [
     id: 'dailyReset',
     name: 'Daily Reset',
     detail: 'Daily quests and limits reset',
-    schedule: { kind: 'zoned', days: EVERY_DAY, times: [hm(3)] },
+    schedule: { kind: 'zoned', days: EVERY_DAY, times: [hm(7)], zone: 'UTC' },
     lead: 0,
     confirmed: true,
     defaultOn: false,
@@ -224,7 +225,7 @@ export const TIMERS: TimerDef[] = [
     id: 'weeklyReset',
     name: 'Weekly Reset',
     detail: 'Weekly quests and limits reset (Wednesday)',
-    schedule: { kind: 'zoned', days: [3], times: [hm(3)] },
+    schedule: { kind: 'zoned', days: [3], times: [hm(7)], zone: 'UTC' },
     lead: 0,
     confirmed: true,
     defaultOn: false,
@@ -277,7 +278,7 @@ export function nextStart(s: Schedule, from: number, region: Region = 'south-ame
     return Math.ceil((from - s.offset * MINUTE) / period) * period + s.offset * MINUTE
   }
   // Zoned: the next 8 days of the zone's calendar, each start at its own UTC offset.
-  const zone = zoneOf(region)
+  const zone = s.zone ?? zoneOf(region)
   const today = from + zoneOffset(zone, from)
   const midnight = Math.floor(today / DAY) * DAY
   const times = [...s.times].sort((a, b) => a - b)

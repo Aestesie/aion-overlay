@@ -539,6 +539,7 @@ export const ES: Record<string, string> = {
   'Sound for a cube': 'Sonido para un cube',
   'Sound for an enemy': 'Sonido para un enemigo',
   'In the Abyss, where everyone fights, the enemy sound plays for every enemy, PvP on or not.': 'En el Abyss, donde pelean todos, el sonido de enemigo suena por cualquier enemigo, tenga PvP on o no.',
+  'The Spacetime Rift and the daily and weekly resets were an hour off: the rift is now at 2, 5, 8... UTC (17:00 in Buenos Aires) and the resets at 07:00 UTC (04:00 in Buenos Aires).': 'El Spacetime Rift y los resets diario y semanal estaban una hora corridos: el rift ahora es a las 2, 5, 8... UTC (17:00 en Buenos Aires) y los resets a las 07:00 UTC (04:00 en Buenos Aires).',
   'Only enemies with PvP on': 'Solo enemigos con PvP on',
   'The sound only for those who can attack you: with their PvP on, or anyone in the Abyss. The list shows them all, PvP on first, with a PvP mark.': 'El sonido solo para los que te pueden atacar: con PvP on, o cualquiera en el Abyss. La lista los muestra a todos, primero los que tienen PvP on, con una marca PvP.',
   'Their PvP is on: they can attack you': 'Tiene el PvP on: te puede atacar',
