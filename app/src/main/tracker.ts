@@ -76,6 +76,7 @@ let status: TrackerStatus = {
   character: null,
   server: null,
   level: null,
+  npcapMissing: false,
 }
 
 /**
@@ -144,6 +145,32 @@ function engineCommand(): string | { error: string } {
   return process.env['A2T_ENGINE'] ?? devEngine() ?? { error: 'No engine build found: run `cargo build --release` in engine/ (or set A2T_ENGINE).' }
 }
 
+let npcapTimer: NodeJS.Timeout | null = null
+
+/**
+ * Whether Npcap is there, from the app's start (the tracker itself only starts with the game) and
+ * again every few seconds while it is missing: once it is installed the tracker starts by itself,
+ * with no restart of the app, and the checks stop.
+ */
+export function startNpcapWatch(): void {
+  if (process.env['A2T_REPLAY'] || npcapTimer) return
+  const check = (): void => {
+    if (npcapInstalled()) {
+      if (npcapTimer) clearInterval(npcapTimer)
+      npcapTimer = null
+      if (!status.npcapMissing) return
+      log('npcap: installed')
+      setStatus({ npcapMissing: false })
+      if (status.state === 'error') startTracker()
+    } else if (!status.npcapMissing) {
+      log('npcap: not installed')
+      setStatus({ npcapMissing: true })
+    }
+  }
+  check()
+  if (status.npcapMissing) npcapTimer = setInterval(check, 3000)
+}
+
 export function startTracker(): void {
   if (child) return
   stopping = false
@@ -151,7 +178,8 @@ export function startTracker(): void {
   if (!replay && !npcapInstalled()) {
     setStatus({
       state: 'error',
-      detail: tr('Npcap is not installed. Install it from https://npcap.com (the default options are fine), then Restart tracker.'),
+      npcapMissing: true,
+      detail: tr('Npcap is not installed. Install it from https://npcap.com (the default options are fine): the overlay starts by itself once it is there.'),
     })
     return
   }

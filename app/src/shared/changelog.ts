@@ -21,6 +21,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       'PvP fight details show the enemy\'s name in red.',
       'The app is in Spanish (with the community\'s game words), or English: switch on Home or in Settings.',
       'The app opens on Home, with a greeting that knows the time and what is going on.',
+      'Enemies nearby marks the players with their PvP on and lists them first; the enemy sound plays only for them (a setting on the PvP page).',
+      'Without Npcap, Home says so with a link to download it, and the overlay starts by itself once it is installed.',
     ],
   },
   {

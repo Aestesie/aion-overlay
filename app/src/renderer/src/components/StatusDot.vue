@@ -13,7 +13,7 @@ import { t } from '@/lib/i18n.ts'
 
 export function statusTone(s: TrackerStatus | null): 'green' | 'amber' | 'red' | 'gray' {
   if (!s) return 'gray'
-  if (s.state === 'error') return 'red'
+  if (s.state === 'error' || s.npcapMissing) return 'red'
   if (s.state === 'locked' && s.gameActive) return 'green'
   if (s.state === 'locked' || s.state === 'listening' || s.state === 'stopped') return 'amber'
   return 'gray'
@@ -26,6 +26,7 @@ export function statusText(s: TrackerStatus | null): string {
 
 function statusWords(s: TrackerStatus | null): string {
   if (!s) return 'Connecting…'
+  if (s.npcapMissing) return 'Npcap not installed'
   switch (s.state) {
     case 'starting':
       return 'Starting the tracker…'

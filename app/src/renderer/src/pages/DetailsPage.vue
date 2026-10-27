@@ -185,7 +185,7 @@ onBeforeUnmount(() => {
       <div class="min-w-0 flex-1">
         <div class="truncate text-sm font-semibold text-default">{{ view?.title ?? t('Details') }}</div>
         <div v-if="view" class="text-[11px] tabular-nums text-darker">
-          {{ clock(view.battleTime) }} · {{ t('{n} damage', { n: short(view.totalDamage) }) }}<template v-if="view.maxHp"> {{ t('of {n} HP', { n: short(view.maxHp) }) }}</template
+          {{ clock(view.battleTime) }} · {{ t('{n} damage', { n: short(view.totalDamage) }) }}<template v-if="view.maxHp">{{ ' ' + t('of {n} HP', { n: short(view.maxHp) }) }}</template
           ><template v-if="started"> · {{ started }}</template>
         </div>
       </div>

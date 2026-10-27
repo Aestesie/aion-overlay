@@ -96,6 +96,8 @@ export interface Settings {
     /** Their pins on the map overlay. */
     mapPins: boolean
     sound: boolean
+    /** The sound only for enemies with their PvP on. */
+    pvpOnly: boolean
     soundId: SoundId
     volume: number
     customName: string | null
@@ -241,7 +243,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   detailsWindow: null,
   timerBar: { enabled: true, position: null, opacity: 0.92 },
   killFeed: { open: false, position: null, opacity: 0.9, collapsed: false, target: true },
-  enemies: { enabled: true, position: null, opacity: 0.75, collapsed: false, mapPins: true, sound: true, soundId: 'enemy-spotted', volume: 0.7, customName: null },
+  enemies: { enabled: true, position: null, opacity: 0.75, collapsed: false, mapPins: true, sound: true, pvpOnly: true, soundId: 'enemy-spotted', volume: 0.7, customName: null },
   skills: { enabled: true, position: null, rows: 6, opacity: 0.92 },
   dummy: { overlay: true, position: null, autoStart: true, goal: 'time', limitMs: 60_000, damageGoal: 10e6, collapsed: false },
   buffs: { enabled: true, position: null, opacity: 0.92, size: 34, perRow: 10, debuffs: true, passives: false, consumables: false, cc: true, ccPosition: null, ccDebuffs: false },
@@ -370,6 +372,7 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         collapsed: bool(v.collapsed, d.enemies.collapsed),
         mapPins: bool(v.mapPins, d.enemies.mapPins),
         sound: bool(v.sound, d.enemies.sound),
+        pvpOnly: bool(v.pvpOnly, d.enemies.pvpOnly),
         soundId: isSound(v.soundId) ? v.soundId : d.enemies.soundId,
         volume: num(v.volume, 0, 1, d.enemies.volume),
         customName: typeof v.customName === 'string' && v.customName ? v.customName.slice(0, 200) : null,

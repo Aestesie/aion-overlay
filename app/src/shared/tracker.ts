@@ -46,6 +46,8 @@ export interface TrackerStatus {
   server: number | null
   /** That character's level, from the game's record of you; null until read. */
   level: number | null
+  /** Npcap is not installed: nothing can be captured until it is (Home asks for it). */
+  npcapMissing: boolean
 }
 
 /** What is loaded around you, from the tracker: monsters by code, your zone and position. */
@@ -70,6 +72,8 @@ export interface Enemy {
   name: string
   server: number | null
   legion: string | null
+  /** Their PvP is on: they can attack you, and you them (absent from an engine before 0.3.6). */
+  pvp?: boolean
   /** From their player card (the game sends it now and then: a target, a fight), when one was read. */
   level?: number | null
   gearScore?: number | null

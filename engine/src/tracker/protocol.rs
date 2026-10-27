@@ -549,6 +549,11 @@ pub struct Player {
     pub place: Option<(f32, f32)>,
     /// Their combat power, as the game shows it (`spawn_combat_power`).
     pub combat_power: Option<u32>,
+    /// Their PvP switched on: bit 02 of the byte after the entity. Set on every player the owner
+    /// fought, and on Coby (PvP on), clear on S4iko (off): the owner's 2026-10-26 logs. Set too on
+    /// 45 of the 49 players seen in a fight between factions, the 4 others maybe in a zone where
+    /// PvP is always on.
+    pub pvp: bool,
 }
 
 pub const ELYOS: u8 = 1;
@@ -586,7 +591,8 @@ pub fn player(frame: &[u8]) -> Option<Player> {
     let class = u32_at(b, end).filter(|&c| roster_class(c).is_some());
     let place = place_at(b, end + 8);
     let combat_power = spawn_combat_power(b, end);
-    Some(Player { entity, name, server, legion, faction, class, place, combat_power })
+    let pvp = b.get(pos).is_some_and(|f| f & 0x02 != 0);
+    Some(Player { entity, name, server, legion, faction, class, place, combat_power, pvp })
 }
 
 /// What every item of a player's gear in their spawn ends with.
@@ -851,6 +857,15 @@ mod tests {
         assert!((x - 229_224.0).abs() < 1.0 && (y + 215_410.0).abs() < 1.0, "{x} {y}");
         let ely = player(&frame(OP_PLAYER, &hex("ab620320a001070659616b617a6506000000010280d214746148345c52c8bddc1e4553c57e432cb50000b3ca01dc0e0000dc0e000000000000000000005c0602004833020080890000f049020001000000a0860100a08601004a11090070d50a000100000001084ecb0138d6cc01ee1753027e052400000000007e05084f6c6450617274790100020000000000000000000000000000000d11122bc4c901ffffffffffffffff8075d52abb030000ab620100c8fb3e478ef8144800c4b94611133fc4c901ffffffff"))).unwrap();
         assert_eq!((ely.server, ely.faction), (Some(1406), Some(ELYOS)));
+    }
+
+    #[test]
+    fn a_player_in_view_reads_its_pvp_switch() {
+        // Coby (PvP on) and S4iko (off), the owner's 2026-10-26 23:47 log.
+        let coby = player(&frame(OP_PLAYER, &hex("a00b0320a4030704436f627924000000020280d2c45e9fc7162d95c7"))).unwrap();
+        let s4iko = player(&frame(OP_PLAYER, &hex("a26d0530a40107055334696b6f1c0000000202409285b0a6c71c0eb1"))).unwrap();
+        assert_eq!((coby.name.as_str(), coby.pvp), ("Coby", true));
+        assert_eq!((s4iko.name.as_str(), s4iko.pvp), ("S4iko", false));
     }
 
     #[test]

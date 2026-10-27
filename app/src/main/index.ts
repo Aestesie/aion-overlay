@@ -19,7 +19,7 @@ import { startUpdater } from './updater.ts'
 import { startPackets } from './packets.ts'
 import { startMeter } from './meter.ts'
 import { startTimers } from './timers.ts'
-import { killTrackerNow, log, stopTracker, tracker } from './tracker.ts'
+import { killTrackerNow, log, startNpcapWatch, stopTracker, tracker } from './tracker.ts'
 import { tr } from './i18n.ts'
 import { createTray, setTrayTooltip } from './tray.ts'
 import { applyWindowSettings, markQuitting, refreshHud, setForeground, showMerchant, showPanel, startOnTopWatch } from './windows.ts'
@@ -46,6 +46,7 @@ if (!app.requestSingleInstanceLock()) {
     startLokthar()
     startOnTopWatch()
     registerIpc()
+    startNpcapWatch()
     createTray()
     startHotkeys()
     // The dashboard is the app: up when it starts, and in the taskbar from then on.

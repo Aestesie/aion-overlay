@@ -71,6 +71,9 @@ jobs:
           $version = $exe.BaseName -replace '^Lokthar-Setup-', ''
           $inst = "Lokthar-$version-installer.zip"
           Compress-Archive -Path $exe.FullName -DestinationPath $inst
+          # And under a name without the version, so .../releases/latest/download/Lokthar-installer.zip
+          # is always the newest (the Lokthar site links to it).
+          Copy-Item $inst Lokthar-installer.zip
           $instHash = (Get-FileHash $inst -Algorithm SHA256).Hash.ToLower()
           "$instHash  $inst" | Out-File -Encoding ascii "$inst.sha256"
           "inst=$inst" >> $env:GITHUB_OUTPUT
@@ -88,6 +91,7 @@ jobs:
             app/dist/${{ steps.sum.outputs.zip }}.sha256
             app/dist/${{ steps.sum.outputs.inst }}
             app/dist/${{ steps.sum.outputs.inst }}.sha256
+            app/dist/Lokthar-installer.zip
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -103,7 +107,7 @@ jobs:
           INSTHASH: ${{ steps.sum.outputs.insthash }}
         run: |
           # latest.yml (and the blockmap) are what the app's updater reads: Settings → Updates.
-          gh release create "$GITHUB_REF_NAME" "$EXE" "$EXE.sha256" "$EXE.blockmap" latest.yml "$ZIP" "$ZIP.sha256" "$INST" "$INST.sha256" \
+          gh release create "$GITHUB_REF_NAME" "$EXE" "$EXE.sha256" "$EXE.blockmap" latest.yml "$ZIP" "$ZIP.sha256" "$INST" "$INST.sha256" Lokthar-installer.zip \
             --title "Lokthar overlay $GITHUB_REF_NAME" \
             --notes "Lokthar overlay from commit $GITHUB_SHA. No shared timers, no machine id. It goes online only for the optional Lokthar field boss sync (off by default) and when you check for updates (Settings → Updates).
 

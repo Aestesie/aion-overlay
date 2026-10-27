@@ -67,7 +67,8 @@ const who = computed(() => {
   const s = store.status
   return [s?.character, s?.server ? serverName(s.server) : null, s?.level ? `Lv ${s.level}` : null].filter(Boolean).join(' · ')
 })
-const error = computed(() => (store.status?.state === 'error' ? (store.status.detail ?? t('The engine stopped with an error.')) : null))
+const npcapMissing = computed(() => store.status?.npcapMissing === true)
+const error = computed(() => (store.status?.state === 'error' && !npcapMissing.value ? (store.status.detail ?? t('The engine stopped with an error.')) : null))
 
 // ---- the overlays -----------------------------------------------------------------------------
 type Overlay = { id: string; name: string; about: string; page: string; on: boolean; set: (on: boolean) => void }
@@ -169,6 +170,20 @@ const ICONS: Record<string, string> = {
           {{ overlaysOff ? t('Overlays hidden: show them') : t('Hide all overlays') }} <span class="text-darkest">Alt+Shift+E</span>
         </button>
       </div>
+    </div>
+
+    <!-- Npcap missing: nothing works without it, so it comes first, with the way to get it. Main checks
+         again every few seconds and starts the tracker once it is there. -->
+    <div v-if="npcapMissing" class="mb-6 flex flex-wrap items-center gap-4 rounded-xl border border-warning/50 bg-warning/10 px-5 py-4">
+      <svg viewBox="0 0 16 16" class="size-6 shrink-0 text-warning" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1.5 15 14H1zM8 6v3.5M8 11.8v.2" /></svg>
+      <div class="min-w-0 flex-1">
+        <div class="text-base font-semibold text-default">{{ t('Install Npcap to use the overlay') }}</div>
+        <div class="text-sm text-dark">{{ t('The overlay reads the game\'s traffic with Npcap. Install it with its default options and the overlay starts by itself.') }}</div>
+      </div>
+      <a href="https://npcap.com/#download" target="_blank" rel="noopener" class="inline-flex shrink-0 items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110">
+        <svg viewBox="0 0 16 16" class="size-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 13.5h11" /></svg>
+        {{ t('Download Npcap') }}
+      </a>
     </div>
 
     <div v-if="error" class="mb-6 flex items-start gap-3 rounded-xl border border-danger/50 bg-danger/10 px-4 py-3">
