@@ -3,7 +3,7 @@
  * handlers against it, preload builds the bridge from it, the renderer calls the bridge. The
  * pattern is marnis-app's (shared/ipc-contract.ts), with this app's channels.
  */
-import type { Buff } from './buffs.ts'
+import type { Buff, TargetDebuffs } from './buffs.ts'
 import type { DummyState } from './dummy.ts'
 import type { UpdateState } from './update.ts'
 import type { KinaSession } from './kina.ts'
@@ -114,6 +114,11 @@ export interface InvokeChannels {
   'buffs:moveTo': { args: [to: Point]; result: void }
   'buffs:dragEnd': { args: []; result: void }
   'buffs:resize': { args: [size: { width: number; height: number }]; result: void }
+  /** Your debuffs on the enemy you fight (the target debuffs overlay). */
+  'targetDebuffs:get': { args: []; result: TargetDebuffs }
+  'targetDebuffs:moveTo': { args: [to: Point]; result: void }
+  'targetDebuffs:dragEnd': { args: []; result: void }
+  'targetDebuffs:resize': { args: [size: { width: number; height: number }]; result: void }
   /** The Training overlay. */
   'training:moveTo': { args: [to: Point]; result: void }
   'training:dragEnd': { args: []; result: void }
@@ -188,6 +193,8 @@ export interface EventChannels {
   'history:changed': number
   /** What is on your character, whenever it changes (while the buffs overlay is on). */
   'buffs:list': Buff[]
+  /** Your debuffs on the enemy you fight, whenever they change (while that overlay is on). */
+  'targetDebuffs:state': TargetDebuffs
   /** An update check or download moved on. */
   'update:state': UpdateState
   /** The training dummy runs changed, or the one going on moved. */
@@ -225,10 +232,10 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'meter:get', 'meter:reset', 'meter:moveTo', 'meter:dragEnd', 'meter:resize',
   'minimap:moveTo', 'minimap:dragEnd', 'minimap:resize',
   'skills:get', 'skills:moveTo', 'skills:dragEnd', 'skills:resize',
-  'buffs:get', 'buffs:moveTo', 'buffs:dragEnd', 'buffs:resize', 'cc:moveTo', 'cc:dragEnd', 'cc:resize', 'enemies:moveTo', 'enemies:dragEnd', 'enemies:resize', 'training:moveTo', 'training:dragEnd', 'training:resize', 'overlays:toggle', 'overlays:hidden', 'recordings:get', 'recordings:set', 'recordings:open', 'packets:get', 'packets:set', 'packets:mark', 'packets:show', 'packets:resize', 'sounds:pickCustom', 'sounds:custom', 'update:get', 'update:peek', 'update:check', 'update:download', 'update:install', 'dummy:get', 'dummy:start', 'dummy:stop', 'dummy:newGroup', 'dummy:delete',
+  'buffs:get', 'buffs:moveTo', 'buffs:dragEnd', 'buffs:resize', 'targetDebuffs:get', 'targetDebuffs:moveTo', 'targetDebuffs:dragEnd', 'targetDebuffs:resize', 'cc:moveTo', 'cc:dragEnd', 'cc:resize', 'enemies:moveTo', 'enemies:dragEnd', 'enemies:resize', 'training:moveTo', 'training:dragEnd', 'training:resize', 'overlays:toggle', 'overlays:hidden', 'recordings:get', 'recordings:set', 'recordings:open', 'packets:get', 'packets:set', 'packets:mark', 'packets:show', 'packets:resize', 'sounds:pickCustom', 'sounds:custom', 'update:get', 'update:peek', 'update:check', 'update:download', 'update:install', 'dummy:get', 'dummy:start', 'dummy:stop', 'dummy:newGroup', 'dummy:delete',
   'details:open', 'details:get', 'details:close', 'details:moveTo', 'details:dragEnd', 'history:list', 'history:delete',
 ]
 
 export const EVENT_CHANNELS: readonly EventChannel[] = [
-  'settings:changed', 'tracker:status', 'tracker:pets', 'tracker:pet', 'tracker:soul', 'tracker:nearby', 'tracker:cubes', 'tracker:enemies', 'tracker:target', 'tracker:combat', 'tracker:shop', 'tracker:kina', 'tracker:fieldBosses', 'tracker:pvp', 'tracker:pvpKill', 'panel:showPet', 'panel:showTimers', 'timers:alert', 'timers:alerting', 'hud:editing', 'panel:visible', 'panel:maximized', 'meter:dps', 'details:source', 'history:changed', 'buffs:list', 'overlays:hidden', 'recordings:changed', 'packets:state', 'dummy:state', 'update:state',
+  'settings:changed', 'tracker:status', 'tracker:pets', 'tracker:pet', 'tracker:soul', 'tracker:nearby', 'tracker:cubes', 'tracker:enemies', 'tracker:target', 'tracker:combat', 'tracker:shop', 'tracker:kina', 'tracker:fieldBosses', 'tracker:pvp', 'tracker:pvpKill', 'panel:showPet', 'panel:showTimers', 'timers:alert', 'timers:alerting', 'hud:editing', 'panel:visible', 'panel:maximized', 'meter:dps', 'details:source', 'history:changed', 'buffs:list', 'targetDebuffs:state', 'overlays:hidden', 'recordings:changed', 'packets:state', 'dummy:state', 'update:state',
 ]

@@ -125,6 +125,24 @@ export interface Settings {
   }
 
   /**
+   * Your debuffs on the enemy you fight, over the game: one box per watched debuff (by name, as the
+   * buff table names it), with its time left; missing ones, or ones about to run out (under `warnMs`),
+   * flash red, and a chime plays when one drops off (`sound`). Shown while you fight (`idleMs`
+   * since your last hit), and as a preview while the dashboard is open.
+   */
+  targetDebuffs: {
+    enabled: boolean
+    position: Point | null
+    watch: string[]
+    warnMs: number
+    idleMs: number
+    size: number
+    opacity: number
+    sound: boolean
+    volume: number
+  }
+
+  /**
    * Training dummy runs: their goal (a time limit, or damage), whether a run starts by itself with
    * your first hit on a dummy (and its clock with it), and the Training overlay over the game.
    */
@@ -247,6 +265,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   skills: { enabled: true, position: null, rows: 6, opacity: 0.92 },
   dummy: { overlay: true, position: null, autoStart: true, goal: 'time', limitMs: 60_000, damageGoal: 10e6, collapsed: false },
   buffs: { enabled: true, position: null, opacity: 0.92, size: 34, perRow: 10, debuffs: true, passives: false, consumables: false, cc: true, ccPosition: null, ccDebuffs: false },
+  targetDebuffs: { enabled: false, position: null, watch: ['Chain of Torment', 'Earth Punishment'], warnMs: 3000, idleMs: 8000, size: 40, opacity: 0.95, sound: true, volume: 0.5 },
   meter: { enabled: true, position: null, targetMode: 'bossTargets', players: 'party', stat: 'damage', rows: 8, opacity: 0.92, collapsed: false },
   hideFromCapture: false,
   language: 'es',
@@ -411,6 +430,21 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         cc: bool(v.cc, d.buffs.cc),
         ccPosition: point(v.ccPosition),
         ccDebuffs: bool(v.ccDebuffs, d.buffs.ccDebuffs),
+      } as Settings[K]
+    }
+    case 'targetDebuffs': {
+      const v = (value ?? {}) as Partial<Settings['targetDebuffs']>
+      const watch = Array.isArray(v.watch) ? v.watch.filter((w): w is string => typeof w === 'string' && w.trim() !== '').map((w) => w.trim().slice(0, 80)) : d.targetDebuffs.watch
+      return {
+        enabled: bool(v.enabled, d.targetDebuffs.enabled),
+        position: point(v.position),
+        watch: [...new Set(watch)].slice(0, 8),
+        warnMs: Math.round(num(v.warnMs, 0, 15_000, d.targetDebuffs.warnMs)),
+        idleMs: Math.round(num(v.idleMs, 3000, 60_000, d.targetDebuffs.idleMs)),
+        size: Math.round(num(v.size, 24, 72, d.targetDebuffs.size)),
+        opacity: num(v.opacity, 0.3, 1, d.targetDebuffs.opacity),
+        sound: bool(v.sound, d.targetDebuffs.sound),
+        volume: num(v.volume, 0, 1, d.targetDebuffs.volume),
       } as Settings[K]
     }
     case 'dummy': {

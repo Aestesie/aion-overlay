@@ -24,6 +24,32 @@ export interface Buff {
   passive: boolean
 }
 
+/** One of your debuffs on the enemy you fight: an entry of the engine's `targetDebuffs` event. */
+export interface TargetDebuff {
+  id: number
+  stacks: number
+  /** When it runs out, ms since the epoch on the server's clock; null when not said. */
+  endsAt: number | null
+  startedAt: number
+  skill: number | null
+}
+
+/**
+ * Your debuffs on the enemy you fight now (the one you last hit or put an effect on: the game
+ * never says which mob you have selected): the target debuffs overlay.
+ */
+export interface TargetDebuffs {
+  target: number | null
+  /** The monster's NPC code, and its name from the meter's NPC list ('' when unknown). */
+  npc: number | null
+  name: string
+  /** When you last hit it or put an effect on it, ms since the epoch. */
+  lastActive: number
+  debuffs: TargetDebuff[]
+}
+
+export const NO_TARGET_DEBUFFS: TargetDebuffs = { target: null, npc: null, name: '', lastActive: 0, debuffs: [] }
+
 /** One buff from one caster on one of a fight's players, or on its target: upstream's `BuffTrack`. */
 export interface BuffTrack {
   /** Whom it was on: a player's id, or the fight's target. */
