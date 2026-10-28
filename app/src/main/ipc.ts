@@ -13,6 +13,9 @@ import { logPath, tracker } from './tracker.ts'
 import {
   bubbleDragEnded,
   buffsDragEnded,
+  moveTargetDebuffs,
+  resizeTargetDebuffs,
+  targetDebuffsDragEnded,
   ccDragEnded,
   enemiesDragEnded,
   moveTraining,
@@ -220,6 +223,14 @@ export function registerIpc(): void {
   handle('overlays:toggle', () => toggleOverlays())
   handle('overlays:hidden', () => overlaysHidden())
   handle('buffs:get', () => meterState.buffs())
+  handle('targetDebuffs:get', () => meterState.targetDebuffs())
+  handle('targetDebuffs:moveTo', (to) => {
+    if (isPoint(to)) moveTargetDebuffs(to)
+  })
+  handle('targetDebuffs:dragEnd', () => targetDebuffsDragEnded())
+  handle('targetDebuffs:resize', (size) => {
+    if (isPoint({ x: size?.width, y: size?.height })) resizeTargetDebuffs(size)
+  })
   handle('cc:moveTo', (to) => {
     if (isPoint(to)) moveCc(to)
   })

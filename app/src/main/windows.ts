@@ -9,6 +9,7 @@
  *   minimap   #/minimap   the map overlay: your zone around you, tracked pets' spawns, Hidden Cubes
  *   skills    #/skills    your own damage on the meter's target, skill by skill: with the meter
  *   buffs     #/buffs     your buffs and debuffs, with what is left of each
+ *   targetdebuffs #/targetdebuffs  your debuffs on the enemy you fight: missing or running out flash red
  *   training  #/training  the Training overlay: a training dummy run's clock and DPS, start and stop
  *   cc        #/cc        the CC / Debuffs banner: stunned, rooted... while it lasts; click-through
  *   details   #/details   a fight's breakdown by player and skill: opened from a meter row or a
@@ -672,6 +673,22 @@ export const resizeCc = ccOverlay.resize
 export const moveCc = ccOverlay.move
 export const ccDragEnded = ccOverlay.dragEnded
 
+/** Your debuffs on the enemy you fight: above the middle of the screen, left of centre. */
+const targetDebuffsOverlay = measuredOverlay({
+  route: 'targetdebuffs',
+  enabled: () => settings.get('targetDebuffs').enabled,
+  saved: () => settings.get('targetDebuffs').position,
+  fallback: () => {
+    const area = screen.getPrimaryDisplay().workArea
+    return { x: Math.round(area.x + area.width / 2 - 260), y: Math.round(area.y + area.height * 0.62) }
+  },
+  save: (position) => settings.set('targetDebuffs', { ...settings.get('targetDebuffs'), position }),
+})
+export const createTargetDebuffs = targetDebuffsOverlay.create
+export const resizeTargetDebuffs = targetDebuffsOverlay.resize
+export const moveTargetDebuffs = targetDebuffsOverlay.move
+export const targetDebuffsDragEnded = targetDebuffsOverlay.dragEnded
+
 /** Enemies nearby: top centre, under where the CC banner sits. */
 const enemiesOverlay = measuredOverlay({
   route: 'enemies',
@@ -720,7 +737,7 @@ export const createPacketsHud = packetsOverlay.create
 export const closePacketsHud = packetsOverlay.close
 export const resizePacketsHud = packetsOverlay.resize
 
-const MEASURED = [skillsOverlay, miniMapOverlay, buffsOverlay, ccOverlay, enemiesOverlay, trainingOverlay, packetsOverlay]
+const MEASURED = [skillsOverlay, miniMapOverlay, buffsOverlay, targetDebuffsOverlay, ccOverlay, enemiesOverlay, trainingOverlay, packetsOverlay]
 /** The measured overlays that are open. */
 const measuredWins = (): BrowserWindow[] => MEASURED.map((m) => m.win()).filter((w): w is BrowserWindow => w !== null)
 
@@ -995,6 +1012,8 @@ export function applyWindowSettings(): void {
   else if (alive(bubble)) createSkills()
   if (!settings.get('buffs').enabled) closeBuffs()
   else if (alive(bubble)) createBuffs()
+  if (!settings.get('targetDebuffs').enabled) targetDebuffsOverlay.close()
+  else if (alive(bubble)) createTargetDebuffs()
   if (!settings.get('buffs').cc) ccOverlay.close()
   else if (alive(bubble)) createCc()
   if (!settings.get('enemies').enabled) enemiesOverlay.close()
@@ -1060,7 +1079,7 @@ export function rebuildWindow(win: BrowserWindow): string | null {
     showMerchant()
     return 'merchant'
   }
-  for (const [m, route] of [[skillsOverlay, 'skills'], [miniMapOverlay, 'minimap'], [buffsOverlay, 'buffs'], [ccOverlay, 'cc'], [enemiesOverlay, 'enemies'], [trainingOverlay, 'training'], [packetsOverlay, 'packets']] as const) {
+  for (const [m, route] of [[skillsOverlay, 'skills'], [miniMapOverlay, 'minimap'], [buffsOverlay, 'buffs'], [targetDebuffsOverlay, 'targetdebuffs'], [ccOverlay, 'cc'], [enemiesOverlay, 'enemies'], [trainingOverlay, 'training'], [packetsOverlay, 'packets']] as const) {
     if (win !== m.win()) continue
     m.close()
     m.create()
