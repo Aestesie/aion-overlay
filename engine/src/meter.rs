@@ -234,6 +234,82 @@ impl Meter {
         serde_json::Value::Array(by_id.into_values().collect())
     }
 
+    /// Your debuffs on the enemy you are fighting now, for the target debuffs overlay:
+    /// `{"target": id | null, "npc": code | null, "name", "lastActive": ms, "debuffs": [{"id", "stacks",
+    /// "endsAt", "startedAt", "skill"}]}`. The game never says which mob you have selected, so "the
+    /// enemy you are fighting" is the one you last touched: hit (you or your summons) or put one of
+    /// your effects on. Players' entities and your own are left out.
+    pub fn target_debuffs(&self) -> serde_json::Value {
+        use a2tools_dps_meter_lib::entity::summon_resolver;
+        let empty = serde_json::json!({ "target": null, "npc": null, "name": "", "lastActive": 0, "debuffs": [] });
+        let Some(me) = self.storage.local_player_id().and_then(|id| i32::try_from(id).ok()) else {
+            return empty;
+        };
+        let now = a2tools_dps_meter_lib::clock::now_ms();
+        let links = self.storage.get_summon_data();
+        let players = self.storage.get_nicknames();
+        let mine = |entity: i32| summon_resolver::resolve(entity, &links) == me;
+
+        // Your effects still on someone else, by whom they are on.
+        let mut on: std::collections::HashMap<i32, Vec<abnormal::Instance>> = std::collections::HashMap::new();
+        for i in self.storage.abnormal_instances(now, now) {
+            if i.end_ms.is_some() || i.endless || !mine(i.caster) || mine(i.entity) || players.contains_key(&i.entity) {
+                continue;
+            }
+            if i.server_end_ms.is_some_and(|e| e < now - 1_000) {
+                continue;
+            }
+            on.entry(i.entity).or_default().push(i);
+        }
+
+        // Who you touched last: your latest hit on each target, or your latest effect put on it.
+        let mut last: Option<(i64, i32)> = None;
+        let mut touch = |at: i64, entity: i32| {
+            if last.is_none_or(|(t, _)| at > t) {
+                last = Some((at, entity));
+            }
+        };
+        for (&tid, fight) in &self.storage.get_combat_snapshot_light() {
+            if players.contains_key(&tid) || mine(tid) {
+                continue;
+            }
+            for (&actor, a) in &fight.actors {
+                if a.total_damage > 0 && mine(actor) {
+                    touch(a.last_damage_time, tid);
+                }
+            }
+        }
+        for (&entity, list) in &on {
+            if let Some(at) = list.iter().map(|i| i.start_ms).max() {
+                touch(at, entity);
+            }
+        }
+        let Some((last_active, target)) = last else { return empty };
+
+        // One entry per effect, its stacks counted; the stack that runs longest says when it ends.
+        let mut by_id: std::collections::BTreeMap<u32, serde_json::Value> = std::collections::BTreeMap::new();
+        for i in on.get(&target).into_iter().flatten() {
+            let entry = by_id.entry(i.abnormal).or_insert_with(|| {
+                serde_json::json!({ "id": i.abnormal, "stacks": 0, "endsAt": i.server_end_ms, "startedAt": i.start_ms, "skill": i.skill })
+            });
+            entry["stacks"] = serde_json::json!(entry["stacks"].as_u64().unwrap_or(0) + 1);
+            if let (Some(end), Some(prev)) = (i.server_end_ms, entry["endsAt"].as_i64())
+                && end > prev
+            {
+                entry["endsAt"] = serde_json::json!(end);
+                entry["startedAt"] = serde_json::json!(i.start_ms);
+            }
+        }
+        let npc = self.storage.mob_code(target);
+        serde_json::json!({
+            "target": target,
+            "npc": npc,
+            "name": npc.map(|c| self.npcs.get_npc_name(c)).unwrap_or_default(),
+            "lastActive": last_active,
+            "debuffs": by_id.into_values().collect::<Vec<_>>(),
+        })
+    }
+
     pub fn set_target_mode(&self, mode: &str) -> bool {
         if !TARGET_MODES.contains(&mode) {
             return false;
