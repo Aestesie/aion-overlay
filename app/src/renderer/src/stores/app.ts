@@ -8,7 +8,7 @@ import { SETTINGS_DEFAULTS, type SettingKey, type Settings } from '@shared/setti
 import { MAX_LEVEL, NO_NEARBY, type Cube, type Enemy, type Nearby, type TargetPlayer, type Pet, type PvpKill, type ShopStock, type SoulToast, type TrackerStatus } from '@shared/tracker.ts'
 import { kinaPerHour, kinaSeries, NO_KINA, type KinaSession } from '@shared/kina.ts'
 import type { FieldBosses, TimerAlert, TimerId } from '@shared/timers.ts'
-import type { Buff } from '@shared/buffs.ts'
+import { NO_TARGET_DEBUFFS, type Buff, type TargetDebuffs } from '@shared/buffs.ts'
 import { bridge } from '@/lib/bridge.ts'
 import type { Genus } from '@/lib/petDb.ts'
 import type { Continent } from '@/lib/spawns.ts'
@@ -40,6 +40,8 @@ export const useApp = defineStore('app', () => {
   const target = ref<TargetPlayer | null>(null)
   /** What is on your character (while the buffs overlay is on). */
   const buffs = ref<Buff[]>([])
+  /** Your debuffs on the enemy you fight (while the target debuffs overlay is on). */
+  const targetDebuffs = ref<TargetDebuffs>(NO_TARGET_DEBUFFS)
   /** This session's Kina; the rate is redrawn every few seconds as active time runs on. */
   const kina = ref<KinaSession>(NO_KINA)
   const now = ref(Date.now())
@@ -132,6 +134,7 @@ export const useApp = defineStore('app', () => {
     api.on('tracker:enemies', (e) => (enemies.value = e))
     api.on('tracker:target', (t) => (target.value = t))
     api.on('buffs:list', (b) => (buffs.value = b))
+    api.on('targetDebuffs:state', (d) => (targetDebuffs.value = d))
     api.on('tracker:pvpKill', (k) => (pvp.value = [...pvp.value, k]))
     api.on('tracker:kina', (k) => {
       kina.value = k
@@ -154,6 +157,7 @@ export const useApp = defineStore('app', () => {
     fieldBosses.value = t.fieldBosses
     alerting.value = await api.invoke('timers:get')
     buffs.value = await api.invoke('buffs:get')
+    targetDebuffs.value = await api.invoke('targetDebuffs:get')
     ready.value = true
   }
 
@@ -183,7 +187,7 @@ export const useApp = defineStore('app', () => {
   }
 
   return {
-    settings, status, pets, toasts, fighting, collectionView, shop, kina, kinaRate, kinaTimeline, alerting, timerFocus, fieldBosses, pvp, cubes, enemies, target, buffs, hudEditing, panelVisible, ready, sessionSouls, recentPets, openPetId, nearby,
+    settings, status, pets, toasts, fighting, collectionView, shop, kina, kinaRate, kinaTimeline, alerting, timerFocus, fieldBosses, pvp, cubes, enemies, target, buffs, targetDebuffs, hudEditing, panelVisible, ready, sessionSouls, recentPets, openPetId, nearby,
     init, set, setHud, togglePin, openPet, hiddenPet,
   }
 })
