@@ -12,8 +12,8 @@ import { bridge } from './bridge.ts'
 const CLICK_SLOP = 4
 
 export interface WindowDragOptions {
-  move: 'bubble:moveTo' | 'unified:moveTo' | 'hud:moveTo' | 'merchant:moveTo' | 'meter:moveTo' | 'killfeed:moveTo' | 'timerbar:moveTo' | 'details:moveTo' | 'skills:moveTo' | 'minimap:moveTo' | 'buffs:moveTo' | 'cc:moveTo' | 'enemies:moveTo' | 'bossruns:moveTo' | 'training:moveTo'
-  end: 'bubble:dragEnd' | 'unified:dragEnd' | 'hud:dragEnd' | 'merchant:dragEnd' | 'meter:dragEnd' | 'killfeed:dragEnd' | 'timerbar:dragEnd' | 'details:dragEnd' | 'skills:dragEnd' | 'minimap:dragEnd' | 'buffs:dragEnd' | 'cc:dragEnd' | 'enemies:dragEnd' | 'bossruns:dragEnd' | 'training:dragEnd'
+  move: 'bubble:moveTo' | 'unified:moveTo' | 'hud:moveTo' | 'merchant:moveTo' | 'meter:moveTo' | 'killfeed:moveTo' | 'timerbar:moveTo' | 'details:moveTo' | 'skills:moveTo' | 'minimap:moveTo' | 'buffs:moveTo' | 'targetDebuffs:moveTo' | 'cc:moveTo' | 'enemies:moveTo' | 'bossruns:moveTo' | 'training:moveTo'
+  end: 'bubble:dragEnd' | 'unified:dragEnd' | 'hud:dragEnd' | 'merchant:dragEnd' | 'meter:dragEnd' | 'killfeed:dragEnd' | 'timerbar:dragEnd' | 'details:dragEnd' | 'skills:dragEnd' | 'minimap:dragEnd' | 'buffs:dragEnd' | 'targetDebuffs:dragEnd' | 'cc:dragEnd' | 'enemies:dragEnd' | 'bossruns:dragEnd' | 'training:dragEnd'
   onClick?: () => void
 }
 

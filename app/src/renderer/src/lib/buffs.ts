@@ -114,3 +114,18 @@ export function remaining(ms: number | null): string {
   if (s < 3600) return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
   return `${Math.floor(s / 3600)}h`
 }
+
+/** A buff's name as the overlays match it: case and spacing ignored. */
+export const nameKey = (name: string): string => name.trim().toLowerCase().replace(/\s+/g, ' ')
+
+/** The first id the buff table gives a name (for its icon when it is not on), or null. */
+export function buffIdNamed(name: string): number | null {
+  const key = nameKey(name)
+  for (const [id, [n]] of Object.entries(ABNORMALS)) if (n && nameKey(n) === key) return Number(id)
+  return null
+}
+
+/** Every named buff in the table, once each, sorted: for picking what to watch. */
+export function buffNames(): string[] {
+  return [...new Set(Object.values(ABNORMALS).map(([n]) => n).filter((n): n is string => !!n && n.length < 60))].sort((a, b) => a.localeCompare(b))
+}
