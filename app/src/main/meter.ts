@@ -8,7 +8,7 @@ import { broadcast } from './broadcast.ts'
 import { tr } from './i18n.ts'
 import { settings } from './settings.ts'
 import { command, tracker } from './tracker.ts'
-import type { Buff, BuffTrack, FightBuffs } from '../shared/buffs.ts'
+import { NO_TARGET_DEBUFFS, type Buff, type BuffTrack, type FightBuffs, type TargetDebuffs } from '../shared/buffs.ts'
 import {
   CLASS_NAMES,
   detailsView,
@@ -36,6 +36,7 @@ const ASK_TIMEOUT_MS = 5000
 let meter: MeterData = NO_METER
 let ping: number | null = null
 let buffs: Buff[] = []
+let targetDebuffs: TargetDebuffs = NO_TARGET_DEBUFFS
 let recordings: Recordings = NO_RECORDINGS
 const meterListeners = new Set<(m: MeterData) => void>()
 
@@ -87,6 +88,7 @@ function applySettings(): void {
   command({ cmd: 'meter', on: cfg.enabled })
   command({ cmd: 'targetMode', mode: effectiveMode() })
   command({ cmd: 'buffs', on: settings.get('buffs').enabled || settings.get('buffs').cc })
+  command({ cmd: 'targetDebuffs', on: settings.get('targetDebuffs').enabled })
 }
 
 export function startMeter(): void {
@@ -94,6 +96,7 @@ export function startMeter(): void {
     meter = NO_METER
     ping = null
     buffs = []
+    targetDebuffs = NO_TARGET_DEBUFFS
     applySettings()
   })
   tracker.onEvent('dps', (ev) => {
@@ -120,13 +123,23 @@ export function startMeter(): void {
     buffs = (ev['buffs'] as Buff[] | undefined) ?? []
     broadcast('buffs:list', buffs)
   })
+  tracker.onEvent('targetDebuffs', (ev) => {
+    targetDebuffs = {
+      target: (ev['target'] as number | null) ?? null,
+      npc: (ev['npc'] as number | null) ?? null,
+      name: (ev['name'] as string | undefined) ?? '',
+      lastActive: (ev['lastActive'] as number | undefined) ?? 0,
+      debuffs: (ev['debuffs'] as TargetDebuffs['debuffs'] | undefined) ?? [],
+    }
+    broadcast('targetDebuffs:state', targetDebuffs)
+  })
   tracker.onEvent('historyChanged', () => broadcast('history:changed', Date.now()))
   for (const type of ['details', 'history', 'fight', 'pvpFight', 'recordings']) tracker.onEvent(type, answer)
   // A recording started or stopped: the list again, with it.
   tracker.onEvent('recording', () => void meterState.recordings().then((r) => broadcast('recordings:changed', r)))
-  let last = JSON.stringify([settings.get('meter').enabled, settings.get('meter').targetMode, settings.get('unified').enabled, settings.get('unified').target, settings.get('unified').targetMode, settings.get('buffs').enabled, settings.get('buffs').cc])
+  let last = JSON.stringify([settings.get('meter').enabled, settings.get('meter').targetMode, settings.get('unified').enabled, settings.get('unified').target, settings.get('unified').targetMode, settings.get('buffs').enabled, settings.get('buffs').cc, settings.get('targetDebuffs').enabled])
   settings.onChanged((all) => {
-    const now = JSON.stringify([all.meter.enabled, all.meter.targetMode, all.unified.enabled, all.unified.target, all.unified.targetMode, all.buffs.enabled, all.buffs.cc])
+    const now = JSON.stringify([all.meter.enabled, all.meter.targetMode, all.unified.enabled, all.unified.target, all.unified.targetMode, all.buffs.enabled, all.buffs.cc, all.targetDebuffs.enabled])
     if (now === last) return
     last = now
     applySettings()
@@ -269,6 +282,8 @@ export const meterState = {
   recordingsDir: (): string | null => recordings.dir,
   /** What is on your character now. */
   buffs: (): Buff[] => buffs,
+  /** Your debuffs on the enemy you fight now. */
+  targetDebuffs: (): TargetDebuffs => targetDebuffs,
   /** The saved fights, newest first. */
   async history(): Promise<FightSummary[]> {
     const ev = await ask({ cmd: 'history' }, 'history')
