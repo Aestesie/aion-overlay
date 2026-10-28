@@ -31,6 +31,8 @@
 //!   {"type": "ping", "ms": 42 | null}                 your ping to the game server, when it changes
 //!   {"type": "buffs", "buffs": [{"id", "stacks", "endsAt", "startedAt", "by", "skill", "mine", "debuff", "passive"}]}
 //!                                                     what is on your character, when it changes (while "buffs" is on)
+//!   {"type": "targetDebuffs", "target": 123 | null, "npc", "name", "lastActive": ms, "debuffs": [{"id", "stacks", "endsAt", "startedAt", "skill"}]}
+//!                                                     your debuffs on the enemy you fight now, when they change (while "targetDebuffs" is on)
 //!   {"type": "historyChanged", "count": 1}            boss fights were saved (every 30 s, and before a reset)
 //!   {"type": "history", "fights": [FightSummary]}     answer to "history"
 //!   {"type": "fight", "id", "fight": FightRecord}     answer to "fight"
@@ -53,6 +55,7 @@
 //!   {"cmd": "capture", "on": false}    stop capturing (the game closed) or start again
 //!   {"cmd": "meter", "on": false}      stop sending the meter (it is turned off) or start again
 //!   {"cmd": "buffs", "on": true}       send your buffs (the buffs overlay is on) or stop
+//!   {"cmd": "targetDebuffs", "on": true}  send your debuffs on your target (the target debuffs overlay is on) or stop
 //!   {"cmd": "training", "on": true}    send the meter (its `train`) even while it is off: training runs
 //!   {"cmd": "dpsReset"} · {"cmd": "targetMode", "mode": "bossTargets"} · {"cmd": "details", "target": 123, "actors"?: [..]}
 //!   {"cmd": "pvpFight", "id": "..."}   a PvP fight saved on a kill or death of yours
@@ -149,6 +152,7 @@ struct Sidecar {
     capturing: Arc<AtomicBool>,
     meter_on: Arc<AtomicBool>,
     buffs_on: Arc<AtomicBool>,
+    target_debuffs_on: Arc<AtomicBool>,
     training_on: Arc<AtomicBool>,
     last_frame: Arc<Mutex<Option<Instant>>>,
     recorder: Arc<Mutex<Recorder>>,
@@ -192,6 +196,7 @@ pub fn run(opts: Options) -> Result<(), String> {
         capturing: Arc::new(AtomicBool::new(false)),
         meter_on: Arc::new(AtomicBool::new(true)),
         buffs_on: Arc::new(AtomicBool::new(false)),
+        target_debuffs_on: Arc::new(AtomicBool::new(false)),
         training_on: Arc::new(AtomicBool::new(false)),
         last_frame: Arc::new(Mutex::new(None)),
         recorder: Arc::new(Mutex::new(Recorder::new(
@@ -373,6 +378,7 @@ impl Sidecar {
             let mut port = None;
             let mut ping = None;
             let mut buffs: Option<Value> = None;
+            let mut target_debuffs: Option<Value> = None;
             let mut ticks: u32 = 0;
             loop {
                 tick.tick().await;
@@ -408,6 +414,15 @@ impl Sidecar {
                     {
                         emit(&event("buffs", json!({ "buffs": now })));
                         buffs = Some(now);
+                    }
+                }
+                if me.target_debuffs_on.load(Ordering::SeqCst) {
+                    let meter = me.meter.clone();
+                    if let Ok(now) = tokio::task::spawn_blocking(move || meter.target_debuffs()).await
+                        && target_debuffs.as_ref() != Some(&now)
+                    {
+                        emit(&event("targetDebuffs", now.clone()));
+                        target_debuffs = Some(now);
                     }
                 }
                 if !me.meter_on.load(Ordering::SeqCst) && !me.training_on.load(Ordering::SeqCst) {
@@ -481,6 +496,7 @@ impl Sidecar {
                 "capture" => self.set_capture(msg["on"].as_bool().ok_or("no on")?),
                 "meter" => self.meter_on.store(msg["on"].as_bool().ok_or("no on")?, Ordering::SeqCst),
                 "buffs" => self.buffs_on.store(msg["on"].as_bool().ok_or("no on")?, Ordering::SeqCst),
+                "targetDebuffs" => self.target_debuffs_on.store(msg["on"].as_bool().ok_or("no on")?, Ordering::SeqCst),
                 "training" => self.training_on.store(msg["on"].as_bool().ok_or("no on")?, Ordering::SeqCst),
                 "dpsReset" => self.meter.reset(),
                 "record" => {
