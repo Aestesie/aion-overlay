@@ -10,7 +10,7 @@ import { kinaPerHour, kinaSeries, NO_KINA, type KinaSession } from '@shared/kina
 import { NO_ABYSS, type AbyssSession, type RiftFarm } from '@shared/abyss.ts'
 import { perHour, series } from '@shared/earnings.ts'
 import type { FieldBosses, TimerAlert, TimerId } from '@shared/timers.ts'
-import type { Buff } from '@shared/buffs.ts'
+import { NO_TARGET_DEBUFFS, type Buff, type TargetDebuffs } from '@shared/buffs.ts'
 import type { Characters } from '@shared/characters.ts'
 import { NO_GUILD_EVENTS, type GuildEventsState } from '@shared/guildEvents.ts'
 import { bridge } from '@/lib/bridge.ts'
@@ -48,6 +48,8 @@ export const useApp = defineStore('app', () => {
   const target = ref<TargetPlayer | null>(null)
   /** What is on your character (while the buffs overlay is on). */
   const buffs = ref<Buff[]>([])
+  /** Your debuffs on the enemy you fight (while the target debuffs overlay is on). */
+  const targetDebuffs = ref<TargetDebuffs>(NO_TARGET_DEBUFFS)
   /** This session's Kina; the rate is redrawn every few seconds as active time runs on. */
   const kina = ref<KinaSession>(NO_KINA)
   const now = ref(Date.now())
@@ -148,6 +150,7 @@ export const useApp = defineStore('app', () => {
     api.on('tracker:enemies', (e) => (enemies.value = e))
     api.on('tracker:target', (t) => (target.value = t))
     api.on('buffs:list', (b) => (buffs.value = b))
+    api.on('targetDebuffs:state', (d) => (targetDebuffs.value = d))
     api.on('tracker:pvpKill', (k) => (pvp.value = [...pvp.value, k]))
     api.on('tracker:kina', (k) => {
       kina.value = k
@@ -179,6 +182,7 @@ export const useApp = defineStore('app', () => {
     guildEvents.value = await api.invoke('guildEvents:get')
     alerting.value = await api.invoke('timers:get')
     buffs.value = await api.invoke('buffs:get')
+    targetDebuffs.value = await api.invoke('targetDebuffs:get')
     ready.value = true
   }
 
@@ -208,7 +212,7 @@ export const useApp = defineStore('app', () => {
   }
 
   return {
-    settings, status, pets, toasts, fighting, collectionView, shop, kina, kinaRate, kinaTimeline, abyss, abyssRate, abyssTimeline, rifts, alerting, timerFocus, fieldBosses, characters, guildEvents, pvp, cubes, enemies, target, buffs, hudEditing, panelVisible, ready, sessionSouls, recentPets, openPetId, nearby,
+    settings, status, pets, toasts, fighting, collectionView, shop, kina, kinaRate, kinaTimeline, abyss, abyssRate, abyssTimeline, rifts, alerting, timerFocus, fieldBosses, characters, guildEvents, pvp, cubes, enemies, target, buffs, targetDebuffs, hudEditing, panelVisible, ready, sessionSouls, recentPets, openPetId, nearby,
     init, set, setHud, togglePin, openPet, hiddenPet,
   }
 })
