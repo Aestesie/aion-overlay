@@ -71,8 +71,7 @@ import {
   timerBarDragEnded,
   togglePanel,
   toggleOverlays,
-  overlaysHidden,
-} from './windows.ts'
+  overlaysHidden, moveUnified, resizeUnified, showPanel, unifiedDragEnded } from './windows.ts'
 import type { InvokeArgs, InvokeChannel, InvokeResult } from '../shared/ipc.ts'
 import type { SettingKey } from '../shared/settings.ts'
 import { SETTINGS_DEFAULTS } from '../shared/settings.ts'
@@ -108,7 +107,7 @@ export function registerIpc(): void {
     settings.set(key as SettingKey, value)
   })
 
-  handle('tracker:get', () => ({ status: tracker.status(), pets: tracker.pets(), nearby: tracker.nearby(), shop: tracker.shop(), kina: tracker.kina(), fieldBosses: tracker.fieldBosses(), pvp: tracker.pvp(), cubes: tracker.cubes(), enemies: tracker.enemies(), target: tracker.target() }))
+  handle('tracker:get', () => ({ status: tracker.status(), pets: tracker.pets(), nearby: tracker.nearby(), shop: tracker.shop(), kina: tracker.kina(), abyss: tracker.abyss(), rifts: tracker.rifts(), fieldBosses: tracker.fieldBosses(), pvp: tracker.pvp(), cubes: tracker.cubes(), enemies: tracker.enemies(), target: tracker.target() }))
   handle('tracker:clearPvp', () => tracker.clearPvp())
   handle('timerbar:moveTo', (to) => {
     if (isPoint(to)) moveTimerBar(to)
@@ -117,6 +116,14 @@ export function registerIpc(): void {
   handle('timerbar:resize', (size) => {
     if (isPoint({ x: size?.width, y: size?.height })) resizeTimerBar(size)
   })
+  handle('unified:moveTo', (to) => {
+    if (isPoint(to)) moveUnified(to)
+  })
+  handle('unified:dragEnd', () => unifiedDragEnded())
+  handle('unified:resize', (size) => {
+    if (isPoint({ x: size?.width, y: size?.height })) resizeUnified(size)
+  })
+  handle('panel:open', () => showPanel())
   handle('killfeed:open', () => setKillFeedOpen(true))
   handle('killfeed:close', () => setKillFeedOpen(false))
   handle('killfeed:moveTo', (to) => {

@@ -66,7 +66,7 @@ onBeforeUnmount(() => flashTimer && clearTimeout(flashTimer))
 <template>
   <div>
     <PageHeader title="Event Alerts" about="The game's events in your local time. Turn on an alert to get a chime and a shaking bubble before it starts, and its countdown over the game.">
-      <Button @click="playChime(cfg.volume)">
+      <Button @click="playChime(cfg.volume, true)">
         <svg viewBox="0 0 16 16" class="size-4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11zM6.5 14h3" /></svg>
         {{ t('Test the chime') }}
       </Button>

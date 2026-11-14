@@ -4,6 +4,8 @@
 // The PvP kill feed: every player killed by a player around you this session, newest first, as the
 // game credits it (the killing blow). Your kills in green, your deaths in red; players from other
 // servers carry their server's tag ([LUM]).
+// Lokthar: the rift farms on top (shared/abyss.ts), each the Abyss Points one character earned in a
+// Spacetime Rift's window, with your kills, deaths and assists in it; picking one lists those.
 import { computed, onBeforeUnmount, ref } from 'vue'
 import Button from '@/components/Button.vue'
 import ClassIcon from '@/components/ClassIcon.vue'
@@ -17,6 +19,8 @@ import { useApp } from '@/stores/app.ts'
 import { serverTag } from '@shared/servers.ts'
 import type { Settings } from '@shared/settings.ts'
 import type { PvpKill } from '@shared/tracker.ts'
+import { RIFT_MIN_POINTS as RIFT_MIN, RIFT_MS, type RiftFarm } from '@shared/abyss.ts'
+import { formatAmount } from '@shared/earnings.ts'
 
 const store = useApp()
 const kills = computed(() => [...store.pvp].reverse())
@@ -33,11 +37,48 @@ const filters: { id: Filter; label: string; title: string; empty: string }[] = [
 const filter = ref<Filter | null>(null)
 function pick(id: Filter): void {
   filter.value = filter.value === id ? null : id
+  rift.value = null
   limit.value = PAGE
 }
-const filtered = computed(() =>
-  filter.value === 'mine' ? kills.value.filter((k) => k.mine || k.died) : filter.value === 'legion' ? kills.value.filter((k) => k.legion) : kills.value,
-)
+/** You fought this player before someone else took the kill. */
+const isAssist = (k: PvpKill): boolean => !!k.fight && !k.mine && !k.died
+
+// The rift farms: the newest few, more on request; one picked lists its kills, deaths and assists.
+const RIFTS = 5
+const allRifts = ref(false)
+const rifts = computed(() => (allRifts.value ? store.rifts : store.rifts.slice(0, RIFTS)))
+const rift = ref<RiftFarm | null>(null)
+const sameRift = (a: RiftFarm | null, b: RiftFarm): boolean => !!a && a.start === b.start && a.name === b.name
+function pickRift(f: RiftFarm): void {
+  rift.value = sameRift(rift.value, f) ? null : f
+  filter.value = null
+  limit.value = PAGE
+}
+/** Yours (a kill, a death or an assist) and in the rift's window. */
+const inRift = (k: PvpKill, f: RiftFarm): boolean => k.at >= f.start && k.at < f.start + RIFT_MS && (k.mine || k.died || isAssist(k))
+const riftCounts = (f: RiftFarm): { kills: number; deaths: number; assists: number } => {
+  const out = { kills: 0, deaths: 0, assists: 0 }
+  for (const k of store.pvp) {
+    if (!inRift(k, f)) continue
+    if (k.mine) out.kills++
+    else if (k.died) out.deaths++
+    else out.assists++
+  }
+  return out
+}
+const riftStats = computed(() => new Map(rifts.value.map((f) => [f, riftCounts(f)])))
+const day = (ms: number): string => new Date(ms).toLocaleDateString(loc(), { day: '2-digit', month: '2-digit' })
+/** "PvP Rift 17:00 14/11". */
+const riftName = (f: RiftFarm): string => t('PvP Rift {time} {day}', { time: time(f.start), day: day(f.start) })
+const riftOpen = (f: RiftFarm): boolean => now.value < f.start + RIFT_MS
+const riftTitle = (f: RiftFarm): string =>
+  t('Abyss Points earned from {from} to {to} (the rift opens, and is over 1 h 10 min later)', { from: time(f.start), to: time(f.start + RIFT_MS) })
+
+const filtered = computed(() => {
+  const f = rift.value
+  if (f) return kills.value.filter((k) => inRift(k, f))
+  return filter.value === 'mine' ? kills.value.filter((k) => k.mine || k.died) : filter.value === 'legion' ? kills.value.filter((k) => k.legion) : kills.value
+})
 // The newest rows only (a siege lists thousands); more on request.
 const PAGE = 200
 const limit = ref(PAGE)
@@ -89,7 +130,53 @@ const BACKGROUND_HINT = 'At None the text keeps a dark glow, readable on the gam
       </Button>
     </div>
 
+    <section v-if="store.rifts.length" class="overflow-hidden rounded-lg border border-card bg-card">
+      <h3 class="px-3 pt-2.5 text-[11px] font-semibold uppercase tracking-wide text-darker" :title="t('Each Spacetime Rift where you earned at least {n} Abyss Points', { n: formatAmount(RIFT_MIN) })">{{ t('Rift farms') }}</h3>
+      <ul class="divide-y divide-[color:var(--line)]">
+        <li
+          v-for="f in rifts"
+          :key="`${f.start}-${f.name}`"
+          :class="['flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-dark', sameRift(rift, f) && 'bg-accent/10']"
+          :title="riftTitle(f)"
+          @click="pickRift(f)"
+        >
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5">
+              <span class="truncate font-medium">{{ riftName(f) }}</span>
+              <span v-if="riftOpen(f)" class="shrink-0 rounded bg-green/15 px-1.5 text-[10px] font-semibold text-green">{{ t('now') }}</span>
+            </div>
+            <div v-if="f.name" class="truncate text-[11px] text-darker">{{ f.name }}</div>
+          </div>
+          <span class="shrink-0 rounded-md bg-dark px-1.5 py-0.5 text-[11px] tabular-nums" :title="t('Kills, deaths and assists')">
+            <span class="text-green">{{ riftStats.get(f)?.kills ?? 0 }}</span>
+            <span class="text-darker"> / </span>
+            <span class="text-danger">{{ riftStats.get(f)?.deaths ?? 0 }}</span>
+            <span class="text-darker"> / </span>
+            <span class="text-accent">{{ riftStats.get(f)?.assists ?? 0 }}</span>
+          </span>
+          <span class="w-16 shrink-0 text-right font-semibold tabular-nums text-blue">+{{ formatAmount(f.points) }} AP</span>
+        </li>
+      </ul>
+      <button
+        v-if="store.rifts.length > RIFTS"
+        type="button"
+        class="w-full border-t border-[color:var(--line)] py-1.5 text-xs text-darker hover:text-dark"
+        @click="allRifts = !allRifts"
+      >
+        {{ allRifts ? t('Show fewer') : t('Show older ({n} more)', { n: store.rifts.length - RIFTS }) }}
+      </button>
+    </section>
+
     <div class="flex items-center gap-1.5 text-xs">
+      <button
+        v-if="rift"
+        type="button"
+        class="rounded-full border border-accent bg-accent/15 px-2.5 py-0.5 text-default"
+        :title="t('Show every kill again')"
+        @click="rift = null"
+      >
+        {{ riftName(rift) }} ×
+      </button>
       <button
         v-for="f in filters"
         :key="f.id"
@@ -142,7 +229,7 @@ const BACKGROUND_HINT = 'At None the text keeps a dark glow, readable on the gam
       {{ t('Show older ({n} more)', { n: filtered.length - shown.length }) }}
     </button>
     <p v-if="!filtered.length" class="rounded-lg border border-card bg-card px-3 py-6 text-center text-sm text-darker">
-      {{ t(filters.find((f) => f.id === filter)?.empty ?? 'No player kills seen yet.') }}
+      {{ rift ? t('No kills, deaths or assists of yours in this rift.') : t(filters.find((f) => f.id === filter)?.empty ?? 'No player kills seen yet.') }}
     </p>
 
     <section class="rounded-lg border border-card bg-card px-3">

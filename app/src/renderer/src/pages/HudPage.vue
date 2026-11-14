@@ -19,6 +19,7 @@ import { nearbyPets, useSpawns, type NearbyPet } from '@/lib/spawns.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { useApp } from '@/stores/app.ts'
 import { formatKina } from '@shared/kina.ts'
+import { formatAmount } from '@shared/earnings.ts'
 import { blankPet, nextLevelSouls, type Pet } from '@shared/tracker.ts'
 
 const store = useApp()
@@ -80,6 +81,12 @@ const kinaText = computed(() => {
   // Kina is coming in, but under a minute of it: no rate yet.
   return store.kina.earned ? t('Kina/h measuring…') : null
 })
+/** Abyss Points per hour beside it, once there is a rate. */
+const abyssText = computed(() => {
+  if (!hud.value.abyss) return null
+  if (store.abyssRate !== null) return `${formatAmount(store.abyssRate)} AP/h`
+  return store.abyss.earned ? t('AP/h measuring…') : null
+})
 /** The Hidden Cubes in view, nearest first, with how far and which way. */
 const cubeRows = computed(() => (hud.value.cubes ? cubeBearings(store.cubes, store.nearby.position) : []))
 // A cube coming into view plays its sound (Settings → HUD), once per cube.
@@ -129,7 +136,7 @@ function report(): void {
 // A hidden window does not run ResizeObserver (Chromium pauses rendering there), and the HUD is
 // hidden exactly while it is empty: the first soul would never show it. So it also measures
 // itself after every change to what it shows, which works hidden or not.
-watch([cubeRows, nearRows, rows, toasts, kinaText, resting, () => store.hudEditing, () => hud.value.scale, () => store.nearby], () => void nextTick(report), { deep: true })
+watch([cubeRows, nearRows, rows, toasts, kinaText, abyssText, resting, () => store.hudEditing, () => hud.value.scale, () => store.nearby], () => void nextTick(report), { deep: true })
 
 let observer: ResizeObserver | null = null
 onMounted(() => {
@@ -169,7 +176,7 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <section v-if="cubeRows.length" :class="['rounded-md border border-yellow/40 bg-yellow/10 px-2 py-1.5', (nearRows.length || kinaText || rows.length) && 'mb-2.5']">
+        <section v-if="cubeRows.length" :class="['rounded-md border border-yellow/40 bg-yellow/10 px-2 py-1.5', (nearRows.length || kinaText || abyssText || rows.length) && 'mb-2.5']">
           <div class="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-yellow">
             <span class="size-1.5 animate-pulse rounded-full bg-yellow" />
             {{ cubeRows.length > 1 ? t('Hidden Cubes · {n} nearby', { n: cubeRows.length }) : t('Hidden Cube nearby') }}
@@ -191,7 +198,7 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <div v-if="nearRows.length || kinaText" class="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
+        <div v-if="nearRows.length || kinaText || abyssText" class="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
           <template v-if="nearRows.length"><span class="size-1.5 rounded-full bg-green" /><span class="text-green">{{ t('Nearby') }}</span></template>
           <Sparkline
             v-if="kinaText && store.kinaTimeline.length"
@@ -200,6 +207,7 @@ onBeforeUnmount(() => {
             class="mx-1 h-3 min-w-0 flex-1 text-yellow opacity-80"
           />
           <span v-if="kinaText" class="ml-auto shrink-0 normal-case tabular-nums text-yellow" :title="t('This session\'s Kina per hour')">{{ kinaText }}</span>
+          <span v-if="abyssText" :class="['shrink-0 normal-case tabular-nums text-blue', !kinaText && 'ml-auto']" :title="t('This session\'s Abyss Points per hour')">{{ abyssText }}</span>
         </div>
         <section v-if="nearRows.length">
           <div class="space-y-2">

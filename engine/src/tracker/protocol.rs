@@ -33,6 +33,7 @@ pub const OP_PVP_SWITCH: [u8; 2] = [0x54, 0x36];
 pub const OP_CHARACTER_LIST: [u8; 2] = [0x15, 0x36];
 pub const OP_COUNTERS: [u8; 2] = [0x0B, 0x61];
 pub const OP_COUNTER: [u8; 2] = [0x0C, 0x61];
+pub const OP_ABYSS_POINTS: [u8; 2] = [0xAB, 0xFF];
 
 /// `42 36`'s flag for a monster killed in combat (1: out of range, 7: gone).
 pub const DEATH_FLAG_COMBAT: u32 = 3;
@@ -519,6 +520,19 @@ pub fn counter(frame: &[u8]) -> Option<(u32, Vec<u64>)> {
     (1 + n + 1 == b.len()).then_some((id, values))
 }
 
+/// `AB FF <points u64> <limit u64>`: the week's Abyss Points and their weekly limit, at a login
+/// (just before the record naming the character) and with every gain. Since the game's 2026-10-29
+/// build (`A9 FF` before), read as A2Tools DPS Meter does (`1e4bd80`): 132456 of 2500000, then
+/// 133369 for the 913 the game said (2026-11-02).
+pub fn abyss_points(frame: &[u8]) -> Option<(u64, u64)> {
+    let b = body(frame, OP_ABYSS_POINTS)?;
+    if b.len() != 16 {
+        return None;
+    }
+    let (points, limit) = (u64_at(b, 0)?, u64_at(b, 8)?);
+    ((1..=1_000_000_000).contains(&limit) && points <= limit).then_some((points, limit))
+}
+
 const KINA_ITEM: [u8; 4] = [0x3f, 0x33, 0x70, 0x37];
 
 /// Your Kina balance: `1B 56 01 01 00 <u32> <u32> 3f 33 70 37 <balance u64>`.
@@ -912,6 +926,19 @@ pub fn legion(frame: &[u8]) -> Option<(u32, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A2Tools DPS Meter's `abyss_points_from_the_ab_record` (Nullception, 2026-11-02): a total,
+    /// then the same after a gain of 913.
+    #[test]
+    fn abyss_points_read_the_week_and_its_limit() {
+        assert_eq!(abyss_points(&hex("13abff6805020000000000a025260000000000")), Some((132_456, 2_500_000)));
+        assert_eq!(abyss_points(&hex("13abfff908020000000000a025260000000000")), Some((133_369, 2_500_000)));
+        // Past its limit, or a limit of 0: not this record.
+        assert_eq!(abyss_points(&hex("13abffa125260000000000a025260000000000")), None);
+        assert_eq!(abyss_points(&hex("13abff68050200000000000000000000000000")), None);
+        // The old `A9 FF` is not read.
+        assert_eq!(abyss_points(&hex("13a9ff6805020000000000a025260000000000")), None);
+    }
 
     #[test]
     fn the_character_list_reads_every_character() {

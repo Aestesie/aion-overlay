@@ -10,6 +10,7 @@ import { bridge } from '@/lib/bridge.ts'
 import { loc, plural, t } from '@/lib/i18n.ts'
 import { displayName } from '@/lib/petDb.ts'
 import { formatKina } from '@shared/kina.ts'
+import { formatAmount } from '@shared/earnings.ts'
 import { useApp } from '@/stores/app.ts'
 
 const store = useApp()
@@ -34,6 +35,12 @@ const kinaPointLabel = (i: number): string => {
   const at = new Date(p.at).toLocaleTimeString(loc(), { hour: '2-digit', minute: '2-digit' })
   return `${at} · ${formatKina(p.perHour)}/h`
 }
+const abyssPointLabel = (i: number): string => {
+  const p = store.abyssTimeline[i]
+  if (!p) return ''
+  const at = new Date(p.at).toLocaleTimeString(loc(), { hour: '2-digit', minute: '2-digit' })
+  return `${at} · ${formatAmount(p.perHour)}/h`
+}
 const lastPacket = computed(() => {
   const ago = store.status?.lastPacketAgo
   return ago === null || ago === undefined ? t('never') : ago < 5 ? t('just now') : t('{n} s ago', { n: Math.round(ago) })
@@ -50,7 +57,7 @@ const lastPacket = computed(() => {
           'rounded-md border px-2 py-0.5 transition',
           confirming ? 'border-danger/50 bg-danger/10 text-danger' : 'border-light text-darker hover:text-dark',
         ]"
-        :title="t('Start the session\'s souls and Kina again (your collection is not changed)')"
+        :title="t('Start the session\'s souls, Kina and Abyss Points again (your collection is not changed)')"
         @click="resetSession"
       >
         {{ confirming ? t('Click again to reset') : t('Reset session') }}
@@ -78,6 +85,27 @@ const lastPacket = computed(() => {
           :values="store.kinaTimeline.map((p) => p.perHour)"
           :label="kinaPointLabel"
           class="mt-2 h-8 text-yellow"
+        />
+      </div>
+      <div class="col-span-2 rounded-lg bg-card p-3 text-center">
+        <div
+          v-if="store.abyssRate !== null"
+          :title="t('Abyss Points earned per hour: a break of more than 5 minutes counts as 5.')"
+          class="text-3xl font-semibold tabular-nums text-blue">{{ formatAmount(store.abyssRate) }}</div>
+        <div v-else-if="store.abyss.earned" class="flex h-9 items-center justify-center text-lg font-semibold text-blue">{{ t('measuring…') }}</div>
+        <div v-else class="text-3xl font-semibold text-blue">—</div>
+        <div class="text-xs text-darker">
+          <template v-if="store.abyss.earned">{{ t('Abyss Points per hour, {n} earned', { n: formatAmount(store.abyss.earned) }) }}</template>
+          <template v-else>{{ t('Abyss Points per hour, from your first gain') }}</template>
+          <template v-if="store.abyss.points !== null && store.abyss.limit">
+            · {{ t('{points} of {limit} this week', { points: formatAmount(store.abyss.points), limit: formatAmount(store.abyss.limit) }) }}
+          </template>
+        </div>
+        <Sparkline
+          v-if="store.abyssTimeline.length"
+          :values="store.abyssTimeline.map((p) => p.perHour)"
+          :label="abyssPointLabel"
+          class="mt-2 h-8 text-blue"
         />
       </div>
     </div>

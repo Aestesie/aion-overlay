@@ -78,6 +78,8 @@ export interface Settings {
     merchant: boolean
     /** This session's Kina per hour, at the top right. */
     kina: boolean
+    /** This session's Abyss Points per hour, beside the Kina. */
+    abyss: boolean
     /** Hidden Cubes in view at the top, with how far and which way. */
     cubes: boolean
     /** A sound when a Hidden Cube comes into view. */
@@ -131,6 +133,43 @@ export interface Settings {
    * left out of that count.
    */
   bossRuns: { enabled: boolean; position: Point | null; opacity: number; windowMinutes: number; rows: number; collapsed: boolean; scale: number; aliveMin: number; ignoreLow: boolean; lowPriority: number[] }
+
+  /**
+   * The Unified HUD (pages/UnifiedPage.vue): one small bar at the top of the game that unfolds on
+   * hover and shows things as they matter. `position` is its top centre (it grows both ways from
+   * there; null = the top centre of the primary display). `buttons`: the overlays' buttons always,
+   * or only while hovered. The minutes and seconds are how long each thing stays after its last
+   * news. `runsPinned`: Boss Runs kept open under the bar. `replace`: the timer bar, Enemies nearby
+   * and the Boss Runs list stay closed while it is on.
+   */
+  unified: {
+    enabled: boolean
+    position: Point | null
+    opacity: number
+    scale: number
+    buttons: 'hover' | 'always'
+    events: boolean
+    countdownMinutes: number
+    ping: boolean
+    target: boolean
+    targetSeconds: number
+    earnings: boolean
+    earningsMinutes: number
+    rift: boolean
+    cubes: boolean
+    death: boolean
+    deathMinutes: number
+    enemies: boolean
+    bosses: boolean
+    guild: boolean
+    clock: boolean
+    odyle: boolean
+    runsPinned: boolean
+    replace: boolean
+  }
+
+  /** Every alert's sound off (the Unified HUD's speaker): cubes, enemies, the timers' chime. */
+  muted: boolean
 
   /** The kill feed over the game: open (from the PvP page), and where (null = top right). */
   /**
@@ -301,6 +340,7 @@ export const SETTINGS_DEFAULTS: Settings = {
     idleHideSeconds: 45,
     merchant: true,
     kina: true,
+    abyss: true,
     cubes: true,
     cubeSound: true,
     cubeSoundId: 'chime',
@@ -314,6 +354,13 @@ export const SETTINGS_DEFAULTS: Settings = {
   merchantWindow: null,
   detailsWindow: null,
   timerBar: { enabled: true, position: null, opacity: 0.92 },
+  unified: {
+    enabled: false, position: null, opacity: 0.94, scale: 1, buttons: 'hover',
+    events: true, countdownMinutes: 10, ping: true, target: true, targetSeconds: 8,
+    earnings: true, earningsMinutes: 10, rift: true, cubes: true, death: true, deathMinutes: 10,
+    enemies: true, bosses: true, guild: true, clock: false, odyle: false, runsPinned: false, replace: true,
+  },
+  muted: false,
   bossRuns: { enabled: true, position: null, opacity: 0.85, windowMinutes: 15, rows: 5, collapsed: false, scale: 1, aliveMin: 0, ignoreLow: true, lowPriority: DEFAULT_LOW_PRIORITY },
   killFeed: { open: false, position: null, opacity: 0.9, collapsed: false, target: true, width: null, height: null },
   enemies: { enabled: true, position: null, opacity: 0.75, collapsed: false, mapPins: true, sound: true, pvpOnly: true, soundId: 'enemy-spotted', volume: 0.7, customName: null },
@@ -379,6 +426,7 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
     case 'hideMaxed':
     case 'sleepWithoutGame':
     case 'hideWhenGameAway':
+    case 'muted':
       return bool(value, d[key] as boolean) as Settings[K]
     case 'hud': {
       const v = (value ?? {}) as Partial<Settings['hud']>
@@ -398,6 +446,7 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         idleHideSeconds: Math.round(num(v.idleHideSeconds, 0, 600, d.hud.idleHideSeconds)),
         merchant: bool(v.merchant, d.hud.merchant),
         kina: bool(v.kina, d.hud.kina),
+        abyss: bool(v.abyss, d.hud.abyss),
         cubes: bool(v.cubes, d.hud.cubes),
         cubeSound: bool(v.cubeSound, d.hud.cubeSound),
         cubeSoundId: isSound(v.cubeSoundId) ? v.cubeSoundId : d.hud.cubeSoundId,
@@ -470,6 +519,35 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         enabled: bool(v.enabled, d.timerBar.enabled),
         position: point(v.position),
         opacity: num(v.opacity, 0.3, 1, d.timerBar.opacity),
+      } as Settings[K]
+    }
+    case 'unified': {
+      const v = (value ?? {}) as Partial<Settings['unified']>
+      const u = d.unified
+      return {
+        enabled: bool(v.enabled, u.enabled),
+        position: point(v.position),
+        opacity: num(v.opacity, 0.3, 1, u.opacity),
+        scale: num(v.scale, 0.75, 1.75, u.scale),
+        buttons: v.buttons === 'always' ? 'always' : 'hover',
+        events: bool(v.events, u.events),
+        countdownMinutes: Math.round(num(v.countdownMinutes, 1, 60, u.countdownMinutes)),
+        ping: bool(v.ping, u.ping),
+        target: bool(v.target, u.target),
+        targetSeconds: Math.round(num(v.targetSeconds, 3, 60, u.targetSeconds)),
+        earnings: bool(v.earnings, u.earnings),
+        earningsMinutes: Math.round(num(v.earningsMinutes, 1, 60, u.earningsMinutes)),
+        rift: bool(v.rift, u.rift),
+        cubes: bool(v.cubes, u.cubes),
+        death: bool(v.death, u.death),
+        deathMinutes: Math.round(num(v.deathMinutes, 1, 60, u.deathMinutes)),
+        enemies: bool(v.enemies, u.enemies),
+        bosses: bool(v.bosses, u.bosses),
+        guild: bool(v.guild, u.guild),
+        clock: bool(v.clock, u.clock),
+        odyle: bool(v.odyle, u.odyle),
+        runsPinned: bool(v.runsPinned, u.runsPinned),
+        replace: bool(v.replace, u.replace),
       } as Settings[K]
     }
     case 'bossRuns': {

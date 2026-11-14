@@ -20,6 +20,9 @@
 //!   {"type": "pet", "pet": {...}}                     after an edit, or a level-up the game sent
 //!   {"type": "combat"}                                you killed something (at most every 5 s)
 //!   {"type": "kina", "balance": 3769926}
+//!   {"type": "abyss", "ts": ms, "name": "Ksix" | null, "points": 133369, "limit": 2500000, "gained": 913}
+//!                                                     the week's Abyss Points, at a login and with
+//!                                                     each gain (gained 0: a login's, or a new start)
 //!   {"type": "shop", "tab": 104, "nextAt": ms | null, "items": [{"slot", "item", "quantity", "currency", "base", "price"}]}
 //!   {"type": "fieldBosses", "world": 1010, "bosses": [{"id": 101021, "up": false, "at": ms}]}
 //!   {"type": "bossKilled", "npc": 2100003}   a field boss died in view (its monster code)

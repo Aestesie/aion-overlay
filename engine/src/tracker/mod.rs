@@ -35,6 +35,12 @@ const COMBAT_EVERY_MS: i64 = 5000;
 const SYNC_WAIT_MS: i64 = 5000;
 /// How long the login's counters wait for the record naming the character (6 s in the owner's logs).
 const COUNTERS_WAIT_MS: i64 = 30_000;
+/// The Abyss Points a login sends come just before the record naming the character: a total waits
+/// this long for one (A2Tools DPS Meter's hold), else it is the character playing's.
+const ABYSS_WAIT_MS: i64 = 3000;
+/// The most one Abyss Points update can be a gain of (A2Tools DPS Meter's KDA): a bigger jump is a
+/// total last seen long ago (points earned while the app was off), taken as the new start.
+const ABYSS_MAX_GAIN: u64 = 20_000;
 /// A player kill is passed on once per killer and victim in this long.
 const PVP_REPEAT_MS: i64 = 30_000;
 /// A cast's target this close to where you are is no news of where you are.
@@ -118,6 +124,8 @@ pub struct Tracker {
     pending_counters: Option<(i64, Vec<(u32, Vec<u64>)>)>,
     /// Counters changed (`0C 61`) while those wait: theirs too, told after them.
     pending_counter: Vec<(i64, u32, Vec<u64>)>,
+    /// The Abyss Points total the game just sent (when, points, limit), waiting to know whose.
+    pending_abyss: Option<(i64, u64, u64)>,
     /// Your class, level and gear score as last told to the app.
     me_stats: Option<(String, u32, u32, u32)>,
     field_bosses: Option<(u32, Vec<p::FieldBoss>)>,
@@ -195,6 +203,7 @@ impl Tracker {
             pending_sync: None,
             pending_counters: None,
             pending_counter: Vec::new(),
+            pending_abyss: None,
             me_stats: None,
             field_bosses: None,
             field_bosses_unread: 0,
@@ -624,6 +633,10 @@ impl Tracker {
             self.pending_counters = None;
             self.pending_counter.clear();
         }
+        if self.pending_abyss.is_some_and(|(at, _, _)| ts - at > ABYSS_WAIT_MS) {
+            let name = self.store.current.clone();
+            self.abyss_read(name);
+        }
         let Some(op) = p::opcode(f) else { return };
         // Looking for where else the game sends field bosses (the map's list comes at login, but
         // not always with the map open): any other message naming two of them is logged, once a
@@ -822,6 +835,16 @@ impl Tracker {
                     self.pending_counters = Some((ts, list));
                 }
             }
+            p::OP_ABYSS_POINTS => {
+                if let Some((points, limit)) = p::abyss_points(f) {
+                    // One still waiting: no login followed it, it was the character playing's.
+                    if self.pending_abyss.is_some() {
+                        let name = self.store.current.clone();
+                        self.abyss_read(name);
+                    }
+                    self.pending_abyss = Some((ts, points, limit));
+                }
+            }
             p::OP_COUNTER => {
                 if let Some((id, values)) = p::counter(f) {
                     if self.pending_counters.is_some() {
@@ -968,6 +991,33 @@ impl Tracker {
         if let Some((_, coll)) = self.pending_sync.take() {
             self.sync(ts, &coll);
         }
+        if self.pending_abyss.is_some() {
+            self.abyss_read(Some(who.name));
+        }
+    }
+
+    /// The Abyss Points total waiting, as `name`'s: what it gained over that character's last
+    /// total. The first known total, a lower one (the weekly reset) or a jump past ABYSS_MAX_GAIN
+    /// is only a new start.
+    fn abyss_read(&mut self, name: Option<String>) {
+        let Some((ts, points, limit)) = self.pending_abyss.take() else { return };
+        let gained = match &name {
+            Some(name) => {
+                let entry = self.store.characters.entry(name.clone()).or_default();
+                let gained = entry.abyss_points.map_or(0, |last| points.saturating_sub(last));
+                let gained = if gained > ABYSS_MAX_GAIN { 0 } else { gained };
+                if entry.abyss_points != Some(points) {
+                    entry.abyss_points = Some(points);
+                    self.save();
+                }
+                gained
+            }
+            None => 0,
+        };
+        if gained > 0 {
+            tracing::debug!("abyss points: +{gained} ({points} of {limit})");
+        }
+        (self.emit)(json!({ "type": "abyss", "ts": ts, "name": name, "points": points, "limit": limit, "gained": gained }));
     }
 
     /// The login's counters, for `name`: by id, their values (the app knows which is which).
@@ -1486,6 +1536,47 @@ mod tests {
             assert_eq!(now.level.unwrap_or(0), get("after", "levels", p).unwrap_or(0), "pet {p}'s level");
             assert_eq!(now.souls, get("after", "points", p).unwrap_or(0), "pet {p}'s souls");
         }
+    }
+
+    fn abyss(points: u64, limit: u64) -> Vec<u8> {
+        frame(p::OP_ABYSS_POINTS, &[points.to_le_bytes(), limit.to_le_bytes()].concat())
+    }
+
+    fn abyss_events(events: &Arc<std::sync::Mutex<Vec<Value>>>) -> Vec<(Value, u64)> {
+        events.lock().unwrap().iter().filter(|e| e["type"] == "abyss").map(|e| (e["name"].clone(), e["gained"].as_u64().unwrap())).collect()
+    }
+
+    #[test]
+    fn abyss_points_a_login_is_a_start_and_each_rise_after_it_a_gain() {
+        let (mut t, events) = tracker();
+        // A login: the total just before the record naming the character.
+        t.frame(1000, &abyss(132_456, 2_500_000));
+        t.frame(1500, &character(5, "Ksix", 1104));
+        // Gains, each told once nothing names another character for a moment.
+        t.frame(10_000, &abyss(133_369, 2_500_000));
+        t.frame(14_000, &soul(&[(1006, 1)]));
+        t.frame(20_000, &abyss(133_500, 2_500_000));
+        t.frame(21_000, &abyss(133_600, 2_500_000));
+        t.frame(25_000, &soul(&[(1006, 1)]));
+        // Another character logs in: its own total, not a gain (nor a loss) of Ksix's.
+        t.frame(30_000, &abyss(40_000, 2_500_000));
+        t.frame(30_500, &character(6, "Alt", 1104));
+        // A zone move re-sends the self record: a gain just before it is still a gain.
+        t.frame(40_000, &abyss(40_100, 2_500_000));
+        t.frame(40_500, &character(6, "Alt", 1104));
+        // Back on Ksix: from Ksix's last total.
+        t.frame(50_000, &abyss(133_600, 2_500_000));
+        t.frame(50_500, &character(5, "Ksix", 1104));
+        // A total far past the last (earned with the app off): a new start.
+        t.frame(60_000, &abyss(180_000, 2_500_000));
+        t.frame(64_000, &soul(&[(1006, 1)]));
+        let ksix = json!("Ksix");
+        let alt = json!("Alt");
+        assert_eq!(
+            abyss_events(&events),
+            [(ksix.clone(), 0), (ksix.clone(), 913), (ksix.clone(), 131), (ksix.clone(), 100), (alt.clone(), 0), (alt, 100), (ksix.clone(), 0), (ksix, 0)]
+        );
+        assert_eq!(t.store.characters["Ksix"].abyss_points, Some(180_000));
     }
 
     #[test]

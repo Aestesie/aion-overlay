@@ -8,6 +8,7 @@ import BossRunsView from '@/components/dashboard/BossRunsView.vue'
 import GuildEventsView from '@/components/dashboard/GuildEventsView.vue'
 import ChangelogView from '@/components/dashboard/ChangelogView.vue'
 import CharactersView from '@/components/dashboard/CharactersView.vue'
+import UnifiedView from '@/components/dashboard/UnifiedView.vue'
 import UpdatesView from '@/components/dashboard/UpdatesView.vue'
 import BuffsView from '@/components/dashboard/BuffsView.vue'
 import EventsView from '@/components/dashboard/EventsView.vue'
@@ -35,7 +36,7 @@ import { needsAnswer } from '@shared/guildEvents.ts'
 import { TIMERS, type TimerId } from '@shared/timers.ts'
 import type { UpdateState } from '@shared/update.ts'
 
-type PageId = 'home' | 'characters' | 'guild' | 'meter' | 'training' | 'map' | 'mapv2' | 'pets' | 'gatherables' | 'pvp' | 'buffs' | 'events' | 'bosses' | 'bossRuns' | 'history' | 'session' | 'settings' | 'updates' | 'changes'
+type PageId = 'home' | 'characters' | 'guild' | 'unified' | 'meter' | 'training' | 'map' | 'mapv2' | 'pets' | 'gatherables' | 'pvp' | 'buffs' | 'events' | 'bosses' | 'bossRuns' | 'history' | 'session' | 'settings' | 'updates' | 'changes'
 interface Page {
   id: PageId
   label: string
@@ -47,6 +48,7 @@ const PAGES: Record<PageId, Page> = {
   home: { id: 'home', label: 'Home', icon: 'M2.5 7 8 2.5 13.5 7v6.5h-3.5v-4H6v4H2.5z' },
   characters: { id: 'characters', label: 'Characters', icon: 'M6 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM1.5 14c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5M11 7a2 2 0 1 0 0-4M12.5 9.7c1.2.6 2 1.9 2 3.3' },
   guild: { id: 'guild', label: 'Guild Events', icon: 'M2 3.5h12v10.5H2zM2 6.5h12M5.5 1.5v3M10.5 1.5v3M5.5 10l1.8 1.8 3.2-3.3' },
+  unified: { id: 'unified', label: 'Unified HUD', icon: 'M2 5.5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM5 6h.01M8 6h3M4.5 11h7M6 13.5h4' },
   meter: { id: 'meter', label: 'Combat Meter', icon: 'M2.5 13.5h11M4.5 11V8M8 11V4.5M11.5 11V6.5' },
   training: { id: 'training', label: 'Training Dummy', icon: 'M8 14.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8 8h.01' },
   map: { id: 'map', label: 'Map', icon: 'M1.5 4l4.5-2 4 2 4.5-2v10l-4.5 2-4-2-4.5 2zM6 2v10M10 4v10' },
@@ -66,14 +68,14 @@ const PAGES: Record<PageId, Page> = {
 }
 const SECTIONS: { title: string | null; pages: PageId[] }[] = [
   { title: null, pages: ['home', 'characters', 'guild'] },
-  { title: 'In game', pages: ['meter', 'training', 'map', 'mapv2', 'pets', 'gatherables', 'pvp', 'buffs', 'events', 'bosses', 'bossRuns'] },
+  { title: 'In game', pages: ['unified', 'meter', 'training', 'map', 'mapv2', 'pets', 'gatherables', 'pvp', 'buffs', 'events', 'bosses', 'bossRuns'] },
   { title: 'Records', pages: ['history', 'session'] },
   { title: 'App', pages: ['updates', 'changes'] },
 ]
 /** The pages kept as they were (their old tabs), with the title and text above them. */
 const ABOUT: Partial<Record<PageId, string>> = {
   pvp: 'Every player killed around you, as the game credits it. The kill feed shows them over the game.',
-  session: 'This session: souls, crystals and Kina.',
+  session: 'This session: souls, crystals, Kina and Abyss Points.',
 }
 const store = useApp()
 const api = bridge()
@@ -291,6 +293,7 @@ onBeforeUnmount(() => {
           <div v-if="!store.ready" class="py-6 text-center text-sm text-darker">{{ t('Loading…') }}</div>
           <HomeView v-else-if="page === 'home'" @go="go" />
           <CharactersView v-else-if="page === 'characters'" />
+          <UnifiedView v-else-if="page === 'unified'" />
           <MeterView v-else-if="page === 'meter'" />
           <TrainingView v-else-if="page === 'training'" />
           <MapView v-else-if="page === 'map'" />

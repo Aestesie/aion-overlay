@@ -30,14 +30,14 @@ function save(patch: { id?: SoundId; volume?: number }): void {
   }
 }
 async function test(): Promise<void> {
-  note.value = (await playSound(props.kind, id.value, volume.value)) ? null : t('It could not be played: choose your mp3 again.')
+  note.value = (await playSound(props.kind, id.value, volume.value, true)) ? null : t('It could not be played: choose your mp3 again.')
 }
 async function pick(): Promise<void> {
   const result = await bridge().invoke('sounds:pickCustom', props.kind)
   if (!result) return
   note.value = result.ok ? null : `Not taken: ${result.error}.`
   // Main saved it as the sound: play it once, as Test would.
-  if (result.ok) await playSound(props.kind, 'custom', volume.value)
+  if (result.ok) await playSound(props.kind, 'custom', volume.value, true)
 }
 function choose(next: SoundId): void {
   note.value = null

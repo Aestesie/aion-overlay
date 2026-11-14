@@ -9,7 +9,7 @@ import CollapseButton from '@/components/CollapseButton.vue'
 import { bridge } from '@/lib/bridge.ts'
 import { t } from '@/lib/i18n.ts'
 import { panelStyle } from '@/lib/overlayLook.ts'
-import { playSound } from '@/lib/sound.ts'
+import { useEnemyAlarm } from '@/lib/enemyAlarm.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { useApp } from '@/stores/app.ts'
 import { serverTag } from '@shared/servers.ts'
@@ -31,25 +31,8 @@ const threat = (e: Enemy): boolean => canAttack(e)
 /** Those who can attack you first. */
 const list = computed(() => (store.enemies.length ? [...store.enemies].sort((a, b) => Number(threat(b)) - Number(threat(a))) : preview.value ? SAMPLE.value : []))
 
-// An enemy coming into view sounds the alarm (only one who can attack you, unless set otherwise: in
-// the Abyss that is every one): not again for the same player within a minute (they
-// step in and out of range), and not more than once every 5 s however many arrive.
-const AGAIN_MS = 60_000
-const GAP_MS = 5_000
-const heard = new Map<string, number>()
-let lastSound = 0
-watch(
-  () => store.enemies,
-  (now) => {
-    const t = Date.now()
-    const alarming = cfg.value.pvpOnly ? now.filter(threat) : now
-    const fresh = alarming.filter((e) => t - (heard.get(e.name) ?? 0) > AGAIN_MS)
-    for (const e of alarming) heard.set(e.name, t)
-    if (!fresh.length || !store.ready || !cfg.value.sound || t - lastSound < GAP_MS) return
-    lastSound = t
-    void playSound('enemy', cfg.value.soundId, cfg.value.volume)
-  },
-)
+// An enemy coming into view sounds the alarm (lib/enemyAlarm.ts).
+useEnemyAlarm()
 
 const drag = windowDrag({ move: 'enemies:moveTo', end: 'enemies:dragEnd' })
 /** Minimized: the header only (how many). Clickable while the dashboard is up, as dragging is. */

@@ -6,12 +6,18 @@
 import { SOUNDS, type SoundId, type SoundSlot } from '@shared/sounds.ts'
 import { bridge } from './bridge.ts'
 import { playChime } from './chime.ts'
+import { useApp } from '@/stores/app.ts'
 
-/** Play it at `volume` (0-1). False when it could not be (your own mp3 for `slot`, none chosen yet). */
-export async function playSound(slot: SoundSlot, id: SoundId, volume: number): Promise<boolean> {
+/**
+ * Play it at `volume` (0-1). False when it could not be (your own mp3 for `slot`, none chosen yet).
+ * Nothing plays while every sound is muted (the Unified HUD's speaker), unless `force`d: a settings
+ * page trying one out.
+ */
+export async function playSound(slot: SoundSlot, id: SoundId, volume: number, force = false): Promise<boolean> {
+  if (!force && useApp().settings.muted) return true
   const v = Math.min(1, Math.max(0, volume))
   if (id === 'chime') {
-    playChime(v)
+    playChime(v, force)
     return true
   }
   let url: string | null = SOUNDS.find((s) => s.id === id)?.file ?? null

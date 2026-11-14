@@ -24,6 +24,8 @@ import { kinaBalance, kinaRebase, NO_KINA, type KinaSession } from '../shared/ki
 import { bossKilled, fieldBosses } from './fieldBosses.ts'
 import type { FieldBosses } from '../shared/timers.ts'
 import { pvpLog } from './pvpLog.ts'
+import { abyss } from './abyss.ts'
+import type { AbyssSession, RiftFarm } from '../shared/abyss.ts'
 import { serverFaction, serverRegion } from '../shared/servers.ts'
 import { GAME_ACTIVE_S, NO_NEARBY, type Cube, type Enemy, type Nearby, type TargetPlayer, type Pet, type PvpKill, type ShopItem, type ShopStock, type SoulToast, type TrackerStatus } from '../shared/tracker.ts'
 import { tr } from './i18n.ts'
@@ -390,6 +392,14 @@ function handleLine(line: string): void {
     case 'kina':
       setKina(kinaBalance(kina, ev['balance'] as number, Date.now()))
       break
+    case 'abyss':
+      abyss.read({
+        points: ev['points'] as number,
+        limit: ev['limit'] as number,
+        gained: ev['gained'] as number,
+        name: (ev['name'] as string | null) ?? null,
+      })
+      break
     case 'shop': {
       const stock: ShopStock = {
         tab: ev['tab'] as number,
@@ -466,14 +476,17 @@ export const tracker = {
   target: (): TargetPlayer | null => target,
   shop: (): ShopStock[] => currentShop(),
   kina: (): KinaSession => kina,
+  abyss: (): AbyssSession => abyss.session(),
+  rifts: (): RiftFarm[] => abyss.rifts(),
   fieldBosses: (): FieldBosses => fieldBosses.all(),
   pvp: (): PvpKill[] => pvpLog.all(),
   clearPvp: (): void => pvpLog.clear(),
-  /** Start the session again: the souls (the helper answers with every pet) and the Kina. */
+  /** Start the session again: the souls (the helper answers with every pet), the Kina and the Abyss Points. */
   resetSession(): void {
     log('session reset')
     command({ cmd: 'resetSession' })
     setKina({ ...NO_KINA, balance: kina.balance, gains: [] })
+    abyss.reset()
   },
   setSouls: (pet: number, souls: number): void => command({ cmd: 'set', pet, souls }),
   setName: (pet: number, name: string): void => command({ cmd: 'name', pet, name }),
@@ -522,6 +535,7 @@ export const tracker = {
 export function stopTracker(): void {
   stopping = true
   pvpLog.flush()
+  abyss.flush()
   if (restartTimer) clearTimeout(restartTimer)
   restartTimer = null
   const proc = child
@@ -541,6 +555,7 @@ export function stopTracker(): void {
 export function killTrackerNow(): void {
   stopping = true
   pvpLog.flush()
+  abyss.flush()
   if (child && child.exitCode === null) child.kill()
   child = null
 }

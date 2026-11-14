@@ -9,6 +9,7 @@ import type { GameMapState } from './gameMap.ts'
 import type { DummyState } from './dummy.ts'
 import type { UpdateState } from './update.ts'
 import type { KinaSession } from './kina.ts'
+import type { AbyssSession, RiftFarm } from './abyss.ts'
 import type { DetailsSource, DetailsView, FightSummary, MeterData, PacketLog, PersonalView, Recordings } from './meter.ts'
 import type { SyncResult } from './lokthar.ts'
 import type { GuildEventDetail, GuildEventsState, Rsvp } from './guildEvents.ts'
@@ -26,7 +27,7 @@ export interface InvokeChannels {
   'settings:all': { args: []; result: Settings }
   'settings:set': { args: [key: SettingKey, value: unknown]; result: void }
 
-  'tracker:get': { args: []; result: { status: TrackerStatus; pets: Pet[]; nearby: Nearby; shop: ShopStock[]; kina: KinaSession; fieldBosses: FieldBosses; pvp: PvpKill[]; cubes: Cube[]; enemies: Enemy[]; target: TargetPlayer | null } }
+  'tracker:get': { args: []; result: { status: TrackerStatus; pets: Pet[]; nearby: Nearby; shop: ShopStock[]; kina: KinaSession; abyss: AbyssSession; rifts: RiftFarm[]; fieldBosses: FieldBosses; pvp: PvpKill[]; cubes: Cube[]; enemies: Enemy[]; target: TargetPlayer | null } }
   /** Markers on the game's map: drag a box around it (opens the picker). */
   'gamemap:pick': { args: []; result: void }
   /** From the picker: the box dragged, in its own coordinates; null when cancelled. */
@@ -81,6 +82,12 @@ export interface InvokeChannels {
   'timerbar:moveTo': { args: [to: Point]; result: void }
   'timerbar:dragEnd': { args: []; result: void }
   'timerbar:resize': { args: [size: { width: number; height: number }]; result: void }
+  /** The Unified HUD: moved (its top left while dragged), dropped, measured. */
+  'unified:moveTo': { args: [to: Point]; result: void }
+  'unified:dragEnd': { args: []; result: void }
+  'unified:resize': { args: [size: { width: number; height: number }]; result: void }
+  /** Bring the dashboard up (the Unified HUD's cog). */
+  'panel:open': { args: []; result: void }
   /** The kill feed over the game: opened from the PvP page, closed there or with its X. */
   'killfeed:open': { args: []; result: void }
   'killfeed:close': { args: []; result: void }
@@ -203,6 +210,10 @@ export interface EventChannels {
   'tracker:shop': ShopStock[]
   /** This session's Kina, whenever the balance changes. */
   'tracker:kina': KinaSession
+  /** This session's Abyss Points, at each total the game sends. */
+  'tracker:abyss': AbyssSession
+  /** The rift farms (shared/abyss.ts), newest first, whenever a gain changes them. */
+  'tracker:rifts': RiftFarm[]
   /** The whole PvP log (a window opening, or a Clear); then each kill as it comes. */
   'tracker:pvp': PvpKill[]
   'tracker:pvpKill': PvpKill
@@ -265,6 +276,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'tracker:get', 'gamemap:pick', 'gamemap:setRegion', 'gamemap:report', 'gamemap:get', 'gamemap:log', 'gamemap:openLog', 'gamemap:restart', 'gamemap:detail', 'gamemap:saveFeatures', 'gamemap:display', 'gamemap:grab', 'characters:get', 'characters:refresh', 'characters:forget', 'tracker:setSouls', 'tracker:setName', 'tracker:restart', 'tracker:resetSession', 'tracker:clearPvp',
   'killfeed:open', 'killfeed:close', 'killfeed:moveTo', 'killfeed:dragEnd', 'killfeed:resize',
   'timerbar:moveTo', 'timerbar:dragEnd', 'timerbar:resize',
+  'unified:moveTo', 'unified:dragEnd', 'unified:resize', 'panel:open',
   'bubble:moveTo', 'bubble:dragEnd', 'panel:toggle', 'panel:hide', 'panel:minimize', 'panel:maximize',
   'hud:setEditing', 'hud:moveTo', 'hud:dragEnd', 'hud:resize',
   'merchant:moveTo', 'merchant:dragEnd', 'merchant:resize', 'merchant:close', 'panel:showPet', 'timers:get', 'timers:dismiss', 'timers:open',
@@ -277,5 +289,5 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
 ]
 
 export const EVENT_CHANNELS: readonly EventChannel[] = [
-  'settings:changed', 'tracker:status', 'tracker:pets', 'tracker:pet', 'tracker:soul', 'tracker:nearby', 'tracker:cubes', 'tracker:enemies', 'tracker:target', 'tracker:combat', 'tracker:shop', 'tracker:kina', 'tracker:fieldBosses', 'characters:changed', 'gamemap:state', 'tracker:pvp', 'tracker:pvpKill', 'panel:showPet', 'panel:showTimers', 'timers:alert', 'timers:alerting', 'hud:editing', 'panel:visible', 'panel:maximized', 'meter:dps', 'details:source', 'history:changed', 'buffs:list', 'overlays:hidden', 'recordings:changed', 'packets:state', 'dummy:state', 'update:state', 'guildEvents:state', 'guildEvents:changed',
+  'settings:changed', 'tracker:status', 'tracker:pets', 'tracker:pet', 'tracker:soul', 'tracker:nearby', 'tracker:cubes', 'tracker:enemies', 'tracker:target', 'tracker:combat', 'tracker:shop', 'tracker:kina', 'tracker:abyss', 'tracker:rifts', 'tracker:fieldBosses', 'characters:changed', 'gamemap:state', 'tracker:pvp', 'tracker:pvpKill', 'panel:showPet', 'panel:showTimers', 'timers:alert', 'timers:alerting', 'hud:editing', 'panel:visible', 'panel:maximized', 'meter:dps', 'details:source', 'history:changed', 'buffs:list', 'overlays:hidden', 'recordings:changed', 'packets:state', 'dummy:state', 'update:state', 'guildEvents:state', 'guildEvents:changed',
 ]

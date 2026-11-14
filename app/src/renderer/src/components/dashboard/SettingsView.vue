@@ -179,6 +179,9 @@ const lastPacket = computed(() => {
         <SettingRow label="Kina per hour" hint="This session's Kina per hour, at the top right of the HUD.">
           <Toggle :model-value="store.settings.hud.kina" @update:model-value="store.setHud({ kina: $event })" />
         </SettingRow>
+        <SettingRow label="Abyss Points per hour" hint="This session's Abyss Points per hour, beside the Kina at the top right of the HUD.">
+          <Toggle :model-value="store.settings.hud.abyss" @update:model-value="store.setHud({ abyss: $event })" />
+        </SettingRow>
         <SettingRow label="Hidden Cubes" hint="A cube in view (the game tells you within about 100 m) at the top of the HUD, with how far and which way.">
           <Toggle :model-value="store.settings.hud.cubes" @update:model-value="store.setHud({ cubes: $event })" />
         </SettingRow>

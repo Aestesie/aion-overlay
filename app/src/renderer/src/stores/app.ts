@@ -7,6 +7,8 @@ import { computed, reactive, ref, toRaw } from 'vue'
 import { SETTINGS_DEFAULTS, type SettingKey, type Settings } from '@shared/settings.ts'
 import { MAX_LEVEL, NO_NEARBY, type Cube, type Enemy, type Nearby, type TargetPlayer, type Pet, type PvpKill, type ShopStock, type SoulToast, type TrackerStatus } from '@shared/tracker.ts'
 import { kinaPerHour, kinaSeries, NO_KINA, type KinaSession } from '@shared/kina.ts'
+import { NO_ABYSS, type AbyssSession, type RiftFarm } from '@shared/abyss.ts'
+import { perHour, series } from '@shared/earnings.ts'
 import type { FieldBosses, TimerAlert, TimerId } from '@shared/timers.ts'
 import type { Buff } from '@shared/buffs.ts'
 import type { Characters } from '@shared/characters.ts'
@@ -53,6 +55,12 @@ export const useApp = defineStore('app', () => {
   const kinaRate = computed(() => kinaPerHour(kina.value, now.value))
   /** Kina per hour over time, for the sparklines. */
   const kinaTimeline = computed(() => kinaSeries(kina.value, now.value))
+  /** This session's Abyss Points, counted as the Kina is. */
+  const abyss = ref<AbyssSession>(NO_ABYSS)
+  const abyssRate = computed(() => perHour(abyss.value, now.value))
+  const abyssTimeline = computed(() => series(abyss.value, now.value))
+  /** The rift farms, newest first (shared/abyss.ts). */
+  const rifts = ref<RiftFarm[]>([])
   /**
    * The collection's search, sort and filter pills. Kept here, not in the tab: the tab is rebuilt
    * after a pet's map closes, and the filters used to reset with it.
@@ -145,6 +153,11 @@ export const useApp = defineStore('app', () => {
       kina.value = k
       now.value = Date.now()
     })
+    api.on('tracker:abyss', (a) => {
+      abyss.value = a
+      now.value = Date.now()
+    })
+    api.on('tracker:rifts', (r) => (rifts.value = r))
     api.on('timers:alerting', (a) => (alerting.value = a))
     api.on('hud:editing', (e) => (hudEditing.value = e))
     api.on('panel:visible', (v) => (panelVisible.value = v))
@@ -159,6 +172,8 @@ export const useApp = defineStore('app', () => {
     nearby.value = t.nearby
     shop.value = t.shop
     kina.value = t.kina
+    abyss.value = t.abyss
+    rifts.value = t.rifts
     fieldBosses.value = t.fieldBosses
     characters.value = await api.invoke('characters:get')
     guildEvents.value = await api.invoke('guildEvents:get')
@@ -193,7 +208,7 @@ export const useApp = defineStore('app', () => {
   }
 
   return {
-    settings, status, pets, toasts, fighting, collectionView, shop, kina, kinaRate, kinaTimeline, alerting, timerFocus, fieldBosses, characters, guildEvents, pvp, cubes, enemies, target, buffs, hudEditing, panelVisible, ready, sessionSouls, recentPets, openPetId, nearby,
+    settings, status, pets, toasts, fighting, collectionView, shop, kina, kinaRate, kinaTimeline, abyss, abyssRate, abyssTimeline, rifts, alerting, timerFocus, fieldBosses, characters, guildEvents, pvp, cubes, enemies, target, buffs, hudEditing, panelVisible, ready, sessionSouls, recentPets, openPetId, nearby,
     init, set, setHud, togglePin, openPet, hiddenPet,
   }
 })

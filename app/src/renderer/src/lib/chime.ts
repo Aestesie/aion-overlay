@@ -2,9 +2,13 @@
  * The timers' alert: a soft two-note chime (E5 then A5), made with Web Audio so there is no sound
  * file to ship. Each note rises in 20 ms and fades out over most of a second.
  */
+import { useApp } from '@/stores/app.ts'
+
 let ctx: AudioContext | null = null
 
-export function playChime(volume = 0.5): void {
+/** `force`: played even while every sound is muted (a settings page trying one out). */
+export function playChime(volume = 0.5, force = false): void {
+  if (!force && useApp().settings.muted) return
   ctx ??= new AudioContext()
   if (ctx.state === 'suspended') void ctx.resume()
   const t0 = ctx.currentTime + 0.02

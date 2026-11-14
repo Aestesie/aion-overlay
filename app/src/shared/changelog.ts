@@ -11,6 +11,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.3.13',
+    items: [
+      'New Unified HUD (its own page, off until you turn it on): one small bar at the top of the game with the next two events and your ping, which unfolds on hover into buttons for the DPS meter, map, kill feed, pets and Boss Runs, a speaker that mutes every sound, and a cog that opens the app. It shows what you are hitting, Kina and Abyss Points per hour while they come in (a rift\'s total during a Spacetime Rift), a Hidden Cube in view, the enemies who can attack you, a field boss alive, a guild event about to start and where you last died, each only while it matters.',
+      'Abyss Points per hour, like the Kina: at the top right of the HUD and on the Session page, with this week\'s total against its limit.',
+      'The PvP page lists your rift farms: "PvP Rift 17:00 14/11" with the Abyss Points you earned from the Spacetime Rift\'s opening until 1 h 10 min later (only those with 1,000 or more), and your kills, deaths and assists in it. Click one to list them.',
+      'The DPS meter reads the game\'s traffic again on connections the 2026-11-04 patch wrapped in a new envelope, where it missed most hits.',
+      'A pet that levels up keeps the souls past the level\'s cost, as the game does, and a pet from a chest counts as yours at once.',
+      'A field boss that is up stays on the timer bar as Alive until it dies.',
+    ],
+  },
+  {
     version: '0.3.12',
     items: [
       'Eternal Gartua and High Commander Lagta respawn 11 hours after they die (the 2026-11-04 patch), on both sides, and Argo, the Spirit King spawns at 10:30 and 22:30 every day: lokthar.com has the new times, and the Field Bosses page takes them from the game as before.',

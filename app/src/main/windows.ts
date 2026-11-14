@@ -15,6 +15,8 @@
  *                         saved fight in the History page, moved by its header, closed with its X
  *   timerbar  #/timerbar  the timers with an alert on, as a bar of countdowns: open while the game
  *                         is, sized to what it shows (hidden with nothing within 13 hours)
+ *   unified   #/unified   the Unified HUD: one small bar at the top of the game, unfolded on hover,
+ *                         showing things as they matter; sized to what it shows, around its top centre
  *   killfeed  #/killfeed  player kills around you, as they happen: opened from the PvP page
  *   bossruns  #/bossruns  Verteron's field bosses about to spawn, with their Kibelisk: up by itself
  *                         when several spawn close together; moved by its header, sized by its corner
@@ -55,6 +57,8 @@ let meter: BrowserWindow | null = null
 let killFeed: BrowserWindow | null = null
 let killFeedSize = { width: 0, height: 0 }
 let timerBar: BrowserWindow | null = null
+let unified: BrowserWindow | null = null
+let unifiedSize = { width: 0, height: 0 }
 let details: BrowserWindow | null = null
 let detailsShowing: DetailsSource | null = null
 let timerBarSize = { width: 0, height: 0 }
@@ -695,7 +699,7 @@ export const ccDragEnded = ccOverlay.dragEnded
 /** Enemies nearby: top centre, under where the CC banner sits. */
 const enemiesOverlay = measuredOverlay({
   route: 'enemies',
-  enabled: () => settings.get('enemies').enabled,
+  enabled: () => enemiesOn(),
   saved: () => settings.get('enemies').position,
   fallback: () => {
     const area = screen.getPrimaryDisplay().workArea
@@ -743,7 +747,7 @@ export const resizePacketsHud = packetsOverlay.resize
 /** Boss Runs: right of centre, a third of the way down. */
 const bossRunsOverlay = measuredOverlay({
   route: 'bossruns',
-  enabled: () => settings.get('bossRuns').enabled,
+  enabled: () => bossRunsOn(),
   saved: () => settings.get('bossRuns').position,
   fallback: () => {
     const area = screen.getPrimaryDisplay().workArea
@@ -842,7 +846,7 @@ function timerBarPosition(): Point {
 
 /** Open the timer bar, unless it is turned off. It shows once its page has measured itself. */
 export function createTimerBar(): void {
-  if (!settings.get('timerBar').enabled || alive(timerBar)) return
+  if (!timerBarOn() || alive(timerBar)) return
   const p = timerBarPosition()
   const win = overlayWindow({ x: p.x, y: p.y, width: 300, height: 40 })
   timerBar = win
@@ -882,6 +886,73 @@ export function timerBarDragEnded(): void {
   if (!alive(timerBar)) return
   const { x, y } = timerBar.getBounds()
   settings.set('timerBar', { ...settings.get('timerBar'), position: { x, y } })
+}
+
+// ---- unified HUD ----------------------------------------------------------------------------
+
+/** The Unified HUD is on and stands in for the timer bar, Enemies nearby and the Boss Runs list. */
+const replaced = (): boolean => settings.get('unified').enabled && settings.get('unified').replace
+const timerBarOn = (): boolean => settings.get('timerBar').enabled && !replaced()
+const enemiesOn = (): boolean => settings.get('enemies').enabled && !replaced()
+const bossRunsOn = (): boolean => settings.get('bossRuns').enabled && !replaced()
+
+/** Its top centre: it grows and shrinks around this point, so the bar stays where it was put. */
+function unifiedAnchor(): Point {
+  const saved = settings.get('unified').position
+  if (saved) return saved
+  const area = screen.getPrimaryDisplay().workArea
+  return { x: Math.round(area.x + area.width / 2), y: area.y + 8 }
+}
+
+/** Open the Unified HUD, unless it is turned off. It shows once its page has measured itself. */
+export function createUnified(): void {
+  if (!settings.get('unified').enabled || alive(unified)) return
+  const a = unifiedAnchor()
+  // Focusable, as the bubble is: a window that can never be activated loses its presses over the game.
+  const win = overlayWindow({ x: a.x - 150, y: a.y, width: 300, height: 48 })
+  unified = win
+  unifiedSize = { width: 0, height: 0 }
+  win.on('closed', () => {
+    if (unified === win) unified = null
+  })
+  load(win, 'unified')
+}
+
+function closeUnified(): void {
+  if (alive(unified)) unified.destroy()
+  unified = null
+}
+
+function refreshUnified(): void {
+  if (!alive(unified)) return
+  const { width, height } = unifiedSize
+  if (width > 0 && height > 0) {
+    const a = unifiedAnchor()
+    const next = clampToDisplay({ x: Math.round(a.x - width / 2), y: a.y, width, height })
+    const now = unified.getBounds()
+    if (next.x !== now.x || next.y !== now.y || next.width !== now.width || next.height !== now.height) unified.setBounds(next)
+    if (!unified.isVisible()) reveal(unified)
+  } else if (unified.isVisible()) {
+    unified.hide()
+  }
+}
+
+export function resizeUnified(size: { width: number; height: number }): void {
+  unifiedSize = { width: Math.ceil(size.width), height: Math.ceil(size.height) }
+  refreshUnified()
+}
+
+/** Dragged: `to` is its top left. */
+export function moveUnified(to: Point): void {
+  if (!alive(unified)) return
+  unified.setBounds(clampToDisplay({ x: to.x, y: to.y, ...measured(unified, unifiedSize) }))
+}
+
+export function unifiedDragEnded(): void {
+  if (!alive(unified)) return
+  const { x, y } = unified.getBounds()
+  const { width } = measured(unified, unifiedSize)
+  settings.set('unified', { ...settings.get('unified'), position: { x: Math.round(x + width / 2), y } })
 }
 
 // ---- kill feed (from Nyerk 0.2.17) ----------------------------------------------------------
@@ -967,12 +1038,13 @@ function restoreHidden(): void {
     if (alive(win) && held(win)) continue
     awayHidden.delete(win)
     // These decide below whether they have anything to show.
-    if (alive(win) && win !== hud && win !== merchant && win !== meter && win !== timerBar && !measuredWins().includes(win)) win.showInactive()
+    if (alive(win) && win !== hud && win !== merchant && win !== meter && win !== timerBar && win !== unified && !measuredWins().includes(win)) win.showInactive()
   }
   refreshHud()
   refreshMerchant()
   refreshMeter()
   refreshTimerBar()
+  refreshUnified()
   for (const m of MEASURED) m.refresh()
 }
 
@@ -980,7 +1052,7 @@ function restoreHidden(): void {
 export function toggleOverlays(): boolean {
   overlaysOff = !overlaysOff
   if (overlaysOff) {
-    for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, details, ...measuredWins()]) {
+    for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, unified, details, ...measuredWins()]) {
       if (!alive(win) || !win.isVisible()) continue
       awayHidden.add(win)
       win.hide()
@@ -1004,7 +1076,7 @@ export function setForeground(game: boolean, app: boolean): void {
   if (away) {
     awayTimer = setTimeout(() => {
       gameAway = true
-      for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, details, ...measuredWins()]) {
+      for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, unified, details, ...measuredWins()]) {
         if (!alive(win) || !win.isVisible()) continue
         awayHidden.add(win)
         win.hide()
@@ -1032,7 +1104,7 @@ const ON_TOP_EVERY_MS = 5_000
  */
 export function startOnTopWatch(): void {
   setInterval(() => {
-    for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, details, ...measuredWins()]) {
+    for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, unified, details, ...measuredWins()]) {
       if (!alive(win) || !win.isVisible()) continue
       win.setAlwaysOnTop(true, 'screen-saver')
       win.moveTop()
@@ -1043,7 +1115,7 @@ export function startOnTopWatch(): void {
 /** Settings that change how the windows behave, applied live. */
 export function applyWindowSettings(): void {
   const hidden = settings.get('hideFromCapture')
-  for (const w of [bubble, panel, hud, merchant, meter, killFeed, timerBar, details, ...measuredWins()]) if (alive(w)) w.setContentProtection(hidden)
+  for (const w of [bubble, panel, hud, merchant, meter, killFeed, timerBar, unified, details, ...measuredWins()]) if (alive(w)) w.setContentProtection(hidden)
   if (!settings.get('minimap').enabled) closeMiniMap()
   else if (alive(bubble)) createMiniMap()
   if (!settings.get('skills').enabled) closeSkills()
@@ -1052,17 +1124,20 @@ export function applyWindowSettings(): void {
   else if (alive(bubble)) createBuffs()
   if (!settings.get('buffs').cc) ccOverlay.close()
   else if (alive(bubble)) createCc()
-  if (!settings.get('enemies').enabled) enemiesOverlay.close()
+  if (!enemiesOn()) enemiesOverlay.close()
   else if (alive(bubble)) createEnemies()
-  if (!settings.get('bossRuns').enabled) bossRunsOverlay.close()
+  if (!bossRunsOn()) bossRunsOverlay.close()
   else if (alive(bubble)) createBossRuns()
   if (!eventToastEnabled()) eventToastOverlay.close()
   else if (alive(bubble)) createEventToast()
   if (!settings.get('dummy').overlay) trainingOverlay.close()
   else if (alive(bubble)) createTraining()
   // Turned on: with the other overlays, while they are up (the bubble is, awake).
-  if (!settings.get('timerBar').enabled) closeTimerBar()
+  if (!timerBarOn()) closeTimerBar()
   else if (alive(bubble)) createTimerBar()
+  if (!settings.get('unified').enabled) closeUnified()
+  else if (alive(bubble)) createUnified()
+  refreshUnified()
   if (!settings.get('hud').merchant) closeMerchant()
   if (!settings.get('meter').enabled) closeMeter()
   if (gameAway && !settings.get('hideWhenGameAway')) setForeground(true, false)
@@ -1078,7 +1153,7 @@ export function applyWindowSettings(): void {
  * in the taskbar.
  */
 export function closeOverlays(): void {
-  for (const win of [bubble, hud, merchant, meter, killFeed, timerBar]) if (alive(win)) win.destroy()
+  for (const win of [bubble, hud, merchant, meter, killFeed, timerBar, unified]) if (alive(win)) win.destroy()
   for (const m of MEASURED) m.close()
   bubble = null
   hud = null
@@ -1086,6 +1161,7 @@ export function closeOverlays(): void {
   meter = null
   killFeed = null
   timerBar = null
+  unified = null
   awayHidden.clear()
   hudEditing = false
   hudSize = { width: 0, height: 0 }
@@ -1143,6 +1219,12 @@ export function rebuildWindow(win: BrowserWindow): string | null {
     killFeed = null
     createKillFeed()
     return 'killfeed'
+  }
+  if (win === unified) {
+    win.destroy()
+    unified = null
+    createUnified()
+    return 'unified'
   }
   if (win === meter) {
     win.destroy()
