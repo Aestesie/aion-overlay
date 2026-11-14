@@ -38,6 +38,8 @@ async function load(): Promise<void> {
 }
 
 const drag = windowDrag({ move: 'skills:moveTo', end: 'skills:dragEnd' })
+/** Its X: off, like the toggle on the DPS meter. */
+const close = (): void => void store.set('skills', { ...store.settings.skills, enabled: false })
 
 /** Tell main how big the window is; nothing of yours measures 0, and main keeps it hidden. */
 let sent = ''
@@ -75,6 +77,16 @@ onBeforeUnmount(() => {
             <span>{{ t('My skills') }}</span>
             <span class="tabular-nums text-default">{{ clock(view.battleTime) }}</span>
             <span class="ml-auto truncate normal-case tracking-normal text-darkest">{{ view.target }}</span>
+            <button
+              type="button"
+              class="-my-1 -mr-1 flex size-5 shrink-0 items-center justify-center rounded text-darker hover:bg-dark hover:text-default"
+              :title="t('Hide My skills (the DPS meter\'s Skills button brings it back)')"
+              @pointerdown.stop
+              @dblclick.stop
+              @click="close"
+            >
+              <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" /></svg>
+            </button>
           </div>
           <div class="flex items-baseline gap-1.5">
             <span class="text-2xl font-semibold tabular-nums text-accent-text">{{ short(view.dps) }}</span>

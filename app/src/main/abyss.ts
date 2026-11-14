@@ -52,17 +52,23 @@ export const abyss = {
   session: (): AbyssSession => withSeason(session),
   rifts: (): RiftFarm[] => (farms ??= riftFarms(all())),
 
-  /** The engine's `abyss` event: the week's total, and what it gained (0: a login's, or a start). */
-  read(ev: { points: number; limit: number; gained: number; name: string | null }, now = Date.now()): void {
-    const next = { ...session, points: ev.points, limit: ev.limit }
+  /**
+   * The engine's `abyss` event: the weekly figure the game sends (`ab ff`) and its limit. It did
+   * not rise with the corridor's kills (2026-11-14 log), so what is earned comes from the balance
+   * (`gain`), not from this.
+   */
+  read(ev: { points: number; limit: number }): void {
+    setSession({ ...session, points: ev.points, limit: ev.limit })
+  },
+
+  /** The engine's `abyssGain` event: the Abyss Points balance rose by `gained`. */
+  gain(ev: { gained: number; name: string | null }, now = Date.now()): void {
+    if (!(ev.gained > 0)) return
     const list = all()
-    if (ev.gained > 0) {
-      list.push([now, ev.gained, ev.name])
-      const old = list.findIndex(([at]) => at > now - KEEP_MS)
-      if (old > 0) list.splice(0, old)
-    }
-    setSession(ev.gained > 0 ? earn(next, ev.gained, now) : next.lastAt === null ? { ...next, lastAt: now } : next)
-    if (ev.gained <= 0) return
+    list.push([now, ev.gained, ev.name])
+    const old = list.findIndex(([at]) => at > now - KEEP_MS)
+    if (old > 0) list.splice(0, old)
+    setSession(earn(session, ev.gained, now))
     farms = riftFarms(list)
     broadcast('tracker:rifts', farms)
     save()

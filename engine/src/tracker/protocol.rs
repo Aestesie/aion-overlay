@@ -540,8 +540,21 @@ const KINA_ITEM: [u8; 4] = [0x3f, 0x33, 0x70, 0x37];
 /// Your Kina balance: `1B 56 01 01 00 <u32> <u32> 3f 33 70 37 <balance u64>`.
 /// The same opcode carries other stacks with other item bytes.
 pub fn kina(frame: &[u8]) -> Option<u64> {
+    currency(frame, KINA_ITEM)
+}
+
+/// The Abyss Points balance, the same record as Kina's with the item byte 0x23: in the owner's
+/// 2026-11-14 19:12 corridor log it rose 200 to 270 with every kill (247271, 247524, 247776...)
+/// while the weekly figure `ab ff` stayed still. The item before it, 0x21, rose 70 to 200 a kill.
+const ABYSS_ITEM: [u8; 4] = [0x23, 0x33, 0x70, 0x37];
+
+pub fn abyss_balance(frame: &[u8]) -> Option<u64> {
+    currency(frame, ABYSS_ITEM)
+}
+
+fn currency(frame: &[u8], item: [u8; 4]) -> Option<u64> {
     let b = body(frame, OP_ITEM)?;
-    if b.len() < 23 || b[0] != 0x01 || b[11..15] != KINA_ITEM {
+    if b.len() < 23 || b[0] != 0x01 || b[11..15] != item {
         return None;
     }
     u64_at(b, 15)
@@ -940,6 +953,15 @@ mod tests {
 
     /// A2Tools DPS Meter's `abyss_points_from_the_ab_record` (Nullception, 2026-11-02): a total,
     /// then the same after a gain of 913.
+    #[test]
+    fn the_abyss_points_balance_is_the_item_with_byte_23() {
+        let f = frame(OP_ITEM, &hex("01 01 00 91 00 04 00 00 40 00 00 23 33 70 37 e7c5030000000000 0001010000000000"));
+        assert_eq!(abyss_balance(&f), Some(247_271));
+        assert_eq!(kina(&f), None);
+        let other = frame(OP_ITEM, &hex("01 01 00 04 43 01 00 00 c8 00 00 21 33 70 37 d8de040000000000 00"));
+        assert_eq!(abyss_balance(&other), None);
+    }
+
     #[test]
     fn selection_is_the_entity_you_target() {
         let one = selection(&frame(OP_SELECTION, &hex("bc44 0000")));

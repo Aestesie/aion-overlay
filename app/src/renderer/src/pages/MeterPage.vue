@@ -195,14 +195,12 @@ onBeforeUnmount(() => {
             <span v-else-if="!cfg.collapsed" class="max-w-[45%] truncate text-[11px] text-darker" :title="meter.target?.name">{{ meter.target?.name }}</span>
             <button
               type="button"
-              :class="['flex size-5 shrink-0 items-center justify-center rounded hover:bg-dark', skillsOn ? 'text-accent' : 'text-darker hover:text-default']"
+              :class="['flex h-5 shrink-0 items-center rounded px-1.5 text-[11px] font-medium hover:bg-dark', skillsOn ? 'bg-accent/15 text-accent' : 'text-darker hover:text-default']"
               :title="skillsOn ? t('My skills overlay on: click to hide it') : t('My skills overlay off: click to show it')"
               @pointerdown.stop
               @click="toggleSkills"
             >
-              <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M8 1.5 9.8 6l4.7.4-3.6 3 1.1 4.6L8 11.6 4 14l1.1-4.6-3.6-3L6.2 6z" />
-              </svg>
+              {{ t('Skills') }}
             </button>
             <button
               type="button"

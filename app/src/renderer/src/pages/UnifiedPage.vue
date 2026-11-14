@@ -369,12 +369,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <!-- w-max: laid out at its own width, not the window's, so it measures what it needs. -->
+  <!-- No shadow: the window is only as big as the bar plus a thin margin, so a soft shadow was cut
+       off square at the window's edge instead of fading into the game. -->
   <div class="inline-block w-max">
     <div ref="root" class="inline-block w-max">
       <div
         class="m-1.5 flex w-max flex-col overflow-hidden rounded-[14px] border text-default"
-        :style="{ ...panelStyle(cfg.opacity), zoom: cfg.scale }"
+        :style="{ ...panelStyle(cfg.opacity), boxShadow: 'none', zoom: cfg.scale }"
         @pointerenter="enter"
         @pointerleave="leave"
       >

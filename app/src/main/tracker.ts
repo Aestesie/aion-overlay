@@ -403,9 +403,10 @@ function handleLine(line: string): void {
       abyss.read({
         points: ev['points'] as number,
         limit: ev['limit'] as number,
-        gained: ev['gained'] as number,
-        name: (ev['name'] as string | null) ?? null,
       })
+      break
+    case 'abyssGain':
+      abyss.gain({ gained: ev['gained'] as number, name: (ev['name'] as string | null) ?? null })
       break
     case 'shop': {
       const stock: ShopStock = {

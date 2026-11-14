@@ -1125,4 +1125,6 @@ export const ES: Record<string, string> = {
   'This session\'s Abyss Points per hour, to the left of the bar while they come in.': 'Los Abyss Points por hora de esta sesión, a la izquierda de la barra mientras entran.',
   'Hide the per hour figures after': 'Ocultar las cifras por hora después de',
   'Hidden this long after the last gain.': 'Se ocultan este tiempo después de la última ganancia.',
+  'Hide My skills (the DPS meter\'s Skills button brings it back)': 'Ocultar Mis skills (el botón Skills del DPS meter lo trae de vuelta)',
+  'Abyss Points now count from your balance, so corridor kills show (the weekly figure the game sends did not move with them); My skills has an X, and the DPS meter\'s Skills button turns it on and off.': 'Los Abyss Points ahora se cuentan desde tu saldo, así que se ven los kills del corredor (la cifra semanal que manda el juego no se movía con ellos); Mis skills tiene una X, y el botón Skills del DPS meter lo activa y desactiva.',
 }

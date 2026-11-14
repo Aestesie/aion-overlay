@@ -13,6 +13,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '0.3.13',
     items: [
+      'Abyss Points now count from your balance, so corridor kills show (the weekly figure the game sends did not move with them); My skills has an X, and the DPS meter\'s Skills button turns it on and off.',
       'The Unified HUD shows a player the moment you select them (name, class, legion, combat power, gear score), and keeps what it learns of each player between runs; the DPS meter can follow your last hit so hitting a player shows at once.',
       'New Unified HUD (its own page, off until you turn it on): one small bar at the top of the game with the next two events and your ping, which unfolds on hover into buttons for the DPS meter, map, kill feed, pets and Boss Runs, a speaker that mutes every sound, and a cog that opens the app. It shows what you are hitting, Kina and Abyss Points per hour while they come in (a rift\'s total during a Spacetime Rift), a Hidden Cube in view, the enemies who can attack you, a field boss alive, a guild event about to start and where you last died, each only while it matters.',
       'Abyss Points per hour, like the Kina: at the top right of the HUD and on the Session page, with this week\'s total against its limit.',

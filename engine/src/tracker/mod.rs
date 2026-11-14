@@ -126,6 +126,8 @@ pub struct Tracker {
     pending_counter: Vec<(i64, u32, Vec<u64>)>,
     /// The Abyss Points total the game just sent (when, points, limit), waiting to know whose.
     pending_abyss: Option<(i64, u64, u64)>,
+    /// Each character's Abyss Points balance as last seen (`1b 56`, item byte 0x23).
+    abyss_balance: HashMap<String, u64>,
     /// Your class, level and gear score as last told to the app.
     me_stats: Option<(String, u32, u32, u32)>,
     field_bosses: Option<(u32, Vec<p::FieldBoss>)>,
@@ -214,6 +216,7 @@ impl Tracker {
             pending_counters: None,
             pending_counter: Vec::new(),
             pending_abyss: None,
+            abyss_balance: HashMap::new(),
             me_stats: None,
             field_bosses: None,
             field_bosses_unread: 0,
@@ -856,6 +859,9 @@ impl Tracker {
                 }
             }
             p::OP_ITEM => {
+                if let Some(balance) = p::abyss_balance(f) {
+                    self.abyss_wallet(ts, balance);
+                }
                 if let Some(balance) = p::kina(f) {
                     // The balance as is: the app works out what was earned from the changes.
                     (self.emit)(json!({ "type": "kina", "ts": ts, "balance": balance }));
@@ -1102,6 +1108,17 @@ impl Tracker {
             tracing::debug!("abyss points: +{gained} ({points} of {limit})");
         }
         (self.emit)(json!({ "type": "abyss", "ts": ts, "name": name, "points": points, "limit": limit, "gained": gained }));
+    }
+
+    /// The Abyss Points balance (`1b 56`): each rise is a gain, by character. The first balance seen
+    /// is only a start, and a jump past ABYSS_MAX_GAIN (a mailbox, a quest chest) is not farming.
+    fn abyss_wallet(&mut self, ts: i64, balance: u64) {
+        let Some(name) = self.store.current.clone() else { return };
+        let before = self.abyss_balance.insert(name.clone(), balance);
+        let gained = before.map_or(0, |b| balance.saturating_sub(b));
+        if gained > 0 && gained <= ABYSS_MAX_GAIN {
+            (self.emit)(json!({ "type": "abyssGain", "ts": ts, "name": name, "gained": gained, "balance": balance }));
+        }
     }
 
     /// The login's counters, for `name`: by id, their values (the app knows which is which).
