@@ -10,6 +10,7 @@ pub const OP_SPAWN: [u8; 2] = [0x41, 0x36];
 pub const OP_DEATH: [u8; 2] = [0x42, 0x36];
 pub const OP_SOUL: [u8; 2] = [0x0D, 0x90];
 pub const OP_LEVEL_UP: [u8; 2] = [0x14, 0x90];
+pub const OP_PET_UNLOCKED: [u8; 2] = [0x09, 0x90];
 pub const OP_CRYSTAL: [u8; 2] = [0x11, 0x90];
 pub const OP_COLLECTION: [u8; 2] = [0x00, 0x90];
 pub const OP_MAP_LOAD: [u8; 2] = [0x21, 0x36];
@@ -201,6 +202,16 @@ pub fn level_up(frame: &[u8]) -> Option<(u32, u32)> {
     let pet = u32_at(b, 2)?;
     let level = u32_at(b, 6)?;
     (PET_IDS.contains(&pet) && (1..=3).contains(&level)).then_some((pet, level))
+}
+
+/// `09 90 <2 bytes> <pet u32> <level u32>`, laid out as `level_up`: a pet is
+/// yours now, at that level, as a chest that gives one sends it (A2Tools
+/// pet-souls 0.5.4, chests opened 2026-11-05).
+pub fn pet_unlocked(frame: &[u8]) -> Option<(u32, u32)> {
+    let b = body(frame, OP_PET_UNLOCKED)?;
+    let pet = u32_at(b, 2)?;
+    let level = u32_at(b, 6)?;
+    (PET_IDS.contains(&pet) && level <= 3).then_some((pet, level))
 }
 
 #[derive(Debug, Clone, PartialEq)]

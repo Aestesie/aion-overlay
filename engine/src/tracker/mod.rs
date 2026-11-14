@@ -755,6 +755,11 @@ impl Tracker {
                     self.level_up(pet, level);
                 }
             }
+            p::OP_PET_UNLOCKED => {
+                if let Some((pet, level)) = p::pet_unlocked(f) {
+                    self.pet_unlocked(pet, level);
+                }
+            }
             p::OP_CRYSTAL => {
                 if let Some(c) = p::crystal(f) {
                     self.crystal(ts, &c);
@@ -1023,20 +1028,23 @@ impl Tracker {
         for &(id, amount) in list {
             let pet = self.store.pets_mut().entry(id).or_default();
             pet.souls += amount;
-            // Past its level's need the pet goes up a level and its count starts
-            // again from 0, as the game's does (extra souls are not carried over).
-            let level = match pet.level {
+            // Past its level's need the pet goes up a level, and the game takes
+            // that level's cost from its count: the souls past it stay (24 + 5 at
+            // a cost of 25 leaves 4, A2Tools pet-souls 0.5.4, 2026-11-05).
+            let was = match pet.level {
                 Some(level) => level,
                 None => {
                     pet.level_estimated = true;
                     0
                 }
             };
-            let levelled = level < MAX_LEVEL && pet.souls >= LEVEL_NEED[level as usize];
-            pet.level = Some(if levelled { level + 1 } else { level });
-            if levelled {
-                pet.souls = 0;
+            let mut level = was;
+            while level < MAX_LEVEL && pet.souls >= LEVEL_NEED[level as usize] {
+                pet.souls -= LEVEL_NEED[level as usize];
+                level += 1;
             }
+            pet.level = Some(level);
+            let levelled = level > was;
             if let Some(kill_name) = &kill_name {
                 self.store.vote(id, kill_name, 1);
             }
@@ -1047,18 +1055,37 @@ impl Tracker {
     }
 
     /// The game says a pet reached a level. Already there from its souls: the
-    /// souls picked up since stay. Behind: it takes the level, from 0 souls.
+    /// souls picked up since stay. Behind: it takes the level, and the game
+    /// takes the cost of each level skipped from its souls (Karnif: 25 -> 0,
+    /// 29 -> 4).
     fn level_up(&mut self, id: u32, level: u32) {
         let pet = self.store.pets_mut().entry(id).or_default();
-        if pet.level.unwrap_or(0) >= level {
+        let was = pet.level.unwrap_or(0);
+        if was >= level {
+            pet.level_estimated = false;
+            return;
+        }
+        let cost: u32 = LEVEL_NEED[was as usize..level as usize].iter().sum();
+        pet.level = Some(level);
+        pet.level_estimated = false;
+        pet.souls = pet.souls.saturating_sub(cost);
+        self.save();
+        tracing::info!("level up: pet {id} is Lv{level} (from the game)");
+        (self.emit)(json!({ "type": "pet", "pet": self.view(id) }));
+    }
+
+    /// A pet is yours now (a chest's, `09 90`), at `level`, with the souls it
+    /// already had. Before, it showed as not had until the next login.
+    fn pet_unlocked(&mut self, id: u32, level: u32) {
+        let pet = self.store.pets_mut().entry(id).or_default();
+        if pet.level.is_some_and(|was| was >= level) {
             pet.level_estimated = false;
             return;
         }
         pet.level = Some(level);
         pet.level_estimated = false;
-        pet.souls = 0;
         self.save();
-        tracing::info!("level up: pet {id} is Lv{level} (from the game)");
+        tracing::info!("pet unlocked: pet {id} at Lv{level}");
         (self.emit)(json!({ "type": "pet", "pet": self.view(id) }));
     }
 
@@ -1371,15 +1398,15 @@ mod tests {
     }
 
     #[test]
-    fn a_pickup_for_two_pets_counts_both_and_a_level_up_starts_from_zero() {
+    fn a_pickup_for_two_pets_counts_both_and_a_level_keeps_the_souls_past_its_cost() {
         let (mut t, events) = tracker();
         t.frame(1000, &character(5, "Ksix", 1104));
         t.frame(2000, &collection(&[(1006, 0, 4), (1015, 1, 24)]));
         t.frame(2100, &character(5, "Ksix", 1104));
-        // 4/5 and 24/25: one more each levels both, and 2 for 1015 is not carried over.
+        // 4/5 and 24/25: one more each levels both, and 1015's second soul is kept.
         t.frame(3000, &soul(&[(1006, 1), (1015, 2)]));
         assert_eq!((pet(&t, 1006).level, pet(&t, 1006).souls), (Some(1), 0));
-        assert_eq!((pet(&t, 1015).level, pet(&t, 1015).souls), (Some(2), 0));
+        assert_eq!((pet(&t, 1015).level, pet(&t, 1015).souls), (Some(2), 1));
         let souls: Vec<_> = events.lock().unwrap().iter().filter(|e| e["type"] == "soul").cloned().collect();
         assert_eq!(souls.len(), 2);
         assert!(souls.iter().all(|s| s["levelUp"] == true));
@@ -1407,6 +1434,68 @@ mod tests {
         t.credits.push_back((2000, 77, 5));
         t.crystal(2100, &p::Crystal { genus: 9, amount: 1, raw: vec![] });
         assert_eq!((pet(&t, id).level, pet(&t, id).crystals), (Some(MAX_LEVEL), 1));
+    }
+
+    /// Three chests opened on 2026-11-05 (A2Tools Plugins' `tests/pet-souls-chests.json`):
+    /// from the game's pet list before them, their records must reach the list the game
+    /// sent after a reconnect. Seven new pets (`09 90`), and three at 24/25 levelled by 5
+    /// souls, with 4 left.
+    #[test]
+    fn chests_new_pets_and_souls_past_a_levels_cost_reach_the_games_list() {
+        let fixture: Value = serde_json::from_str(include_str!("testdata/pet-chests.json")).unwrap();
+        let id = |k: &str| k.parse::<u32>().unwrap();
+        let get = |side: &str, part: &str, pet: u32| fixture[side][part][pet.to_string()].as_u64().map(|v| v as u32);
+        let (mut t, _) = tracker();
+        t.frame(1000, &character(5, "Ksix", 1104));
+        let mut pets: Vec<u32> = ["before", "after"]
+            .iter()
+            .flat_map(|side| ["levels", "points"].map(|part| (side, part)))
+            .flat_map(|(side, part)| fixture[*side][part].as_object().unwrap().keys().map(|k| id(k)).collect::<Vec<_>>())
+            .collect();
+        pets.sort_unstable();
+        pets.dedup();
+        for &p in &pets {
+            if get("before", "levels", p).is_some() || get("before", "points", p).is_some() {
+                let pet = t.store.pets_mut().entry(p).or_default();
+                pet.level = get("before", "levels", p);
+                pet.souls = get("before", "points", p).unwrap_or(0);
+            }
+        }
+        let mut ts = 2000;
+        for event in fixture["events"].as_array().unwrap() {
+            let (kind, data) = (event[0].as_str().unwrap(), &event[1]);
+            let n = |k: &str| data[k].as_u64().unwrap() as u32;
+            ts += 100;
+            match kind {
+                "decoded:pet-unlocked" => t.frame(ts, &frame(p::OP_PET_UNLOCKED, &[&[0u8, 0][..], &le(&[n("pet"), n("level")])].concat())),
+                "decoded:level-up" => t.frame(ts, &frame(p::OP_LEVEL_UP, &[&[0u8, 0][..], &le(&[n("pet"), n("level")])].concat())),
+                "decoded:soul-gained" => {
+                    let list: Vec<(u32, u32)> = data["souls"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|s| (s["pet"].as_u64().unwrap() as u32, s["amount"].as_u64().unwrap() as u32))
+                        .collect();
+                    t.frame(ts, &soul(&list));
+                }
+                other => panic!("an event the test doesn't know: {other}"),
+            }
+        }
+        for &p in &pets {
+            let now = pet(&t, p);
+            assert_eq!(now.level.unwrap_or(0), get("after", "levels", p).unwrap_or(0), "pet {p}'s level");
+            assert_eq!(now.souls, get("after", "points", p).unwrap_or(0), "pet {p}'s souls");
+        }
+    }
+
+    #[test]
+    fn a_level_up_the_count_missed_takes_its_cost_not_every_soul() {
+        let (mut t, _) = tracker();
+        t.frame(1000, &character(5, "Ksix", 1104));
+        t.frame(1100, &collection(&[(1006, 1, 29)]));
+        t.frame(1200, &character(5, "Ksix", 1104));
+        t.frame(2000, &frame(p::OP_LEVEL_UP, &[&[0u8, 0][..], &le(&[1006, 2])].concat()));
+        assert_eq!((pet(&t, 1006).level, pet(&t, 1006).souls), (Some(2), 4));
     }
 
     #[test]
