@@ -4,8 +4,8 @@ version = 4
 
 [[package]]
 name = "a2tools-dps-meter"
-version = "2.0.73"
-source = "git+https://github.com/taengu/A2Tools-DPS-Meter?rev=08b249d49ef18be9ac9b41d8dd35596ae99aacfd#08b249d49ef18be9ac9b41d8dd35596ae99aacfd"
+version = "2.0.97"
+source = "git+https://github.com/taengu/A2Tools-DPS-Meter?rev=c19960d3fc4bca1ade29d4148ccc3b75b607751f#c19960d3fc4bca1ade29d4148ccc3b75b607751f"
 dependencies = [
  "aho-corasick",
  "chrono",

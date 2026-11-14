@@ -214,6 +214,17 @@ impl FightHistoryManager {
                             mob_code: record.mob_code,
                             dungeon_id: record.dungeon_id,
                             member_jobs,
+                            // Upstream's History reads these (its `history::summary`, desktop
+                            // only); ours shows none of them.
+                            my_name: String::new(),
+                            my_job: String::new(),
+                            my_server: 0,
+                            my_damage: 0,
+                            my_certain: false,
+                            outcome: "unconfirmed".into(),
+                            final_boss: false,
+                            raid: false,
+                            dungeon_tier: 0,
                         });
                     }
                 }

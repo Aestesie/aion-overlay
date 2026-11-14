@@ -191,7 +191,7 @@ impl Meter {
     /// The buffs and debuffs of the live fight on `target` so far (upstream's
     /// `get_fight_buffs`), as JSON: `{"startTimeMs", "durationMs", "buffs": [BuffTrack]}`.
     pub fn fight_buffs(&self, target: i32) -> serde_json::Value {
-        serde_json::to_value(self.calculator.lock().live_fight_buffs(target)).unwrap_or_default()
+        serde_json::to_value(self.calculator.lock().live_fight_buffs(target, &[target])).unwrap_or_default()
     }
 
     /// What is on your character now, one entry per buff (its stacks counted):
