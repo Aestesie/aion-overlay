@@ -9,7 +9,7 @@ import { app } from 'electron'
 import { readFileSync, writeFile, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { broadcast } from './broadcast.ts'
-import { NO_ABYSS, riftFarms, type AbyssGain, type AbyssSession, type RiftFarm } from '../shared/abyss.ts'
+import { currentSeason, NO_ABYSS, riftFarms, type AbyssGain, type AbyssSession, type RiftFarm } from '../shared/abyss.ts'
 import { earn } from '../shared/earnings.ts'
 
 const KEEP_MS = 90 * 24 * 3_600_000
@@ -41,24 +41,28 @@ function save(): void {
   }, SAVE_AFTER_MS)
 }
 
+const withSeason = (s: AbyssSession): AbyssSession => ({ ...s, season: currentSeason(all()) })
+
 function setSession(next: AbyssSession): void {
   session = next
-  broadcast('tracker:abyss', session)
+  broadcast('tracker:abyss', withSeason(session))
 }
 
 export const abyss = {
-  session: (): AbyssSession => session,
+  session: (): AbyssSession => withSeason(session),
   rifts: (): RiftFarm[] => (farms ??= riftFarms(all())),
 
   /** The engine's `abyss` event: the week's total, and what it gained (0: a login's, or a start). */
   read(ev: { points: number; limit: number; gained: number; name: string | null }, now = Date.now()): void {
     const next = { ...session, points: ev.points, limit: ev.limit }
+    const list = all()
+    if (ev.gained > 0) {
+      list.push([now, ev.gained, ev.name])
+      const old = list.findIndex(([at]) => at > now - KEEP_MS)
+      if (old > 0) list.splice(0, old)
+    }
     setSession(ev.gained > 0 ? earn(next, ev.gained, now) : next.lastAt === null ? { ...next, lastAt: now } : next)
     if (ev.gained <= 0) return
-    const list = all()
-    list.push([now, ev.gained, ev.name])
-    const old = list.findIndex(([at]) => at > now - KEEP_MS)
-    if (old > 0) list.splice(0, old)
     farms = riftFarms(list)
     broadcast('tracker:rifts', farms)
     save()

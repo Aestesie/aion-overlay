@@ -24,8 +24,8 @@ import { currentWorld, nearbyPets, useSpawns } from '@/lib/spawns.ts'
 import { CLOCK_ICON, EVENT_ICONS } from '@/lib/timerView.ts'
 import { windowDrag } from '@/lib/windowDrag.ts'
 import { useApp } from '@/stores/app.ts'
-import { riftOf } from '@shared/abyss.ts'
-import { clustered, runRows, type RunRow } from '@shared/bossRuns.ts'
+import { riftOf, SEASON_GAP_MS } from '@shared/abyss.ts'
+import { runRows, type RunRow } from '@shared/bossRuns.ts'
 import { characterId, counterNow, ENERGY } from '@shared/characters.ts'
 import { formatAmount } from '@shared/earnings.ts'
 import { formatKina } from '@shared/kina.ts'
@@ -160,9 +160,14 @@ const startsAt = (at: number): string => new Date(at).toLocaleTimeString(loc(), 
 // ---- Kina and Abyss Points, to the left while they come in --------------------------------------
 
 const earningMs = computed(() => cfg.value.earningsMinutes * 60_000)
-const coming = (lastAt: number | null): boolean => cfg.value.earnings && lastAt !== null && now.value - lastAt < earningMs.value
-const kinaText = computed(() => (coming(store.kina.lastAt) ? (store.kinaRate !== null ? formatKina(store.kinaRate) : '…') : null))
-const abyssText = computed(() => (coming(store.abyss.lastAt) ? (store.abyssRate !== null ? formatAmount(store.abyssRate) : '…') : null))
+const coming = (lastAt: number | null): boolean => lastAt !== null && now.value - lastAt < earningMs.value
+const kinaText = computed(() => (cfg.value.kina && coming(store.kina.lastAt) ? (store.kinaRate !== null ? formatKina(store.kinaRate) : '…') : null))
+const abyssText = computed(() => (cfg.value.abyssRate && coming(store.abyss.lastAt) ? (store.abyssRate !== null ? formatAmount(store.abyssRate) : '…') : null))
+/** The Abyss Points of the season going on: a season ends after 15 minutes without any. */
+const season = computed(() => {
+  const s = store.abyss.season
+  return cfg.value.season && s && now.value - s.last < SEASON_GAP_MS ? s : null
+})
 /** The Spacetime Rift going on, once it is a farm (shared/abyss.ts): its total stands in for the hourly rate. */
 const rift = computed(() => {
   if (!cfg.value.rift) return null
@@ -259,12 +264,6 @@ const runs = computed<RunRow[]>(() => {
   const later = runRows(store.fieldBosses, now.value, 24 * 3600_000).filter((r) => r.status === 'soon' && !seen.has(r.run.boss))
   return [...near, ...later.slice(0, Math.max(0, runsCfg.value.rows - near.length))]
 })
-/** A run is on (more than 2 spawning close together): a chip says so while Boss Runs are folded. */
-const runNext = computed(() => {
-  if (cfg.value.runsPinned) return null
-  const near = runRows(store.fieldBosses, now.value, runsCfg.value.windowMinutes * 60_000)
-  return clustered(near) ? (near.find((r) => r.status === 'soon') ?? null) : null
-})
 const isLow = (boss: number): boolean => runsCfg.value.lowPriority.includes(boss)
 const runClock = (r: RunRow): string => (r.status === 'killed' ? t('killed') : r.at <= now.value ? t('up') : countdown(r.at))
 
@@ -349,7 +348,7 @@ function report(): void {
 }
 // Measured after each change too, not only by the observer: a hidden window (Alt+Shift+E, an
 // alt-tab) does not run it, and would come back at its old size.
-watch([tools, shown, targetOn, notice, kinaText, abyssText, rift, cube, death, () => threats.value.length, () => aliveBosses.value.length, () => upcoming.value.length, runNext, () => cfg.value.scale], () => void nextTick(report))
+watch([tools, shown, targetOn, notice, kinaText, abyssText, season, rift, cube, death, () => threats.value.length, () => aliveBosses.value.length, () => upcoming.value.length, () => cfg.value.scale], () => void nextTick(report))
 
 let observer: ResizeObserver | null = null
 const offs: (() => void)[] = []
@@ -382,7 +381,7 @@ onBeforeUnmount(() => {
         <!-- The bar. -->
         <div class="flex h-9 cursor-move items-center gap-2.5 whitespace-nowrap px-2.5" :title="t('Drag to move')" @pointerdown="drag.onPointerDown">
           <!-- Kina and Abyss Points per hour, while they come in. -->
-          <template v-if="kinaText || abyssText || rift">
+          <template v-if="kinaText || abyssText || rift || season">
             <span v-if="kinaText" class="text-xs font-semibold tabular-nums text-yellow" :title="t('This session\'s Kina per hour')">
               {{ kinaText }} <span class="font-medium text-darker">Kina/h</span>
             </span>
@@ -391,8 +390,11 @@ onBeforeUnmount(() => {
               <span class="font-medium text-darker">{{ t('Rift') }} {{ startsAt(rift.start) }}</span>
               +{{ formatAmount(rift.points) }} AP
             </span>
-            <span v-else-if="abyssText" class="text-xs font-semibold tabular-nums text-blue" :title="t('This session\'s Abyss Points per hour')">
+            <span v-if="abyssText && !rift" class="text-xs font-semibold tabular-nums text-blue" :title="t('This session\'s Abyss Points per hour')">
               {{ abyssText }} <span class="font-medium text-darker">AP/h</span>
+            </span>
+            <span v-if="season" class="flex items-center gap-1 text-xs font-semibold tabular-nums text-blue" :title="t('Abyss Points earned this season (it ends after 15 minutes without any)')">
+              <img :src="'items/abyss-point.webp'" alt="AP" class="size-4" draggable="false" />{{ formatAmount(season.points) }}
             </span>
             <span class="h-4 w-px bg-light" />
           </template>
@@ -433,19 +435,6 @@ onBeforeUnmount(() => {
           >
             <img v-if="portrait(def)" :src="portrait(def)!" alt="" draggable="false" class="size-[18px] rounded-full border-[1.5px] border-green object-cover" />
             {{ t('Alive') }}
-          </button>
-
-          <!-- A boss run coming, while Boss Runs are folded. -->
-          <button
-            v-if="runNext"
-            type="button"
-            class="flex h-6 items-center gap-1.5 rounded-lg border border-yellow/40 bg-yellow/10 px-2 text-xs font-semibold text-yellow"
-            :title="t('A boss run is coming: open Boss Runs')"
-            @pointerdown.stop
-            @click="toggleRuns"
-          >
-            <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path :d="ICONS.runs" /></svg>
-            {{ runNext.run.short }} <span class="tabular-nums">{{ countdown(runNext.at) }}</span>
           </button>
 
           <!-- Enemies who can attack you. -->

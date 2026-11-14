@@ -1118,4 +1118,11 @@ export const ES: Record<string, string> = {
   'While a player is selected': 'Mientras hay un jugador seleccionado',
   'As the meter is set': 'Como está en el meter',
   'The Unified HUD shows a player the moment you select them (name, class, legion, combat power, gear score), and keeps what it learns of each player between runs; the DPS meter can follow your last hit so hitting a player shows at once.': 'El HUD unificado muestra a un jugador apenas lo seleccionás (nombre, clase, legión, combat power, gear score) y guarda lo que aprende de cada jugador entre sesiones; el DPS meter puede seguir tu último golpe para que pegarle a un jugador se vea al instante.',
+  'Abyss Points earned this season (it ends after 15 minutes without any)': 'Abyss Points ganados en esta temporada (termina tras 15 minutos sin ganar)',
+  'Abyss Points this season': 'Abyss Points de la temporada',
+  'The Abyss Points you earn in a season, with the coin icon, to the left of the bar. A season ends after 15 minutes without earning any; the next gain starts a new one. Apart from the rift farms.': 'Los Abyss Points que ganás en una temporada, con el ícono de la moneda, a la izquierda de la barra. Una temporada termina tras 15 minutos sin ganar; la siguiente ganancia empieza otra. Aparte de los farmeos de rift.',
+  'This session\'s Kina per hour, to the left of the bar while it comes in.': 'La Kina por hora de esta sesión, a la izquierda de la barra mientras entra.',
+  'This session\'s Abyss Points per hour, to the left of the bar while they come in.': 'Los Abyss Points por hora de esta sesión, a la izquierda de la barra mientras entran.',
+  'Hide the per hour figures after': 'Ocultar las cifras por hora después de',
+  'Hidden this long after the last gain.': 'Se ocultan este tiempo después de la última ganancia.',
 }

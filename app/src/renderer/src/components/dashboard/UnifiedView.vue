@@ -51,8 +51,9 @@ const BUTTON_ICONS = [
     <!-- The bar as these settings make it. -->
     <div class="mb-6 flex flex-col items-center gap-2.5 rounded-xl border border-card bg-[#1b2224] px-4 py-5">
       <div class="flex h-9 items-center gap-2.5 whitespace-nowrap rounded-[14px] border px-2.5" :style="{ ...panelStyle(cfg.opacity), zoom: cfg.scale }">
-        <template v-if="cfg.earnings">
-          <span class="text-xs font-semibold tabular-nums text-yellow">1.72M <span class="font-medium text-darker">Kina/h</span></span>
+        <template v-if="cfg.kina || cfg.season">
+          <span v-if="cfg.kina" class="text-xs font-semibold tabular-nums text-yellow">1.72M <span class="font-medium text-darker">Kina/h</span></span>
+          <span v-if="cfg.season" class="flex items-center gap-1 text-xs font-semibold tabular-nums text-blue"><img :src="'items/abyss-point.webp'" alt="AP" class="size-4" draggable="false" />12.3k</span>
           <span class="h-4 w-px bg-light" />
         </template>
         <img src="/icon.png" alt="" class="size-[18px]" draggable="false" />
@@ -100,11 +101,17 @@ const BUTTON_ICONS = [
         <SettingRow v-if="cfg.target" label="Follow my last hit" hint="What the DPS meter follows while this is on: your last hit, a player or a boss, so hitting a player shows at once. This changes the meter overlay too. 'While a player is selected' keeps the meter's own mode otherwise.">
           <SelectBox size="sm" :model-value="cfg.targetMode" :options="TARGET_MODES.map((o) => ({ id: o.id, label: t(o.label) }))" @update:model-value="set({ targetMode: $event })" />
         </SettingRow>
-        <SettingRow label="Kina and Abyss Points" hint="Per hour, to the left of the bar, while they come in. Hidden this long after the last gain.">
-          <div class="flex items-center gap-3">
-            <SelectBox v-if="cfg.earnings" size="sm" :model-value="cfg.earningsMinutes" :options="minutes(STAY)" @update:model-value="set({ earningsMinutes: $event })" />
-            <Toggle :model-value="cfg.earnings" @update:model-value="set({ earnings: $event })" />
-          </div>
+        <SettingRow label="Abyss Points this season" hint="The Abyss Points you earn in a season, with the coin icon, to the left of the bar. A season ends after 15 minutes without earning any; the next gain starts a new one. Apart from the rift farms.">
+          <Toggle :model-value="cfg.season" @update:model-value="set({ season: $event })" />
+        </SettingRow>
+        <SettingRow label="Kina per hour" hint="This session's Kina per hour, to the left of the bar while it comes in.">
+          <Toggle :model-value="cfg.kina" @update:model-value="set({ kina: $event })" />
+        </SettingRow>
+        <SettingRow label="Abyss Points per hour" hint="This session's Abyss Points per hour, to the left of the bar while they come in.">
+          <Toggle :model-value="cfg.abyssRate" @update:model-value="set({ abyssRate: $event })" />
+        </SettingRow>
+        <SettingRow v-if="cfg.kina || cfg.abyssRate" label="Hide the per hour figures after" hint="Hidden this long after the last gain.">
+          <SelectBox size="sm" :model-value="cfg.earningsMinutes" :options="minutes(STAY)" @update:model-value="set({ earningsMinutes: $event })" />
         </SettingRow>
         <SettingRow label="Rift farm" hint="During a Spacetime Rift, the Abyss Points show that rift's total instead of the hourly rate.">
           <Toggle :model-value="cfg.rift" @update:model-value="set({ rift: $event })" />

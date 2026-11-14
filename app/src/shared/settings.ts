@@ -155,7 +155,11 @@ export interface Settings {
     targetSeconds: number
     /** What the meter follows while it is on: 'always' your last hit, 'players' your last hit while a player is selected, 'meter' as the meter is set. */
     targetMode: 'always' | 'players' | 'meter'
-    earnings: boolean
+    /** Kina per hour, and Abyss Points per hour, to the left of the bar while they come in (off by default). */
+    kina: boolean
+    abyssRate: boolean
+    /** The Abyss Points of the season going on (coin icon): it ends after 15 minutes without any. */
+    season: boolean
     earningsMinutes: number
     rift: boolean
     cubes: boolean
@@ -359,7 +363,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   unified: {
     enabled: false, position: null, opacity: 0.94, scale: 1, buttons: 'hover',
     events: true, countdownMinutes: 10, ping: true, target: true, targetSeconds: 8, targetMode: 'always',
-    earnings: true, earningsMinutes: 10, rift: true, cubes: true, death: true, deathMinutes: 10,
+    kina: false, abyssRate: false, season: true, earningsMinutes: 10, rift: true, cubes: true, death: true, deathMinutes: 10,
     enemies: true, bosses: true, guild: true, clock: false, odyle: false, runsPinned: false, replace: true,
   },
   muted: false,
@@ -538,7 +542,9 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         target: bool(v.target, u.target),
         targetSeconds: Math.round(num(v.targetSeconds, 3, 60, u.targetSeconds)),
         targetMode: v.targetMode === 'players' || v.targetMode === 'meter' ? v.targetMode : 'always',
-        earnings: bool(v.earnings, u.earnings),
+        kina: bool(v.kina, u.kina),
+        abyssRate: bool(v.abyssRate, u.abyssRate),
+        season: bool(v.season, u.season),
         earningsMinutes: Math.round(num(v.earningsMinutes, 1, 60, u.earningsMinutes)),
         rift: bool(v.rift, u.rift),
         cubes: bool(v.cubes, u.cubes),

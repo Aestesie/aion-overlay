@@ -17,9 +17,43 @@ export interface AbyssSession extends Earnings {
   /** The week's total and its limit as the game last said; null until it has. */
   points: number | null
   limit: number | null
+  /** The season going on (see `currentSeason`): attached by main, null while none is. */
+  season: AbyssSeason | null
 }
 
-export const NO_ABYSS: AbyssSession = { ...NO_EARNINGS, points: null, limit: null }
+export const NO_ABYSS: AbyssSession = { ...NO_EARNINGS, points: null, limit: null, season: null }
+
+/**
+ * A season is one stretch of earning Abyss Points: it ends when this long passes with none. It is
+ * the player's own farming spell, apart from the rift farms (a rift's window).
+ */
+export const SEASON_GAP_MS = 15 * 60_000
+
+export interface AbyssSeason {
+  /** Earned in it. */
+  points: number
+  start: number
+  /** The last gain: the season is over once SEASON_GAP_MS has passed since. */
+  last: number
+}
+
+/** The season the last gain belongs to (that character's gains, each within SEASON_GAP_MS of the one before). */
+export function currentSeason(gains: readonly AbyssGain[]): AbyssSeason | null {
+  const end = gains[gains.length - 1]
+  if (!end) return null
+  let points = 0
+  let start = end[0]
+  let prev = end[0]
+  for (let i = gains.length - 1; i >= 0; i--) {
+    const [at, gained, name] = gains[i]!
+    if (name !== end[2]) continue
+    if (prev - at > SEASON_GAP_MS) break
+    points += gained
+    start = at
+    prev = at
+  }
+  return { points, start, last: end[0] }
+}
 
 /** One gain as kept: when, how much, and whose (null: no character known yet). */
 export type AbyssGain = [at: number, gained: number, name: string | null]
