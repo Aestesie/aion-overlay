@@ -13,6 +13,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '0.3.13',
     items: [
+      'The Unified HUD shows a player the moment you select them (name, class, legion, combat power, gear score), and keeps what it learns of each player between runs; the DPS meter can follow your last hit so hitting a player shows at once.',
       'New Unified HUD (its own page, off until you turn it on): one small bar at the top of the game with the next two events and your ping, which unfolds on hover into buttons for the DPS meter, map, kill feed, pets and Boss Runs, a speaker that mutes every sound, and a cog that opens the app. It shows what you are hitting, Kina and Abyss Points per hour while they come in (a rift\'s total during a Spacetime Rift), a Hidden Cube in view, the enemies who can attack you, a field boss alive, a guild event about to start and where you last died, each only while it matters.',
       'Abyss Points per hour, like the Kina: at the top right of the HUD and on the Session page, with this week\'s total against its limit.',
       'The PvP page lists your rift farms: "PvP Rift 17:00 14/11" with the Abyss Points you earned from the Spacetime Rift\'s opening until 1 h 10 min later (only those with 1,000 or more), and your kills, deaths and assists in it. Click one to list them.',

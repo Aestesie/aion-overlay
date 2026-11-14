@@ -27,6 +27,8 @@ pub const OP_PLAYER_GONE: [u8; 2] = [0x47, 0x36];
 pub const OP_LEGION: [u8; 2] = [0x33, 0x8A];
 pub const OP_OBJECT_SPAWN: [u8; 2] = [0x34, 0x36];
 pub const OP_OBJECT_REMOVED: [u8; 2] = [0x35, 0x36];
+/// `35 38 <entity varint> ...`: what you select (target), as the game sends it the moment you do.
+pub const OP_SELECTION: [u8; 2] = [0x35, 0x38];
 pub const OP_PLAYER_CARD: [u8; 2] = [0x30, 0x97];
 pub const OP_TARGET_INFO: [u8; 2] = [0x50, 0x36];
 pub const OP_PVP_SWITCH: [u8; 2] = [0x54, 0x36];
@@ -832,6 +834,15 @@ pub fn player_card(frame: &[u8]) -> Option<PlayerCard> {
     valid.then_some(PlayerCard { name, server, class: u32_at(b, 8)?, level, gear_score, combat_power: u32_at(b, end + 6)? })
 }
 
+/// The entity you selected (`35 38 <entity varint> 00 ...`, 4 to 6 bytes after the opcode). It
+/// describes your own target only; the game sends nothing for others' targets. Seen in the owner's
+/// 2026-11-14 18:22 log: Saphy `bc 44`, monsters as 3-byte ids.
+pub fn selection(frame: &[u8]) -> Option<u32> {
+    let b = body(frame, OP_SELECTION)?;
+    let (entity, n) = varint(b, 0)?;
+    (entity > 0 && b.len() > n).then_some(entity)
+}
+
 /// `54 36 <entity varint> <01 on | 00 off>`: a player in view (you too) switching their PvP. Seen
 /// on: you, then SophieGreen, Zuharïs and Yamiel a few seconds before their fights (the owner's
 /// 2026-10-26 23:02 log). Off is assumed to be 00, not seen yet.
@@ -929,6 +940,15 @@ mod tests {
 
     /// A2Tools DPS Meter's `abyss_points_from_the_ab_record` (Nullception, 2026-11-02): a total,
     /// then the same after a gain of 913.
+    #[test]
+    fn selection_is_the_entity_you_target() {
+        let one = selection(&frame(OP_SELECTION, &hex("bc44 0000")));
+        assert!(one.is_some());
+        assert_eq!(one, selection(&frame(OP_SELECTION, &hex("bc44 00 b01a"))));
+        assert!(selection(&frame(OP_SELECTION, &hex("ddd001 0000"))).is_some());
+        assert_eq!(selection(&frame(OP_SELECTION, &hex("bc44"))), None);
+    }
+
     #[test]
     fn abyss_points_read_the_week_and_its_limit() {
         assert_eq!(abyss_points(&hex("13abff6805020000000000a025260000000000")), Some((132_456, 2_500_000)));

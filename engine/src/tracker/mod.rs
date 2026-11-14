@@ -148,6 +148,9 @@ pub struct Tracker {
     cubes: HashMap<u32, p::ObjectSpawn>,
     /// Players in view and their legions, for the kill feed; cleared on each zone load.
     players: HashMap<u32, p::Player>,
+    /// Names of players known only from a kill credit (name, server, legion), by entity: who a
+    /// selection means when their spawn was not seen. Cleared with the players.
+    named: HashMap<u32, (String, u16, Option<String>)>,
     /// Players of the other faction in view: in on `45 36`, out on `42 36` or a new zone.
     enemies: HashMap<u32, p::Player>,
     /// Where each enemy in view was last seen, game (x, y): their arrival, then the effects and
@@ -164,6 +167,12 @@ pub struct Tracker {
     cards: HashMap<(String, u16), Card>,
     /// Counts card updates, to tell which card is oldest (`card_mut`).
     card_tick: u64,
+    /// Cards changed since they were last written, and when that was (`player-cards.json`, beside
+    /// the collection): what was read of a player is kept for the next time they are met.
+    cards_dirty: bool,
+    /// The player entity you have selected: their sheet is sent again when a card update brings more.
+    selected_entity: Option<u32>,
+    cards_saved_ms: i64,
     /// When target info last had no believable combat power (logged once a minute, to fix the reader).
     target_unread: i64,
     legions: HashMap<u32, String>,
@@ -186,6 +195,7 @@ fn pet_view(id: u32, pet: &Pet, name: Option<&str>, session: u32) -> Value {
 
 impl Tracker {
     pub fn new(store: Store, path: Option<PathBuf>, npcs: Arc<NpcLookup>, storage: Arc<DataStorage>, emit: Emit) -> Self {
+        let cards = load_cards(path.as_ref().map(|p| p.with_file_name(CARDS_FILE)));
         let pvp_fights = pvp::Fights::load(path.as_ref().map(|p| p.with_file_name("pvp-fights.json")));
         Self {
             store,
@@ -216,11 +226,15 @@ impl Tracker {
             nearby_dirty: false,
             cubes: HashMap::new(),
             players: HashMap::new(),
+            named: HashMap::new(),
             enemies: HashMap::new(),
             enemy_places: HashMap::new(),
             enemies_moved_ms: 0,
-            cards: HashMap::new(),
+            cards,
             card_tick: 0,
+            cards_dirty: false,
+            selected_entity: None,
+            cards_saved_ms: 0,
             pvp_hits: pvp::Hits::default(),
             classes: HashMap::new(),
             pvp_fights,
@@ -283,6 +297,7 @@ impl Tracker {
         self.recent.clear();
         self.self_votes.clear();
         self.players.clear();
+        self.named.clear();
         self.classes.clear();
         self.legions.clear();
         self.self_entity = None;
@@ -326,12 +341,33 @@ impl Tracker {
         if shown {
             self.enemies_changed(ts);
         }
+        self.refresh_selected(ts);
+    }
+
+    /// Write the cards when some changed and a minute has passed since the last write.
+    fn save_cards(&mut self, ts: i64) {
+        if !self.cards_dirty || ts - self.cards_saved_ms < CARDS_SAVE_EVERY_MS {
+            return;
+        }
+        self.cards_dirty = false;
+        self.cards_saved_ms = ts;
+        let Some(path) = self.path.as_ref().map(|p| p.with_file_name(CARDS_FILE)) else { return };
+        let list: Vec<SavedCard> = self
+            .cards
+            .iter()
+            .filter(|(_, c)| c.cp.is_some() || c.level > 0 || c.class.is_some())
+            .map(|((name, server), c)| SavedCard { name: name.clone(), server: *server, level: c.level, gear_score: c.gear_score, class: c.class.map(str::to_string), cp: c.cp })
+            .collect();
+        if let Err(e) = serde_json::to_string(&list).map_err(|e| e.to_string()).and_then(|s| std::fs::write(&path, s).map_err(|e| e.to_string())) {
+            tracing::warn!("could not save the player cards: {e}");
+        }
     }
 
     /// A player's card to update, made if new. Past `MAX_CARDS` the one updated longest ago makes
     /// room: a crowd (a city, a siege) never stops new players' cards being kept.
     fn card_mut(&mut self, key: (String, u16)) -> &mut Card {
         self.card_tick += 1;
+        self.cards_dirty = true;
         if !self.cards.contains_key(&key) && self.cards.len() >= MAX_CARDS {
             if let Some(oldest) = self.cards.iter().min_by_key(|(_, c)| c.touched).map(|(k, _)| k.clone()) {
                 self.cards.remove(&oldest);
@@ -378,6 +414,40 @@ impl Tracker {
         if self.enemies.values().any(|e| e.name == t.name && e.server == Some(t.server)) {
             self.enemies_changed(ts);
         }
+    }
+
+    /// The selected player's sheet again, after their card learned something.
+    fn refresh_selected(&mut self, ts: i64) {
+        if let Some(entity) = self.selected_entity {
+            self.selected(ts, entity);
+        }
+    }
+
+    /// You selected an entity (`35 38`): when it is a player we know, their sheet goes to the app at
+    /// once, with what is known of them (spawn, card, legion, skills seen); an unknown value is null,
+    /// never a 0. Anything else clears the last one.
+    fn selected(&mut self, ts: i64, entity: u32) {
+        self.selected_entity = None;
+        let known = self
+            .players
+            .get(&entity)
+            .map(|p| (p.name.clone(), p.server, p.legion.clone(), p.class.and_then(p::roster_class), p.pvp, p.open_pvp))
+            .or_else(|| self.named.get(&entity).map(|(n, s, l)| (n.clone(), Some(*s), l.clone(), None, false, false)));
+        let Some((name, server, legion, spawn_class, pvp, open_pvp)) = known else {
+            (self.emit)(json!({ "type": "targetClear", "ts": ts }));
+            return;
+        };
+        self.selected_entity = Some(entity);
+        let card = server.and_then(|s| self.cards.get(&(name.clone(), s)));
+        let class = card.and_then(|c| c.class).or(spawn_class).or_else(|| self.classes.get(&entity).copied());
+        let enemy = matches!((server.and_then(p::server_faction), self.my_faction()), (Some(theirs), Some(mine)) if theirs != mine);
+        let legion = legion.or_else(|| self.legions.get(&entity).cloned());
+        (self.emit)(json!({
+            "type": "target", "ts": ts, "entity": entity, "name": name, "server": server,
+            "level": card.map(|c| c.level).filter(|&l| l > 0), "gearScore": card.map(|c| c.gear_score).filter(|&g| g > 0),
+            "combatPower": card.and_then(|c| c.cp), "className": class, "legion": legion, "enemy": enemy,
+            "pvp": pvp, "openPvp": open_pvp,
+        }));
     }
 
     /// The hits in a `04 38`: a player's skill says their class, and those between you and another
@@ -618,6 +688,7 @@ impl Tracker {
 
     /// One game frame, as the parser read it; `ts` is its capture time (ms).
     pub fn frame(&mut self, ts: i64, f: &[u8]) {
+        self.save_cards(ts);
         if let Some((at, _)) = &self.pending_sync {
             if ts - at > SYNC_WAIT_MS {
                 let (_, coll) = self.pending_sync.take().unwrap();
@@ -717,6 +788,7 @@ impl Tracker {
                     self.move_to(ts, x, y, true);
                     self.visible.clear();
                     self.players.clear();
+                    self.named.clear();
                     self.classes.clear();
                     self.legions.clear();
                     self.clear_enemies(ts);
@@ -885,6 +957,11 @@ impl Tracker {
                     tracing::warn!("target info not read ({} bytes): head {head}", f.len());
                 }
             }
+            p::OP_SELECTION => {
+                if let Some(entity) = p::selection(f) {
+                    self.selected(ts, entity);
+                }
+            }
             p::OP_PLAYER_CARD => {
                 if let Some(card) = p::player_card(f) {
                     self.player_card(ts, card);
@@ -900,6 +977,10 @@ impl Tracker {
                         self.enemy_places.insert(player.entity, place);
                     }
                     let cp_changed = self.spawn_combat_power(&player);
+                    self.players.insert(player.entity, player.clone());
+                    if cp_changed {
+                        self.refresh_selected(ts);
+                    }
                     if enemy {
                         match self.enemies.insert(player.entity, player.clone()) {
                             None => {
@@ -945,6 +1026,9 @@ impl Tracker {
         if (me.is_none() || me == Some(credit.killer)) && ts - self.last_combat >= COMBAT_EVERY_MS {
             self.last_combat = ts;
             (self.emit)(json!({ "type": "combat", "ts": ts }));
+        }
+        if (1000..=9999).contains(&credit.server) && self.named.len() < 2000 {
+            self.named.insert(credit.killer, (credit.name.clone(), credit.server, credit.legion.clone()));
         }
         if credit.player_victim && (1000..=9999).contains(&credit.server) {
             self.pvp_kill(ts, credit);
@@ -1304,6 +1388,33 @@ struct Card {
     pending: Option<u32>,
     /// When it was last updated (`card_tick`): the oldest goes first when there are too many.
     touched: u64,
+}
+
+const CARDS_FILE: &str = "player-cards.json";
+const CARDS_SAVE_EVERY_MS: i64 = 60_000;
+const CLASSES: [&str; 8] = ["Gladiator", "Templar", "Ranger", "Assassin", "Spiritmaster", "Sorcerer", "Cleric", "Chanter"];
+
+/// A card as kept on disk.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SavedCard {
+    name: String,
+    server: u16,
+    level: u32,
+    gear_score: u32,
+    class: Option<String>,
+    cp: Option<u32>,
+}
+
+/// The cards kept from earlier runs, the newest data of each player winning as it is read.
+fn load_cards(path: Option<PathBuf>) -> HashMap<(String, u16), Card> {
+    let list: Vec<SavedCard> = path.and_then(|p| std::fs::read_to_string(p).ok()).and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+    list.into_iter()
+        .take(MAX_CARDS)
+        .map(|c| {
+            let class = c.class.and_then(|k| CLASSES.iter().find(|&&n| n == k).copied());
+            ((c.name, c.server), Card { level: c.level, gear_score: c.gear_score, class, cp: c.cp, pending: None, touched: 0 })
+        })
+        .collect()
 }
 
 /// An enemy's pin moves on the map this often at most (a fight sends many effects a second).

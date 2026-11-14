@@ -91,9 +91,12 @@ export interface Enemy {
 /** The player you last targeted: their sheet as the game sends it (`50 36`). */
 export interface TargetPlayer {
   name: string
-  server: number
-  level: number
-  gearScore: number
+  server: number | null
+  /** Null while not known (the selection frame has only what was seen of them). */
+  level: number | null
+  gearScore: number | null
+  /** Their PvP is on (or they stand where everyone fights). */
+  pvp?: boolean
   /** Null when no believable value was read (out of range, or an odd jump not yet confirmed). */
   combatPower: number | null
   className: string | null

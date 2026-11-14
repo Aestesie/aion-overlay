@@ -356,9 +356,10 @@ function handleLine(line: string): void {
     case 'target': {
       target = {
         name: ev['name'] as string,
-        server: ev['server'] as number,
-        level: ev['level'] as number,
-        gearScore: ev['gearScore'] as number,
+        server: (ev['server'] as number | null) ?? null,
+        level: (ev['level'] as number | null) ?? null,
+        gearScore: (ev['gearScore'] as number | null) ?? null,
+        pvp: ev['pvp'] === true || ev['openPvp'] === true,
         combatPower: (ev['combatPower'] as number | null) ?? null,
         className: (ev['className'] as string | null) ?? null,
         legion: (ev['legion'] as string | null) ?? null,
@@ -366,6 +367,12 @@ function handleLine(line: string): void {
         at: Date.now(),
       }
       broadcast('tracker:target', target)
+      break
+    }
+    case 'targetClear': {
+      // You selected something that is not a player: the last player's sheet is not your target any more.
+      target = null
+      broadcast('tracker:target', null)
       break
     }
     case 'pvpKill': {

@@ -187,12 +187,14 @@ watch(
 )
 const targetMs = computed(() => cfg.value.targetSeconds * 1000)
 const fighting = computed(() => cfg.value.target && !!meter.value.target && !!me.value && now.value - hitAt.value < targetMs.value)
-/** The player you last targeted, while it is news or it is who you are hitting. */
+/** A selected player stays up this long (the game says nothing when you let go: a selection of anything else clears it). */
+const SELECTED_MS = 30_000
+/** The player you selected, as soon as you do (what is known of them: an unknown value is left out), or are hitting. */
 const sheet = computed(() => {
   const tp = store.target
   if (!cfg.value.target || !tp) return null
-  if (fighting.value) return meter.value.target!.name === tp.name ? tp : null
-  return now.value - tp.at < targetMs.value ? tp : null
+  if (fighting.value && meter.value.target!.name !== tp.name) return null
+  return now.value - tp.at < Math.max(SELECTED_MS, targetMs.value) ? tp : null
 })
 const targetOn = computed(() => fighting.value || !!sheet.value)
 const hpShare = computed(() => {
@@ -575,13 +577,15 @@ onBeforeUnmount(() => {
             <div class="min-w-0 flex-1">
               <div class="flex items-baseline gap-1.5 text-[13px] font-semibold leading-4">
                 {{ sheet?.name ?? meter.target?.name }}
-                <span v-if="sheet" :class="['text-[11px] font-medium tabular-nums', sheet.enemy ? 'text-red' : 'text-darker']">[{{ serverTag(sheet.server) }}]</span>
+                <span v-if="sheet" :class="['text-[11px] font-medium tabular-nums', sheet.enemy ? 'text-red' : 'text-darker']"><template v-if="sheet.server">[{{ serverTag(sheet.server) }}]</template></span>
               </div>
               <div class="text-[11px] leading-[14px] text-darker">
                 <template v-if="sheet">
-                  {{ [sheet.className ? t(sheet.className) : null, sheet.legion].filter(Boolean).join(' · ') || t('No legion') }}
+                  {{ [sheet.className ? t(sheet.className) : null, sheet.legion].filter(Boolean).join(' · ') }}
                   <template v-if="sheet.combatPower"> · <span class="font-semibold text-yellow">{{ cp(sheet.combatPower) }}</span> CP</template>
-                  · <span class="font-semibold text-dark">{{ sheet.gearScore.toLocaleString('en-US') }}</span> GS · Lv{{ sheet.level }}
+                  <template v-if="sheet.gearScore"> · <span class="font-semibold text-dark">{{ sheet.gearScore.toLocaleString('en-US') }}</span> GS</template>
+                  <template v-if="sheet.level"> · Lv{{ sheet.level }}</template>
+                  <template v-if="sheet.pvp"> · <span class="font-semibold text-red">PvP</span></template>
                 </template>
                 <template v-else>{{ meter.target?.boss ? t('Boss') : t('Monster') }}{{ world ? ` · ${world.name}` : '' }}</template>
               </div>

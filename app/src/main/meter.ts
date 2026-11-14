@@ -28,6 +28,7 @@ import {
   NO_PERSONAL,
   NO_RECORDINGS,
   type Recordings,
+  type TargetMode,
 } from '../shared/meter.ts'
 
 const ASK_TIMEOUT_MS = 5000
@@ -66,10 +67,25 @@ function answer(ev: Record<string, unknown>): void {
 }
 
 /** Tell the engine what the settings say: whether to send the meter, and which target it follows. */
+/**
+ * What the engine's meter follows: the meter's own setting, unless the Unified HUD is showing your
+ * target (it needs your last hit, a player or a boss): then your last hit always, or while a
+ * player is selected (a selection is a player you targeted in the last 30 seconds).
+ */
+const SELECTED_MS = 30_000
+function effectiveMode(): TargetMode {
+  const own = settings.get('meter').targetMode
+  const u = settings.get('unified')
+  if (!u.enabled || !u.target || u.targetMode === 'meter') return own
+  if (u.targetMode === 'always') return 'lastHitByMe'
+  const t = tracker.target()
+  return t && Date.now() - t.at < SELECTED_MS ? 'lastHitByMe' : own
+}
+
 function applySettings(): void {
   const cfg = settings.get('meter')
   command({ cmd: 'meter', on: cfg.enabled })
-  command({ cmd: 'targetMode', mode: cfg.targetMode })
+  command({ cmd: 'targetMode', mode: effectiveMode() })
   command({ cmd: 'buffs', on: settings.get('buffs').enabled || settings.get('buffs').cc })
 }
 
@@ -85,6 +101,16 @@ export function startMeter(): void {
     broadcast('meter:dps', meter)
     for (const fn of meterListeners) fn(meter)
   })
+  // A player selected (or let go): the meter's target follows.
+  let mode = ''
+  const follow = (): void => {
+    const next = effectiveMode()
+    if (next === mode) return
+    mode = next
+    command({ cmd: 'targetMode', mode: next })
+  }
+  tracker.onEvent('target', follow)
+  tracker.onEvent('targetClear', follow)
   tracker.onEvent('ping', (ev) => {
     ping = (ev['ms'] as number | null) ?? null
     meter = { ...meter, ping }
@@ -98,9 +124,9 @@ export function startMeter(): void {
   for (const type of ['details', 'history', 'fight', 'pvpFight', 'recordings']) tracker.onEvent(type, answer)
   // A recording started or stopped: the list again, with it.
   tracker.onEvent('recording', () => void meterState.recordings().then((r) => broadcast('recordings:changed', r)))
-  let last = JSON.stringify([settings.get('meter').enabled, settings.get('meter').targetMode, settings.get('buffs').enabled, settings.get('buffs').cc])
+  let last = JSON.stringify([settings.get('meter').enabled, settings.get('meter').targetMode, settings.get('unified').enabled, settings.get('unified').target, settings.get('unified').targetMode, settings.get('buffs').enabled, settings.get('buffs').cc])
   settings.onChanged((all) => {
-    const now = JSON.stringify([all.meter.enabled, all.meter.targetMode, all.buffs.enabled, all.buffs.cc])
+    const now = JSON.stringify([all.meter.enabled, all.meter.targetMode, all.unified.enabled, all.unified.target, all.unified.targetMode, all.buffs.enabled, all.buffs.cc])
     if (now === last) return
     last = now
     applySettings()

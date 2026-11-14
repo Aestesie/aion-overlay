@@ -22,6 +22,11 @@ const minutes = (list: number[]) => list.map((m) => ({ id: m, label: t('{n} min'
 const COUNTDOWN = [5, 10, 15, 20, 30]
 const STAY = [2, 5, 10, 15, 30]
 const SECONDS = [5, 8, 12, 20, 30]
+const TARGET_MODES = [
+  { id: 'always' as const, label: 'Always' },
+  { id: 'players' as const, label: 'While a player is selected' },
+  { id: 'meter' as const, label: "As the meter is set" },
+]
 const BUTTONS = [
   { id: 'hover' as const, label: 'On hover' },
   { id: 'always' as const, label: 'Always' },
@@ -91,6 +96,9 @@ const BUTTON_ICONS = [
             <SelectBox v-if="cfg.target" size="sm" :model-value="cfg.targetSeconds" :options="SECONDS.map((s) => ({ id: s, label: t('{n} s', { n: s }) }))" @update:model-value="set({ targetSeconds: $event })" />
             <Toggle :model-value="cfg.target" @update:model-value="set({ target: $event })" />
           </div>
+        </SettingRow>
+        <SettingRow v-if="cfg.target" label="Follow my last hit" hint="What the DPS meter follows while this is on: your last hit, a player or a boss, so hitting a player shows at once. This changes the meter overlay too. 'While a player is selected' keeps the meter's own mode otherwise.">
+          <SelectBox size="sm" :model-value="cfg.targetMode" :options="TARGET_MODES.map((o) => ({ id: o.id, label: t(o.label) }))" @update:model-value="set({ targetMode: $event })" />
         </SettingRow>
         <SettingRow label="Kina and Abyss Points" hint="Per hour, to the left of the bar, while they come in. Hidden this long after the last gain.">
           <div class="flex items-center gap-3">

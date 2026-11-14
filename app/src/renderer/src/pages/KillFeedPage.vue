@@ -220,11 +220,11 @@ onBeforeUnmount(() => observer?.disconnect())
           <div
             v-if="target && !cfg.collapsed"
             :class="['flex min-w-0 items-center gap-1.5 px-2.5 py-1.5', cfg.opacity > 0 && 'border-t border-card']"
-            :title="t('Your target: {class}, Lv{level}, gear score {gs}', { class: target.className ?? t('class unknown'), level: target.level, gs: target.gearScore }) + (target.legion ? `, <${target.legion}>` : '')"
+            :title="[t('Your target'), target.className, target.level ? `Lv${target.level}` : null, target.gearScore ? t('gear score {n}', { n: target.gearScore }) : null, target.legion ? `<${target.legion}>` : null].filter(Boolean).join(', ')"
           >
             <ClassIcon :class-name="target.className" :size="20" />
             <span :class="['truncate text-sm font-semibold', target.enemy ? 'text-danger' : 'text-default']">{{ target.name }}</span>
-            <span class="shrink-0 text-[10px] text-yellow">[{{ serverTag(target.server) }}]</span>
+            <span v-if="target.server" class="shrink-0 text-[10px] text-yellow">[{{ serverTag(target.server) }}]</span>
             <span v-if="target.combatPower" class="ml-auto shrink-0 text-xs font-semibold tabular-nums text-yellow">{{ cp(target.combatPower) }}</span>
           </div>
           <TransitionGroup
