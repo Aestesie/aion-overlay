@@ -22,6 +22,10 @@ const minutes = (list: number[]) => list.map((m) => ({ id: m, label: t('{n} min'
 const COUNTDOWN = [5, 10, 15, 20, 30]
 const STAY = [2, 5, 10, 15, 30]
 const SECONDS = [5, 8, 12, 20, 30]
+const TARGET_STYLES = [
+  { id: 'inline' as const, label: 'In the bar' },
+  { id: 'strip' as const, label: 'Two lines under the bar' },
+]
 const TARGET_MODES = [
   { id: 'always' as const, label: 'Always' },
   { id: 'players' as const, label: 'While a player is selected' },
@@ -97,6 +101,9 @@ const BUTTON_ICONS = [
             <SelectBox v-if="cfg.target" size="sm" :model-value="cfg.targetSeconds" :options="SECONDS.map((s) => ({ id: s, label: t('{n} s', { n: s }) }))" @update:model-value="set({ targetSeconds: $event })" />
             <Toggle :model-value="cfg.target" @update:model-value="set({ target: $event })" />
           </div>
+        </SettingRow>
+        <SettingRow v-if="cfg.target" label="Target style" hint="In the bar: one short segment (name, combat power, health, DPS) that covers nothing under the bar, like the game's own target frame. Two lines under the bar: more detail, but it opens over what is below.">
+          <SelectBox size="sm" :model-value="cfg.targetStyle" :options="TARGET_STYLES.map((o) => ({ id: o.id, label: t(o.label) }))" @update:model-value="set({ targetStyle: $event })" />
         </SettingRow>
         <SettingRow v-if="cfg.target" label="Follow my last hit" hint="What the DPS meter follows while this is on: your last hit, a player or a boss, so hitting a player shows at once. This changes the meter overlay too. 'While a player is selected' keeps the meter's own mode otherwise.">
           <SelectBox size="sm" :model-value="cfg.targetMode" :options="TARGET_MODES.map((o) => ({ id: o.id, label: t(o.label) }))" @update:model-value="set({ targetMode: $event })" />

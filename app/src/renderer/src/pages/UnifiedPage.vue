@@ -348,7 +348,7 @@ function report(): void {
 }
 // Measured after each change too, not only by the observer: a hidden window (Alt+Shift+E, an
 // alt-tab) does not run it, and would come back at its old size.
-watch([tools, shown, targetOn, notice, kinaText, abyssText, season, rift, cube, death, () => threats.value.length, () => aliveBosses.value.length, () => upcoming.value.length, () => cfg.value.scale], () => void nextTick(report))
+watch([tools, shown, targetOn, () => cfg.value.targetStyle, notice, kinaText, abyssText, season, rift, cube, death, () => threats.value.length, () => aliveBosses.value.length, () => upcoming.value.length, () => cfg.value.scale], () => void nextTick(report))
 
 let observer: ResizeObserver | null = null
 const offs: (() => void)[] = []
@@ -539,9 +539,32 @@ onBeforeUnmount(() => {
             </div>
           </template>
 
+          <!-- Your target, inline: one short segment, so nothing under the bar is covered. -->
+                    <button
+                      v-if="targetOn && cfg.targetStyle === 'inline'"
+                      type="button"
+                      class="flex h-6 items-center gap-1.5 rounded-lg px-1.5 text-xs"
+                      :title="store.settings.meter.enabled ? '' : t('Click to open the DPS meter')"
+                      @click="targetClick"
+                      @pointerdown.stop
+                    >
+                      <span class="h-4 w-px bg-light" />
+                      <ClassIcon v-if="sheet" :class-name="sheet.className" :size="16" />
+                      <span :class="['max-w-[140px] truncate font-semibold', sheet?.enemy && 'text-red']">{{ sheet?.name ?? meter.target?.name }}</span>
+                      <span v-if="sheet?.combatPower" class="font-semibold tabular-nums text-yellow">{{ cp(sheet.combatPower) }}<span class="font-medium text-darker"> CP</span></span>
+                      <span v-else-if="sheet?.className" class="text-darker">{{ t(sheet.className) }}</span>
+                      <template v-if="fighting && me">
+                        <span v-if="hpShare !== null" class="font-semibold tabular-nums text-red">{{ Math.round(hpShare * 100) }}%</span>
+                        <span class="font-semibold tabular-nums">{{ short(me.dps) }}<span class="font-medium text-darker"> DPS</span></span>
+                      </template>
+                    </button>
+
           <span v-if="ping !== null" class="flex items-center gap-1.5 text-xs font-medium tabular-nums text-dark" :title="t('Your ping to the game server')">
             <span :class="['size-1.5 rounded-full', pingDot]" />{{ ping }} ms
           </span>
+        </div>
+        <div v-if="targetOn && cfg.targetStyle === 'inline' && hpShare !== null" class="h-0.5 bg-light">
+          <div class="h-0.5 bg-danger transition-[width] duration-500 ease-linear" :style="{ width: `${hpShare * 100}%` }" />
         </div>
 
         <!-- A guild event about to start. -->
@@ -556,7 +579,7 @@ onBeforeUnmount(() => {
 
         <!-- What you are hitting: two short lines and a health line. -->
         <button
-          v-if="targetOn"
+          v-if="targetOn && cfg.targetStyle === 'strip'"
           type="button"
           class="block min-w-[380px] whitespace-nowrap border-t border-card text-left"
           :title="store.settings.meter.enabled ? '' : t('Click to open the DPS meter')"

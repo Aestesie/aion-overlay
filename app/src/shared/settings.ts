@@ -153,6 +153,8 @@ export interface Settings {
     ping: boolean
     target: boolean
     targetSeconds: number
+    /** Where your target shows: 'strip' two lines under the bar, 'inline' one short segment in the bar itself (nothing is covered under it). */
+    targetStyle: 'strip' | 'inline'
     /** What the meter follows while it is on: 'always' your last hit, 'players' your last hit while a player is selected, 'meter' as the meter is set. */
     targetMode: 'always' | 'players' | 'meter'
     /** Kina per hour, and Abyss Points per hour, to the left of the bar while they come in (off by default). */
@@ -362,7 +364,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   timerBar: { enabled: true, position: null, opacity: 0.92 },
   unified: {
     enabled: false, position: null, opacity: 0.94, scale: 1, buttons: 'hover',
-    events: true, countdownMinutes: 10, ping: true, target: true, targetSeconds: 8, targetMode: 'always',
+    events: true, countdownMinutes: 10, ping: true, target: true, targetSeconds: 8, targetStyle: 'inline', targetMode: 'always',
     kina: false, abyssRate: false, season: true, earningsMinutes: 10, rift: true, cubes: true, death: true, deathMinutes: 10,
     enemies: true, bosses: true, guild: true, clock: false, odyle: false, runsPinned: false, replace: true,
   },
@@ -541,6 +543,7 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
         ping: bool(v.ping, u.ping),
         target: bool(v.target, u.target),
         targetSeconds: Math.round(num(v.targetSeconds, 3, 60, u.targetSeconds)),
+        targetStyle: v.targetStyle === 'strip' ? 'strip' : 'inline',
         targetMode: v.targetMode === 'players' || v.targetMode === 'meter' ? v.targetMode : 'always',
         kina: bool(v.kina, u.kina),
         abyssRate: bool(v.abyssRate, u.abyssRate),
