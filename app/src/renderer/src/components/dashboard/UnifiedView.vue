@@ -50,7 +50,7 @@ const BUTTON_ICONS = [
 
     <!-- The bar as these settings make it. -->
     <div class="mb-6 flex flex-col items-center gap-2.5 rounded-xl border border-card bg-[#1b2224] px-4 py-5">
-      <div class="flex h-9 items-center gap-2.5 whitespace-nowrap rounded-[14px] border px-2.5" :style="{ ...panelStyle(cfg.opacity), zoom: cfg.scale }">
+      <div class="flex h-9 items-center gap-2.5 whitespace-nowrap rounded-[14px] border px-2.5" :style="{ ...panelStyle(cfg.opacity), textShadow: cfg.opacity < 0.6 ? '0 1px 3px rgb(0 0 0 / 0.9)' : 'none', zoom: cfg.scale }">
         <template v-if="cfg.kina || cfg.season">
           <span v-if="cfg.kina" class="text-xs font-semibold tabular-nums text-yellow">1.72M <span class="font-medium text-darker">Kina/h</span></span>
           <span v-if="cfg.season" class="flex items-center gap-1 text-xs font-semibold tabular-nums text-blue"><img :src="'items/abyss-point.webp'" alt="AP" class="size-4" draggable="false" />12.3k</span>
@@ -147,7 +147,7 @@ const BUTTON_ICONS = [
 
       <Section title="Look">
         <SettingRow label="Opacity">
-          <Slider :model-value="cfg.opacity" :min="0.3" :max="1" :step="0.02" :format="pct" @update:model-value="set({ opacity: $event })" />
+          <Slider :model-value="cfg.opacity" :min="0" :max="1" :step="0.02" :format="pct" @update:model-value="set({ opacity: $event })" />
         </SettingRow>
         <SettingRow label="Size">
           <Slider :model-value="cfg.scale" :min="0.75" :max="1.75" :step="0.05" :format="pct" @update:model-value="set({ scale: $event })" />

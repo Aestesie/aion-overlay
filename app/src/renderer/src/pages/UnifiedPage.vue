@@ -374,8 +374,8 @@ onBeforeUnmount(() => {
   <div class="inline-block w-max">
     <div ref="root" class="inline-block w-max">
       <div
-        class="m-1.5 flex w-max flex-col overflow-hidden rounded-[14px] border text-default"
-        :style="{ ...panelStyle(cfg.opacity), boxShadow: 'none', zoom: cfg.scale }"
+        class="mx-1.5 mb-1.5 mt-0 flex w-max flex-col overflow-hidden rounded-[14px] border text-default"
+        :style="{ ...panelStyle(cfg.opacity), boxShadow: 'none', textShadow: cfg.opacity < 0.6 ? '0 1px 3px rgb(0 0 0 / 0.9), 0 0 2px rgb(0 0 0 / 0.8)' : 'none', zoom: cfg.scale }"
         @pointerenter="enter"
         @pointerleave="leave"
       >

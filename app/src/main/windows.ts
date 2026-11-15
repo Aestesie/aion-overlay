@@ -901,7 +901,7 @@ function unifiedAnchor(): Point {
   const saved = settings.get('unified').position
   if (saved) return saved
   const area = screen.getPrimaryDisplay().workArea
-  return { x: Math.round(area.x + area.width / 2), y: area.y + 8 }
+  return { x: Math.round(area.x + area.width / 2), y: area.y }
 }
 
 /** Open the Unified HUD, unless it is turned off. It shows once its page has measured itself. */

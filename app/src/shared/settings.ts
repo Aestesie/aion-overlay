@@ -533,7 +533,7 @@ export function normalise<K extends SettingKey>(key: K, value: unknown): Setting
       return {
         enabled: bool(v.enabled, u.enabled),
         position: point(v.position),
-        opacity: num(v.opacity, 0.3, 1, u.opacity),
+        opacity: num(v.opacity, 0, 1, u.opacity),
         scale: num(v.scale, 0.75, 1.75, u.scale),
         buttons: v.buttons === 'always' ? 'always' : 'hover',
         events: bool(v.events, u.events),
