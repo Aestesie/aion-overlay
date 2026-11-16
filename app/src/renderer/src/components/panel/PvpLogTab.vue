@@ -159,7 +159,7 @@ const BACKGROUND_HINT = 'At None the text keeps a dark glow, readable on the gam
             <Slider :model-value="store.settings.killFeed.opacity" :min="0" :max="1" :step="0.05" :format="background" @update:model-value="setKillFeed({ opacity: $event })" />
           </SettingRow>
         </template>
-        <SettingRow label="Enemies nearby" hint="Players of the other faction your game has loaded around you, with server, combat power and legion. Hidden while there are none; drag it while this window is open.">
+        <SettingRow label="Enemies nearby" hint="Hostile players your game has loaded around you, those who can fight you: in the Abyss anyone of the other server, of your faction too; elsewhere the other faction with their PvP on. With server, combat power and legion. Hidden while there are none; drag it while this window is open.">
           <Toggle :model-value="store.settings.enemies.enabled" @update:model-value="setEnemies({ enabled: $event })" />
         </SettingRow>
         <template v-if="store.settings.enemies.enabled">
@@ -172,12 +172,7 @@ const BACKGROUND_HINT = 'At None the text keeps a dark glow, readable on the gam
           <SettingRow label="Sound for an enemy" hint="When one comes into view (the same player at most once a minute).">
             <Toggle :model-value="store.settings.enemies.sound" @update:model-value="setEnemies({ sound: $event })" />
           </SettingRow>
-          <template v-if="store.settings.enemies.sound">
-            <SettingRow label="Only enemies with PvP on" hint="The sound only for those who can attack you: with their PvP on, or anyone in the Abyss. The list shows them all, PvP on first, with a PvP mark.">
-              <Toggle :model-value="store.settings.enemies.pvpOnly" @update:model-value="setEnemies({ pvpOnly: $event })" />
-            </SettingRow>
-            <SoundPicker kind="enemy" label="Enemy sound" />
-          </template>
+          <SoundPicker v-if="store.settings.enemies.sound" kind="enemy" label="Enemy sound" />
         </template>
       </div>
     </section>

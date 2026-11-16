@@ -11,6 +11,10 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.3.9',
+    items: ['Enemies nearby lists only hostile players: in the Abyss anyone of the other server, Asmodian vs Asmodian too; elsewhere the other faction with their PvP on (in a rift, Elyos with theirs off are no longer listed).'],
+  },
+  {
     version: '0.3.8',
     items: ['The Spacetime Rift and the daily and weekly resets were an hour off: the rift is now at 2, 5, 8... UTC (17:00 in Buenos Aires) and the resets at 07:00 UTC (04:00 in Buenos Aires).'],
   },

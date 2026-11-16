@@ -1,6 +1,8 @@
 <script setup lang="ts">
-// Enemies nearby: players of the other faction your game has loaded around you (the engine's list,
-// tracker/mod.rs), with their legion and server, and a sound when one comes into view. Clicks go
+// Enemies nearby: hostile players your game has loaded around you, those who can fight you (the
+// engine's list, tracker/mod.rs `hostile`: in the Abyss anyone of another server, Asmodian vs
+// Asmodian too; elsewhere the other faction with their PvP on), with their legion and server, and
+// a sound when one comes into view. Clicks go
 // through to the game; while the dashboard is up it shows a sample, and can be dragged into place.
 // Nothing around you measures 0, and main keeps the window hidden.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -27,13 +29,9 @@ const SAMPLE = computed<Enemy[]>(() => [
 ])
 /** Nobody around while the dashboard is up: a sample to place it by. */
 const preview = computed(() => !store.enemies.length && store.panelVisible)
-/** Can attack you: PvP on, or anyone in the Abyss, where everyone fights. */
-const threat = (e: Enemy): boolean => !!e.pvp || !!e.openPvp
-/** Those who can attack you first. */
-const list = computed(() => (store.enemies.length ? [...store.enemies].sort((a, b) => Number(threat(b)) - Number(threat(a))) : preview.value ? SAMPLE.value : []))
+const list = computed(() => (store.enemies.length ? store.enemies : preview.value ? SAMPLE.value : []))
 
-// An enemy coming into view sounds the alarm (only one who can attack you, unless set otherwise: in
-// the Abyss that is every one): not again for the same player within a minute (they
+// An enemy coming into view sounds the alarm: not again for the same player within a minute (they
 // step in and out of range), and not more than once every 5 s however many arrive.
 const AGAIN_MS = 60_000
 const GAP_MS = 5_000
@@ -43,9 +41,8 @@ watch(
   () => store.enemies,
   (now) => {
     const t = Date.now()
-    const alarming = cfg.value.pvpOnly ? now.filter(threat) : now
-    const fresh = alarming.filter((e) => t - (heard.get(e.name) ?? 0) > AGAIN_MS)
-    for (const e of alarming) heard.set(e.name, t)
+    const fresh = now.filter((e) => t - (heard.get(e.name) ?? 0) > AGAIN_MS)
+    for (const e of now) heard.set(e.name, t)
     if (!fresh.length || !store.ready || !cfg.value.sound || t - lastSound < GAP_MS) return
     lastSound = t
     void playSound('enemy', cfg.value.soundId, cfg.value.volume)
@@ -95,7 +92,6 @@ onBeforeUnmount(() => observer?.disconnect())
           <div v-for="e in list.slice(0, ROWS)" :key="e.entity" class="flex items-baseline gap-1.5 text-[13px]">
             <ClassIcon class="self-center" :class-name="e.className" :size="16" />
             <span class="max-w-[150px] shrink-0 truncate font-medium text-default">{{ e.name }}</span>
-            <span v-if="e.pvp && !e.openPvp" class="shrink-0 self-center rounded bg-red/20 px-1 text-[10px] font-semibold leading-4 text-red" :title="t('Their PvP is on: they can attack you')">PvP</span>
             <span v-if="e.server" class="shrink-0 text-[11px] tabular-nums text-red">[{{ serverTag(e.server) }}]</span>
             <span
               v-if="e.combatPower"

@@ -42,7 +42,7 @@ const pets = new Map<number, Pet>()
 let nearby: Nearby = NO_NEARBY
 /** The Hidden Cubes in view, as the engine last listed them. */
 let cubes: Cube[] = []
-/** Players of the other faction in view, as the engine last listed them. */
+/** Hostile players in view, as the engine last listed them. */
 let enemies: Enemy[] = []
 /** The player you last targeted. */
 let target: TargetPlayer | null = null

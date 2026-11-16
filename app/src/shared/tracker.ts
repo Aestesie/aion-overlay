@@ -66,7 +66,10 @@ export const NO_NEARBY: Nearby = { world: null, position: null, positionAt: null
 /** A pet the collection has no record of yet (seen nearby, or opened from the map). */
 export const blankPet = (id: number): Pet => ({ id, name: null, souls: 0, level: 0, levelEstimated: true, crystals: 0, session: 0 })
 
-/** A player of the other faction in view (the engine's list: in when they load, out when gone). */
+/**
+ * A hostile player in view, one who can fight you (the engine's list: in when they load, out when
+ * gone or their PvP switches off).
+ */
 export interface Enemy {
   entity: number
   name: string
@@ -95,7 +98,7 @@ export interface TargetPlayer {
   combatPower: number | null
   className: string | null
   legion: string | null
-  /** Of the other faction. */
+  /** Hostile: can fight you (as the Enemies list has them). */
   enemy: boolean
   /** When it was targeted (ms since epoch). */
   at: number
