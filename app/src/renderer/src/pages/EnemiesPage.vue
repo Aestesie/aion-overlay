@@ -4,6 +4,7 @@
 // through to the game; while the dashboard is up it shows a sample, and can be dragged into place.
 // Nothing around you measures 0, and main keeps the window hidden.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import AbyssRank from '@/components/AbyssRank.vue'
 import ClassIcon from '@/components/ClassIcon.vue'
 import CollapseButton from '@/components/CollapseButton.vue'
 import { bridge } from '@/lib/bridge.ts'
@@ -22,7 +23,7 @@ const cfg = computed(() => store.settings.enemies)
 
 const ROWS = 8
 const SAMPLE = computed<Enemy[]>(() => [
-  { entity: -1, name: t('Enemy player'), server: 2104, legion: t('Their legion'), pvp: true, combatPower: 123_186, className: 'Assassin' },
+  { entity: -1, name: t('Enemy player'), server: 2104, legion: t('Their legion'), pvp: true, combatPower: 123_186, className: 'Assassin', abyssRank: 6 },
   { entity: -2, name: t('Another one'), server: 2104, legion: null },
 ])
 /** Nobody around while the dashboard is up: a sample to place it by. */
@@ -86,6 +87,7 @@ onBeforeUnmount(() => observer?.disconnect())
             >
               [{{ e.combatPower.toLocaleString('en-US') }}]
             </span>
+            <AbyssRank v-if="e.abyssRank" :rank="e.abyssRank" />
             <span v-if="e.legion" class="ml-auto min-w-0 truncate text-[11px] text-darker">&lt;{{ e.legion }}&gt;</span>
           </div>
         </div>

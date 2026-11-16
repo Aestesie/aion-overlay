@@ -6,6 +6,7 @@
 // each player kill around you slides in under it and falls off after a few seconds, as the HUD's
 // soul lines do. Its skull opens a small map of where you last died.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, toRaw, watch } from 'vue'
+import AbyssRank from '@/components/AbyssRank.vue'
 import ClassIcon from '@/components/ClassIcon.vue'
 import CollapseButton from '@/components/CollapseButton.vue'
 import ResizeGrip from '@/components/ResizeGrip.vue'
@@ -225,7 +226,8 @@ onBeforeUnmount(() => observer?.disconnect())
             <ClassIcon :class-name="target.className" :size="20" />
             <span :class="['truncate text-sm font-semibold', target.enemy ? 'text-danger' : 'text-default']">{{ target.name }}</span>
             <span v-if="target.server" class="shrink-0 text-[10px] text-yellow">[{{ serverTag(target.server) }}]</span>
-            <span v-if="target.combatPower" class="ml-auto shrink-0 text-xs font-semibold tabular-nums text-yellow">{{ cp(target.combatPower) }}</span>
+            <AbyssRank v-if="target.abyssRank" class="ml-auto" :rank="target.abyssRank" />
+            <span v-if="target.combatPower" :class="['shrink-0 text-xs font-semibold tabular-nums text-yellow', !target.abyssRank && 'ml-auto']">{{ cp(target.combatPower) }}</span>
           </div>
           <TransitionGroup
             v-if="lines.length && !cfg.collapsed"

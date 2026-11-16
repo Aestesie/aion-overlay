@@ -457,7 +457,7 @@ impl Tracker {
             "type": "target", "ts": ts, "entity": entity, "name": name, "server": server,
             "level": card.map(|c| c.level).filter(|&l| l > 0), "gearScore": card.map(|c| c.gear_score).filter(|&g| g > 0),
             "combatPower": card.and_then(|c| c.cp), "className": class, "legion": legion, "enemy": enemy,
-            "pvp": pvp, "openPvp": open_pvp,
+            "pvp": pvp, "openPvp": open_pvp, "abyssRank": self.players.get(&entity).and_then(|p| p.abyss_rank),
         }));
     }
 
@@ -637,6 +637,7 @@ impl Tracker {
                         "entity": e.entity, "name": e.name, "server": e.server, "legion": e.legion, "pvp": e.pvp, "openPvp": e.open_pvp,
                         "level": card.map(|c| c.level).filter(|&l| l > 0), "gearScore": card.map(|c| c.gear_score).filter(|&g| g > 0), "combatPower": card.and_then(|c| c.cp),
                         "className": card.and_then(|c| c.class).or_else(|| self.classes.get(&e.entity).copied()),
+                        "abyssRank": e.abyss_rank,
                     })
                 })
                 .collect();

@@ -736,6 +736,8 @@ pub struct Player {
     pub place: Option<(f32, f32)>,
     /// Their combat power, as the game shows it (`spawn_combat_power`).
     pub combat_power: Option<u32>,
+    /// Their Abyss rank, the game's number for it (`spawn_abyss_rank`): the lower the higher.
+    pub abyss_rank: Option<u8>,
     /// Their PvP switched on as they came into view: bit 02 of the fourth byte after the entity.
     /// Set on Coby, Tributação and RazielGT (PvP on, fought), clear on ZergBR and FAT (off): the
     /// owner's 2026-10-26 and 10-28 logs. SophieGreen, Zuharïs and Yamiel came in with it clear and
@@ -782,9 +784,10 @@ pub fn player(frame: &[u8]) -> Option<Player> {
     let class = u32_at(b, end).filter(|&c| roster_class(c).is_some());
     let place = place_at(b, end + 8);
     let combat_power = spawn_combat_power(b, end);
+    let abyss_rank = spawn_abyss_rank(b, end);
     let pvp = at == pos + 5 && b[pos + 3] & 0x02 != 0;
     let open_pvp = at == pos + 5 && b[pos + 4] & 0x10 != 0;
-    Some(Player { entity, name, server, legion, faction, class, place, combat_power, pvp, open_pvp })
+    Some(Player { entity, name, server, legion, faction, class, place, combat_power, abyss_rank, pvp, open_pvp })
 }
 
 /// What every item of a player's gear in their spawn ends with.
@@ -803,6 +806,17 @@ fn unguilded_server(b: &[u8], name_end: usize) -> Option<u16> {
 
 /// The mark the combat power follows in a player's spawn, at its last place after the name.
 const SPAWN_CP_MARK: [u8; 3] = [0xf4, 0xcb, 0x1f];
+
+/// A spawn's Abyss rank: the second u32 after the combat power's mark, 1-19, the lower the higher.
+/// 10 less the stars of an officer: Juve23 5★ 5, Stepawka 4★ 6, SULIMANQ8 3★ 7, Secretofmama
+/// 2★ 8 (the owner's 2026-11-16 19:17 Abyss log). Its 44 players had 5-19, 19 the most (11), the
+/// low ones with the high combat powers: 9 is taken for 1★, 10-19 for soldiers and 1-4 for the
+/// general ranks above, as the game's ranks go.
+fn spawn_abyss_rank(b: &[u8], name_end: usize) -> Option<u8> {
+    let rest = b.get(name_end..)?;
+    let mark = name_end + rest.windows(3).rposition(|w| w == SPAWN_CP_MARK)?;
+    u32_at(b, mark + 3 + 4).filter(|r| (1..=19).contains(r)).map(|r| r as u8)
+}
 
 /// A spawn's combat power: after the last `f4 cb 1f` past the name, two u32, sometimes one more
 /// byte, then the combat power as a u64 (and a byte, mostly 0: 1 and 2 seen too). Taken only when the two readings (with
@@ -1201,6 +1215,15 @@ mod tests {
         // The Abyss: Lag3rth4, PvP off but there to fight (the owner's 2026-10-27 02:23 log).
         let lag = player(&frame(OP_PLAYER, &hex("ce110530a00117084c616733727468340800000002020240"))).unwrap();
         assert_eq!((lag.name.as_str(), lag.pvp, lag.open_pvp), ("Lag3rth4", false, true));
+    }
+
+    #[test]
+    fn a_player_in_view_reads_its_abyss_rank() {
+        // Juve23 (5★ officer) and Secretofmama (2★, in no legion), the 2026-11-16 19:17 Abyss log.
+        let juve = player(&frame(OP_PLAYER, &hex(include_str!("testdata/spawn-juve23.hex")))).unwrap();
+        assert_eq!((juve.name.as_str(), juve.abyss_rank), ("Juve23", Some(5)));
+        let mama = player(&frame(OP_PLAYER, &hex(include_str!("testdata/spawn-secretofmama.hex")))).unwrap();
+        assert_eq!((mama.name.as_str(), mama.abyss_rank), ("Secretofmama", Some(8)));
     }
 
     #[test]

@@ -84,8 +84,21 @@ export interface Enemy {
   gearScore?: number | null
   combatPower?: number | null
   className?: string | null
+  /** Their Abyss rank as the game numbers it (`abyssRank`), from their spawn. */
+  abyssRank?: number | null
   /** Where they were last seen, in the map data's (x, -y), as Nearby gives yours. */
   position?: [number, number] | null
+}
+
+/**
+ * An Abyss rank as the game numbers it, the lower the higher: 5-9 officers, 10 less their stars
+ * (read from the owner's 2026-11-16 log), 1-4 the general ranks above them and 10-19 soldiers, as
+ * the game's ranks go.
+ */
+export function abyssRank(rank: number): { kind: 'general'; name: string } | { kind: 'officer'; stars: number } | { kind: 'soldier' } {
+  if (rank <= 4) return { kind: 'general', name: ['Governor', 'Commander', 'Great General', 'General'][rank - 1]! }
+  if (rank <= 9) return { kind: 'officer', stars: 10 - rank }
+  return { kind: 'soldier' }
 }
 
 /** The player you last targeted: their sheet as the game sends it (`50 36`). */
@@ -101,7 +114,9 @@ export interface TargetPlayer {
   combatPower: number | null
   className: string | null
   legion: string | null
-  /** Of the other faction. */
+  /** Their Abyss rank (`abyssRank`), when their spawn was seen. */
+  abyssRank?: number | null
+  /** Hostile: can fight you (as the Enemies list has them). */
   enemy: boolean
   /** When it was targeted (ms since epoch). */
   at: number

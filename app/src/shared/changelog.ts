@@ -13,6 +13,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '0.3.13',
     items: [
+      "Enemies nearby, the Unified HUD and your target show each player's Abyss rank next to their combat power: an officer's stars (5★), or General and above.",
       'Enemies nearby lists only hostile players: in the Abyss anyone of the other server, Asmodian vs Asmodian too; elsewhere the other faction with their PvP on (in a rift, Elyos with theirs off are no longer listed).',
       'Abyss Points now count from your balance, so corridor kills show (the weekly figure the game sends did not move with them); My skills has an X, and the DPS meter\'s Skills button turns it on and off.',
       'The Unified HUD shows a player the moment you select them (name, class, legion, combat power, gear score), and keeps what it learns of each player between runs; the DPS meter can follow your last hit so hitting a player shows at once.',

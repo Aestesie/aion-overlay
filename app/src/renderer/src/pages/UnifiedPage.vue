@@ -9,6 +9,7 @@
 // under the bar until folded. Moved by dragging the bar; it grows around its top centre, sized to
 // what it shows (main sizes the window to it).
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import AbyssRank from '@/components/AbyssRank.vue'
 import ClassIcon from '@/components/ClassIcon.vue'
 import CubeIcon from '@/components/CubeIcon.vue'
 import PetIcon from '@/components/PetIcon.vue'
@@ -552,6 +553,7 @@ onBeforeUnmount(() => {
                       <ClassIcon v-if="sheet" :class-name="sheet.className" :size="16" />
                       <span :class="['max-w-[140px] truncate font-semibold', sheet?.enemy && 'text-red']">{{ sheet?.name ?? meter.target?.name }}</span>
                       <span v-if="sheet?.combatPower" class="font-semibold tabular-nums text-yellow">{{ cp(sheet.combatPower) }}<span class="font-medium text-darker"> CP</span></span>
+                      <AbyssRank v-if="sheet?.abyssRank" :rank="sheet.abyssRank" />
                       <span v-else-if="sheet?.className" class="text-darker">{{ t(sheet.className) }}</span>
                       <template v-if="fighting && me">
                         <span v-if="hpShare !== null" class="font-semibold tabular-nums text-red">{{ Math.round(hpShare * 100) }}%</span>
@@ -596,6 +598,7 @@ onBeforeUnmount(() => {
                 <template v-if="sheet">
                   {{ [sheet.className ? t(sheet.className) : null, sheet.legion].filter(Boolean).join(' · ') }}
                   <template v-if="sheet.combatPower"> · <span class="font-semibold text-yellow">{{ cp(sheet.combatPower) }}</span> CP</template>
+                  <template v-if="sheet.abyssRank"> · <AbyssRank :rank="sheet.abyssRank" /></template>
                   <template v-if="sheet.gearScore"> · <span class="font-semibold text-dark">{{ sheet.gearScore.toLocaleString('en-US') }}</span> GS</template>
                   <template v-if="sheet.level"> · Lv{{ sheet.level }}</template>
                   <template v-if="sheet.pvp"> · <span class="font-semibold text-red">PvP</span></template>
@@ -672,6 +675,7 @@ onBeforeUnmount(() => {
                 <span class="max-w-[150px] truncate font-medium">{{ e.name }}</span>
                 <span v-if="e.server" class="text-[11px] tabular-nums text-red">[{{ serverTag(e.server) }}]</span>
                 <span v-if="e.combatPower" class="text-[11px] font-semibold tabular-nums text-yellow">[{{ e.combatPower.toLocaleString('en-US') }}]</span>
+                <AbyssRank v-if="e.abyssRank" :rank="e.abyssRank" />
                 <span v-if="e.legion" class="ml-auto min-w-0 truncate pl-3 text-[11px] text-darker">&lt;{{ e.legion }}&gt;</span>
               </div>
             </div>

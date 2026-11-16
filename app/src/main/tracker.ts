@@ -363,6 +363,7 @@ function handleLine(line: string): void {
         combatPower: (ev['combatPower'] as number | null) ?? null,
         className: (ev['className'] as string | null) ?? null,
         legion: (ev['legion'] as string | null) ?? null,
+        abyssRank: (ev['abyssRank'] as number | null) ?? null,
         enemy: ev['enemy'] === true,
         at: Date.now(),
       }
