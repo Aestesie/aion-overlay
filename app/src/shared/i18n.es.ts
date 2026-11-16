@@ -548,6 +548,7 @@ export const ES: Record<string, string> = {
   'The kill feed has a speaker button to mute or unmute the enemy sound.': 'El kill feed tiene un botón de parlante para silenciar o activar el sonido de enemigo.',
   'Only enemies with PvP on': 'Solo enemigos con PvP on',
   'The sound only for those who can attack you: with their PvP on, or anyone in the Abyss. The list shows them all, PvP on first, with a PvP mark.': 'El sonido solo para los que te pueden atacar: con PvP on, o cualquiera en el Abyss. La lista los muestra a todos, primero los que tienen PvP on, con una marca PvP.',
+  'Enemies nearby lists only hostile players: in the Abyss anyone of the other server, Asmodian vs Asmodian too; elsewhere the other faction with their PvP on (in a rift, Elyos with theirs off are no longer listed).': 'Enemigos cerca muestra solo jugadores hostiles: en el Abyss cualquiera del otro servidor, Asmodian contra Asmodian también; en otro lado la otra facción con PvP on (en un rift, los Elyos con PvP off ya no aparecen).',
   'Their PvP is on: they can attack you': 'Tiene el PvP on: te puede atacar',
   'Enemies nearby marks the players with their PvP on and lists them first; the enemy sound plays only for them (a setting on the PvP page).': 'Enemigos cerca marca a los jugadores con PvP on y los muestra primero; el sonido de enemigo suena solo por ellos (se cambia en la página PvP).',
   'South America': 'Sudamérica',

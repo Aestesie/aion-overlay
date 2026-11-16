@@ -409,7 +409,11 @@ impl Tracker {
         steady_cp(card, t.combat_power);
         let cp = card.cp;
         let class = card.class;
-        let enemy = matches!((p::server_faction(t.server), self.my_faction()), (Some(theirs), Some(mine)) if theirs != mine);
+        // As the Enemies list has them when their spawn was seen, else by faction.
+        let enemy = match self.players.values().find(|seen| seen.name == t.name && seen.server == Some(t.server)) {
+            Some(player) => self.hostile(player),
+            None => matches!((p::server_faction(t.server), self.my_faction()), (Some(theirs), Some(mine)) if theirs != mine),
+        };
         (self.emit)(json!({
             "type": "target", "ts": ts, "name": t.name, "server": t.server, "level": t.level,
             "gearScore": t.gear_score, "combatPower": cp, "className": class, "legion": t.legion, "enemy": enemy,
@@ -443,7 +447,11 @@ impl Tracker {
         self.selected_entity = Some(entity);
         let card = server.and_then(|s| self.cards.get(&(name.clone(), s)));
         let class = card.and_then(|c| c.class).or(spawn_class).or_else(|| self.classes.get(&entity).copied());
-        let enemy = matches!((server.and_then(p::server_faction), self.my_faction()), (Some(theirs), Some(mine)) if theirs != mine);
+        // As the Enemies list has them when their spawn was seen, else by faction.
+        let enemy = match self.players.get(&entity) {
+            Some(player) => self.hostile(player),
+            None => matches!((server.and_then(p::server_faction), self.my_faction()), (Some(theirs), Some(mine)) if theirs != mine),
+        };
         let legion = legion.or_else(|| self.legions.get(&entity).cloned());
         (self.emit)(json!({
             "type": "target", "ts": ts, "entity": entity, "name": name, "server": server,
@@ -589,10 +597,31 @@ impl Tracker {
         Some(id)
     }
 
+    /// The server of the character playing.
+    fn my_server(&self) -> Option<u16> {
+        let name = self.store.current.as_ref()?;
+        self.store.characters.get(name)?.server
+    }
+
     /// Your faction, from the server of the character playing.
     fn my_faction(&self) -> Option<u8> {
-        let name = self.store.current.as_ref()?;
-        self.store.characters.get(name)?.server.and_then(p::server_faction)
+        self.my_server().and_then(p::server_faction)
+    }
+
+    /// A player who can fight you. In the Abyss everyone fights, PvP on or not, and since the
+    /// 2026-10-28 pairings the server you share it with may be of your own faction (Asmodian vs
+    /// Asmodian): there, anyone of another server, or of the other faction when theirs is unread.
+    /// Elsewhere (a rift into their land, they into yours) one of the other faction with their PvP
+    /// on: those with it off cannot be fought.
+    fn hostile(&self, player: &p::Player) -> bool {
+        let other_faction = matches!((player.faction, self.my_faction()), (Some(theirs), Some(mine)) if theirs != mine);
+        if player.open_pvp {
+            return match (player.server, self.my_server()) {
+                (Some(theirs), Some(mine)) => theirs != mine,
+                _ => other_faction,
+            };
+        }
+        player.pvp && other_faction
     }
 
     fn enemies_changed(&self, ts: i64) {
@@ -935,12 +964,26 @@ impl Tracker {
             }
             p::OP_PVP_SWITCH => {
                 if let Some((entity, on)) = p::pvp_switch(f) {
-                    if let Some(player) = self.players.get_mut(&entity) {
+                    let player = self.players.get_mut(&entity).map(|player| {
                         player.pvp = on;
-                    }
-                    if let Some(enemy) = self.enemies.get_mut(&entity).filter(|e| e.pvp != on) {
-                        enemy.pvp = on;
-                        self.enemies_changed(ts);
+                        player.clone()
+                    });
+                    // Switching it on makes them a threat, off (out of the Abyss) no more.
+                    match player {
+                        Some(player) if self.hostile(&player) => {
+                            if let Some(place) = player.place.filter(|_| !self.enemies.contains_key(&entity)) {
+                                self.enemy_places.insert(entity, place);
+                            }
+                            if self.enemies.insert(entity, player).map_or(true, |before| before.pvp != on) {
+                                self.enemies_changed(ts);
+                            }
+                        }
+                        _ => {
+                            if self.enemies.remove(&entity).is_some() {
+                                self.enemy_places.remove(&entity);
+                                self.enemies_changed(ts);
+                            }
+                        }
                     }
                 }
             }
@@ -975,7 +1018,7 @@ impl Tracker {
             }
             p::OP_PLAYER => {
                 if let Some(player) = p::player(f) {
-                    let enemy = matches!((player.faction, self.my_faction()), (Some(theirs), Some(mine)) if theirs != mine);
+                    let enemy = self.hostile(&player);
                     if let Some(class) = player.class.and_then(p::roster_class) {
                         self.classes.entry(player.entity).or_insert(class);
                     }
@@ -996,6 +1039,10 @@ impl Tracker {
                             Some(before) if cp_changed || (before.pvp, before.open_pvp) != (player.pvp, player.open_pvp) => self.enemies_changed(ts),
                             Some(_) => {}
                         }
+                    } else if self.enemies.remove(&player.entity).is_some() {
+                        // Their PvP switched off: no threat any more.
+                        self.enemy_places.remove(&player.entity);
+                        self.enemies_changed(ts);
                     }
                     self.players.insert(player.entity, player);
                 }
@@ -1838,13 +1885,50 @@ mod tests {
         assert_eq!(c.cp, Some(171_000));
     }
 
-    /// `45 36` for a player of `faction` (1 Elyos, 2 Asmodian), with no server record: the faction
-    /// byte after the name's u32 says it.
+    /// `45 36` for a player of `faction` (1 Elyos, 2 Asmodian) with their PvP on, out of the Abyss,
+    /// with no server record: the faction byte after the name's u32 says it.
     fn player_frame(entity: u8, name: &str, faction: u8) -> Vec<u8> {
-        let mut body = vec![entity, 0, 0, 0, 0, name.len() as u8];
+        spawn(entity, name, faction, None, true, false)
+    }
+
+    /// `45 36` as `player` reads it: `pvp` bit 02 of the fourth byte after the entity, `abyss` the
+    /// 17 (else 07) before the name's length, and `server` (when given) where a legion's spawn has it.
+    fn spawn(entity: u8, name: &str, faction: u8, server: Option<u16>, pvp: bool, abyss: bool) -> Vec<u8> {
+        let mut body = vec![entity, 0, 0, 0, if pvp { 0x02 } else { 0 }, if abyss { 0x17 } else { 0x07 }, name.len() as u8];
         body.extend(name.as_bytes());
         body.extend([0, 0, 0, 0, faction]);
+        if let Some(server) = server {
+            body.resize(body.len() - 5 + 40, 0);
+            body.extend(server.to_le_bytes());
+            body.extend([0, 0, 0, 0, 0, 0]);
+            body.extend(server.to_le_bytes());
+            body.extend([0; 12]);
+        }
         frame(p::OP_PLAYER, &body)
+    }
+
+    #[test]
+    fn a_hostile_player_is_one_who_can_fight_you() {
+        let (mut t, events) = tracker();
+        // You: Asmodian of 2406.
+        t.frame(1000, &character(5, "Ksix", 2406));
+        // A rift into Elyos land: only those with their PvP on.
+        t.frame(1100, &spawn(40, "Flagged", 1, Some(1406), true, false));
+        t.frame(1200, &spawn(41, "Peaceful", 1, Some(1406), false, false));
+        // An Asmodian of another server out of the Abyss, PvP on or not: no threat.
+        t.frame(1300, &spawn(42, "Visitor", 2, Some(2104), true, false));
+        assert_eq!(enemy_names(&events), vec!["Flagged"]);
+        // Their PvP switched off: off the list; another switching it on in view: on it.
+        t.frame(1400, &frame(p::OP_PVP_SWITCH, &[40, 0]));
+        assert!(enemy_names(&events).is_empty());
+        t.frame(1500, &frame(p::OP_PVP_SWITCH, &[41, 1]));
+        assert_eq!(enemy_names(&events), vec!["Peaceful"]);
+        // The Abyss, paired with an Asmodian server: its players are enemies, PvP on or not; yours are not.
+        t.frame(2000, &frame(p::OP_MAP_LOAD, &[0u8; 28]));
+        t.frame(2100, &spawn(50, "Paired", 2, Some(2104), false, true));
+        t.frame(2200, &spawn(51, "Neighbour", 2, Some(2406), true, true));
+        t.frame(2300, &spawn(52, "Elyos", 1, Some(1301), false, true));
+        assert_eq!(enemy_names(&events), vec!["Elyos", "Paired"]);
     }
 
     fn enemy_names(events: &Arc<std::sync::Mutex<Vec<Value>>>) -> Vec<String> {
