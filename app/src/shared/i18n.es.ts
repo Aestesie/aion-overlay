@@ -556,6 +556,7 @@ export const ES: Record<string, string> = {
   'Governor': 'Gobernador',
   'Commander': 'Comandante',
   'Great General': 'Gran General',
+  "New Target debuffs overlay (off until you turn it on, on the Buffs page): your watched debuffs on the enemy you fight, with the time left on each; one missing or about to run out flashes red, and a chime plays when one drops off.": "Nuevo overlay de debuffs en el objetivo (apagado hasta que lo actives, en la página Buffs): tus debuffs elegidos sobre el enemigo con el que peleás, con el tiempo que le queda a cada uno; uno que falta o está por terminar parpadea en rojo, y suena un chime cuando uno se cae.",
   'Their PvP is on: they can attack you': 'Tiene el PvP on: te puede atacar',
   'Enemies nearby marks the players with their PvP on and lists them first; the enemy sound plays only for them (a setting on the PvP page).': 'Enemigos cerca marca a los jugadores con PvP on y los muestra primero; el sonido de enemigo suena solo por ellos (se cambia en la página PvP).',
   'South America': 'Sudamérica',
